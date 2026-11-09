@@ -20,13 +20,14 @@ Waywr owns project coordination and the user experience. Its core should not own
 a closed catalog of provider/model names. Pi is a comparison, not a selected
 dependency. A third-party execution utility remains an option to evaluate.
 
-The recommended boundary is an execution adapter. Native clients and a shared
-third-party harness are possible implementations behind that same boundary;
-plugins versus a third-party utility are not mutually exclusive choices. Keep
-the existing Rust TUI/service. The completed [bounded adapter decision](execution-adapter-decision.md)
-selects a process interface with an extracted Codex-native bridge first, preserving
-other native paths. This is design, not implemented extensibility. No third-party
-harness is adopted. Do not build a general plugin SDK, marketplace or another loop.
+The target is one shared multi-provider model/execution layer beneath the existing
+Rust TUI/service. The [corrected direction](execution-adapter-decision.md) uses Pi's
+registry/protocol/catalog separation as a reference; no Pi integration is selected.
+A process adapter can separate dependencies from Rust, but wrapping one native
+client is insufficient. The user waived compatibility with existing hardcoded
+integrations/profiles: replace them without parallel legacy-route maintenance.
+Preserve project work/history and execution ownership. Do not build a general
+plugin SDK, marketplace or another agent loop as an incidental workstream.
 
 ### 1. Extensible execution and model selection
 
@@ -51,21 +52,21 @@ harness is adopted. Do not build a general plugin SDK, marketplace or another lo
   Distinguish measured data from estimates and unavailable values. Context
   headroom is not subscription/account quota; avoid invented remaining balances.
 
-**Adapter decision completed before application changes:** public Pi protocol/source
-inspection and current native source favor an external process interface and
-existing native transport first. Pi offers catalog/telemetry/session capabilities;
-its result and isolation integration is additional work. The
-[decision](execution-adapter-decision.md) records the comparison, ownership split
-and first implementation slice. No further utility survey is prescribed.
+**Correction before application changes:** inspect the provider/model library
+separately from a full harness. Pi source composes provider authentication/catalogs
+with shared protocol implementations, normalized events and refreshable metadata.
+Prefer a maintained multi-provider/tool runtime; choose its concrete dependency
+before introducing it. The [direction](execution-adapter-decision.md) records source
+evidence and the first slice. The native-first recommendation is superseded.
 
-Then establish a behavioral red example: configure a locally supplied adapter and
-a model/option absent from Waywr's source, select it for a capability-compatible
-role, and exercise the ordinary preparation/dispatch path without a core rebuild.
-An isolated protocol fixture may prove this boundary; it cannot prove inference,
-authentication, sandboxing or useful work. Existing native profiles and retained
-attempts must keep their semantics. The first implementation delivers one working
-adapter path and useful status, rather than only moving strings into a file.
-Additional provider integrations and a universal plugin framework are excluded.
+Then establish behavioral red for the ordinary save/select/dispatch journey with
+provider/model/option data absent from core. Deliver it through at least two
+provider identities using the shared runtime, including a tool-capable worker,
+visible activity/usage and saved selection on reopen. Fixtures prove their stated
+protocol boundaries only; real inference remains separately authorized. Existing
+profiles need not remain runnable. Retain their work/history and do not replay
+uncertain attempts. Neither a catalog nor a single native wrapper completes this
+milestone. A universal plugin framework is excluded.
 
 ### 2. Fluid application lifecycle
 
@@ -330,10 +331,11 @@ package channels until one installation/update/uninstall route works end to end.
 
 ## Delivery order and bounded checks
 
-1. **Execution boundary.** Follow the completed adapter decision and deliver the
-   new-model-without-core-change journey above. Existing profiles/work remain
-   usable. A fixture proves extensibility only; real native usefulness requires
-   separately authorized ordinary work. No third-party harness is selected yet.
+1. **Shared model/execution layer.** Follow the corrected direction and deliver
+   broad model selection and the multi-provider journey above. Compatibility with
+   existing hardcoded profiles is not required; preserve their work/history.
+   Fixtures prove their stated boundaries only; ordinary model use is separately
+   authorized. No third-party harness or provider library is selected yet.
 2. **Lifecycle fluidity.** Demonstrate detach/reattach and safe update while work
    exists, then complete public installation and owned-file uninstall. Fix actual
    interruptions without expanding orchestration. The four implemented slices

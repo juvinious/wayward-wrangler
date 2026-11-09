@@ -1,5 +1,11 @@
 # Waywr architecture
 
+This maps the current implementation. The [product direction](execution-adapter-decision.md)
+replaces provider/model-specific core integrations with one shared multi-provider
+layer. Current native paths below are not a compatibility requirement for the
+rewrite. Preserve project work and execution ownership; do not treat historical
+provider restrictions as the target architecture. No replacement runtime is selected.
+
 The current Rust TUI/service/runner supports project-scoped conversation, authorized
 development and supervised native workers. Workflow/provider/conversation/context
 work is merged through `799841c` (PR #9). Recovery/convergence and the ordinary-project

@@ -13,9 +13,10 @@
 
 [Usability and installation plan](usability-plan.md#narrowed-product-direction)
 sets the narrowed order: extensible model/execution support, lifecycle fluidity,
-then coordination through a substantial web application. The completed
-[adapter decision](execution-adapter-decision.md) selects an external process
-interface and a Codex-native bridge first; no third-party harness is adopted.
+then coordination through a substantial web application. The corrected
+[shared model-layer direction](execution-adapter-decision.md) targets broad support;
+Pi is an architectural reference, not a selected dependency. Existing hardcoded
+integrations need not remain usable. A Codex-only wrapper is insufficient.
 [Acceptance-driven development](development-approach.md) defines the implementation
 loop; AGENTS.md owns the policy. Work stays on `plan/usability-and-installation`
 with local commits only; the user performs remote delivery. Stopped-project
@@ -51,7 +52,7 @@ publication is separate.
 | [Conversation](conversational-coordination.md) | Request-bound discussion, exact inline approval, questions, steering and source identity |
 | [Distribution](distribution.md) | Versioned private binary installer, real isolated package check, guarded update and GitHub packaging workflows |
 | [Providers](provider-selection.md) | Project roles/preferences, frozen attempts, effort support, switching/fallback and current discovery limits |
-| [Adapter decision](execution-adapter-decision.md) | Completed native/Pi comparison, chosen process boundary and first implementation slice; design only |
+| [Shared model-layer direction](execution-adapter-decision.md) | Source-backed provider/catalog/protocol separation, breadth requirement and superseded native-first recommendation; design only |
 | [Recovery](coordinator-recovery.md) | Typed reconciliation, finding lineage, progress comparison, convergence and verification limits |
 | [Context](context-delivery.md) | Compact working context, exact evidence retrieval/continuation and capacity diagnostics |
 | [Layout](project-layout.md) | Canonical `.waywr` state, identity, migration and evidence preservation |

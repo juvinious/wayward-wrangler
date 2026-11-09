@@ -1,4 +1,4 @@
-# Waywr handoff — adapter decision ready for implementation
+# Waywr handoff — broad model support, no legacy integration requirement
 
 Work remains on `plan/usability-and-installation`, with local commits only.
 Follow [AGENTS.md](../AGENTS.md), the [development approach](development-approach.md)
@@ -8,37 +8,35 @@ then coordination honed through a substantial web application.
 
 ## Current decision and next action
 
-Waywr owns project coordination and the Rust TUI/service experience. Provider/model
-catalogs and options should leave coordinator code. The completed
-[adapter decision](execution-adapter-decision.md) chooses a small external process
-interface and an extracted Codex-native bridge first. Preserve Claude/Ollama paths
-during migration. No third-party harness is adopted; Pi remains an optional adapter
-candidate. Native-first preserves existing logins/control paths but does not itself
-add providers or eliminate adapter maintenance.
+The user corrected the prior decision twice: existing hardcoded integrations need
+not remain usable, and Pi is a reference for breadth/seamlessness, not an adoption
+target. Do not return to a Codex-first wrapper or parallel legacy-route maintenance.
+The [shared model-layer direction](execution-adapter-decision.md) supersedes that
+recommendation; its original rationale is selectively archived there.
 
-Current native source and public Pi documentation/types were compared for model
-configuration, events/usage, authentication, structured results, cancellation,
-sessions and execution boundaries. Pi offers broad metadata and session support;
-matching Waywr result/isolation/ownership requirements needs bridge work. This is
-source evidence only: no utility installation, credential access or inference.
-The decision records its sources and limits. No further utility survey is needed.
+Pi's public source separates provider authentication/catalogs, shared API protocol
+implementations, refreshable metadata, normalized events and an independent agent
+loop. This is the relevant pattern. Prefer a maintained multi-provider/tool runtime
+behind one small boundary beneath the Rust TUI/service. No third-party library or
+harness has been selected or installed. Source inspection made no authenticated
+call and read no credentials. Do not mistake a model list or provider SDK alone for
+complete coding/tool execution.
 
-Next action is behavioral red followed by the complete
-[first implementation slice](execution-adapter-decision.md#first-implementation-slice):
-register/select a supplied adapter and model/option absent from core, save through
-the ordinary profile command path, dispatch through the real service/runner, show
-activity/usage and reopen with the selection intact. Then deliver the native Codex
-bridge through that same path, not a fixture-only endpoint. Finalize JSON field
-names with the red example; do not start another planning phase or general SDK.
+Next action: select the concrete maintained provider/tool runtime from this bounded
+requirement, record the dependency/transport choice, and implement the
+[first slice](execution-adapter-decision.md#first-implementation-slice). Start with
+behavioral red for provider/model/option data absent from core through ordinary
+save/select/dispatch. Deliver the same path across at least two provider identities,
+including a tool-capable worker, visible activity/usage and persisted selection.
+No further open-ended comparison, generic SDK or native-only wrapper milestone.
 
-Use two operations: local bounded description and one frozen request on stdin,
-with normalized JSONL events/terminal outcome on stdout. Reuse runner process-group
-cancellation, positive settlement, validators and receipts. Adapter metadata cannot
-grant execution authority. Freeze bridge/resources and underlying client per
-attempt; new attempts may resolve updates. Preserve old profiles/packets. A fixture
-proves extensibility only; native usefulness requires separately authorized use.
-Lifecycle fluidity and the reference web app follow. Model-independent interfaces
-do not guarantee equal model quality; no provider-specific coordinator forks.
+Existing integration/profile compatibility is explicitly waived. Unsupported old
+configuration may require reconfiguration; keep project work/history and uncertain
+execution evidence intact. Do not auto-redirect or replay old work. Normal execution
+ownership and result validation remain app responsibilities. A protocol fixture
+proves its boundary, not authentication/inference/model quality. Lifecycle fluidity
+and the substantial web app follow; no model-specific coordinator branches. This
+product precept now lives in AGENTS so subsequent tasks must retain the breadth.
 
 ## Implemented baseline and limits
 

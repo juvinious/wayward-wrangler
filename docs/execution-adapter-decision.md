@@ -1,161 +1,109 @@
-# Execution adapter decision
+# Shared provider/model layer
 
-Decision checkpoint, 2026-11-09, against local source `5413780`. This is a design
-decision, not implemented support or native acceptance evidence. It completes the
-bounded comparison in the [product plan](usability-plan.md#narrowed-product-direction).
+Current direction, 2026-11-09. The user corrected the earlier native-first
+recommendation: broad, seamless model support is the requirement. Pi is an
+architectural reference, not a selected application/runtime dependency. This
+supersedes the [native-first decision](archive/provider-selection/2026-11-09-superseded-native-first-adapter.md).
+Application behavior has not changed at this checkpoint.
 
-## Decision
+## Product precept
 
-Use a small external process-adapter interface. Deliver a Codex-native adapter
-first, extracting the existing transport rather than inventing another agent loop.
-Keep existing Claude/Ollama paths operational during migration. Provider/model
-metadata and native options belong to the adapter package/configuration; project
-preferences select them. The coordinator and TUI consume generic capabilities
-and events. New models accepted by that adapter must not require rebuilding Waywr.
+Waywr coordinates projects and work through one shared provider/model layer.
+Provider/model IDs are data, not coordinator branches or role allowlists. A
+provider can expose many models. Adding a model on an implemented protocol must
+require metadata/configuration or catalog refresh, not a core release. A genuinely
+new protocol or authentication method can require an integration module; do not
+promise that arbitrary future APIs work with no code.
 
-Do not adopt Pi as a mandatory runtime now. It remains a credible optional adapter
-after the boundary works. This choice preserves existing client login behavior
-and current execution controls while exposing the extension point. It does not
-deliver more providers by itself or eliminate provider maintenance: that work
-moves to adapters, and a shared-harness adapter could consolidate it later.
+Do not equate wrapping Codex/Claude executables with broad model support. Do not
+preserve those hardcoded paths as a migration requirement: the user explicitly
+waived compatibility with current integrations/profiles. A replacement may make
+old configuration unsupported with a clear explanation. Preserve project files,
+work/history and uncertain execution evidence; do not overwrite them to make
+migration appear seamless. Their retention does not require keeping obsolete
+execution routes functional.
 
-## What the current source establishes
+## What Pi source actually does
 
-| Source owner | Existing behavior and extraction pressure |
+The inspected upstream `main` source separates several responsibilities:
+
+| Layer | Mechanism and lesson for Waywr |
 | --- | --- |
-| `backend/src/provider_selection.rs`: `Preferences::parse`, `efforts`, `schema`, `discover_with` | Fixed provider enum, model-specific effort tables, curated catalog and initial Codex/model check. Manual unknown native IDs already work with default effort, so that alone is not a new extensibility demonstration. |
-| `backend/src/development.rs`: `prepare_native`, `inspect_native`, `finish_native` | Native argv, role/tool rules, structured schemas, provider branches and completion decoding live beside workflow logic. Reuse schemas and validators; extract transport and metadata. |
-| `backend/src/development_claude.rs` | Existing Claude schema output, native tool/sandbox settings, init/model validation and usage/cost extraction. Preserve during incremental migration. |
-| `backend/src/runner.rs`: `execute`, `group_settled` | One attempt/process group, finite stdin, concurrent stdout/stderr draining, cancellation, exit/descendant settlement and receipts. Reuse this host; a detached TUI must not become its owner. |
-| `backend/src/operation.rs`, `provider_selection::packet_authorized` | Frozen operation/client identity and policy checks. Adapter extraction must not reinterpret old packets or turn metadata into execution authority. |
-| `frontend/src/prototype/provider_view.rs`, `development.rs` usage projection | Provider-specific form controls; usage exists in runtime evidence but lacks one coherent normalized live view. Do not claim usage collection is absent. |
+| Provider registry | Providers own authentication, catalogs and model operations. Registration is separate from coordinator decisions. |
+| Protocol implementations | Multiple providers share wire protocols; provider factories compose catalogs, endpoints, authentication and protocol implementations. Breadth does not require a native CLI per model or brand. |
+| Model metadata | Generated catalogs supply defaults; refreshed/cached metadata and user configuration extend or override them. Catalog visibility and authenticated availability are separate. |
+| Unified events | Provider output becomes common text/tool/usage events; UI code does not need a renderer for every model. |
+| Agent loop | Tool execution and continuation sit above model streaming. Changing a model does not require a separate coordinator implementation. |
 
-These observations are source inspection. Prior native help and isolated lifecycle
-checks remain evidence only for their recorded boundaries.
+Primary source evidence: [provider registry and interfaces](https://github.com/earendil-works/pi/blob/main/packages/ai/src/models.ts),
+[built-in composition](https://github.com/earendil-works/pi/blob/main/packages/ai/src/providers/all.ts),
+[OpenRouter protocol composition](https://github.com/earendil-works/pi/blob/main/packages/ai/src/providers/openrouter.ts),
+[catalog overlays/cache refresh](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/src/core/remote-catalog-provider.ts),
+[coding-agent model runtime](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/src/core/model-runtime.ts)
+and [independent agent loop](https://github.com/earendil-works/pi/blob/main/packages/agent/src/agent-loop.ts).
+The [model-library documentation](https://github.com/earendil-works/pi/blob/main/packages/ai/README.md)
+describes its separate package and normalized events. These are public-source
+observations, not local execution, account access or a pinned runtime validation.
 
-## One shared-harness candidate: Pi
+Pi still has provider-specific code and generated catalogs. Its extensibility
+comes from keeping that knowledge below the agent/application layer, with shared
+protocol implementations and configuration. Copying its displayed model list
+would not supply transport, authentication or tool execution.
 
-Reviewed public upstream `main` documentation/types on the date above. The source
-[package manifest](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/package.json)
-reports 1.5.0; this is not an installed/released-version check or
-a pinned runtime evaluation. No installation, login, credential read or model call
-was performed. The table distinguishes documented capability from integration work.
+## Direction for implementation
 
-| Requirement | Current native paths | Pi assessment |
-| --- | --- | --- |
-| New models/options without core releases | Some manual IDs, but efforts/defaults/provider routing are compiled in | User model configuration and provider extensions can supply IDs/options. Strong candidate for delegating catalogs. |
-| Text/tool progress and usage | JSON events and some final usage/cost are captured; projection is fragmented | Shared JSON/RPC events include text/tool lifecycle and reported usage. Context estimates and cost totals are queryable. |
-| Existing authentication | Uses selected native CLI's existing setup | Own OAuth/API-key configuration. Do not assume native CLI accounts transfer automatically. |
-| Structured coordinator/review results | Native schema arguments plus application result/evidence validation | RPC prompt types have no result-schema field. A bridge/extension or strict final-text parser is needed; capability and reliability must be demonstrated. |
-| Cancellation and completion | Runner signals its owned group and checks actual exit/descendants | RPC abort/queue and settled events exist. Their acknowledgments still need mapping to Waywr host settlement. |
-| Session continuity | Waywr stores context; current native attempts are ephemeral | Native session persistence/resume exists. It does not transfer Waywr task ownership or supply exactly-once dispatch. |
-| Task filesystem/network boundaries | Provider-specific restrictions already supplied | Pi explicitly relies on OS/container boundaries for isolation. Matching existing worker controls needs additional integration. |
-| Integration size | Extract one existing per-attempt transport | RPC needs bidirectional process I/O; JSON one-shot mode is closer to the current runner but still needs result/control mapping. |
+Prefer a maintained multi-provider library/runtime behind a small process boundary
+to rebuilding every vendor protocol in Waywr. Evaluate the provider/model layer
+independently of a terminal application or full agent harness. No Pi package or
+other dependency has been selected. Its source demonstrates the separation we
+need; it does not authorize installing that application by assumption.
 
-Evidence: [model configuration](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/models-configuration.md)
-and [extensions](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/extensions.md)
-support the catalog/extension assessment. [JSON events](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/json.md)
-document streaming; [RPC commands](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/rpc-commands.md)
-document usage, queues, abort and sessions. [RPC types](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/src/modes/rpc/rpc-types.ts)
-define prompt fields. [Provider setup](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/providers.md),
-[security boundaries](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/security.md)
-and [CLI modes](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/cli.md)
-support the authentication/isolation/transport observations.
+The existing Rust TUI/service retains project coordination, durable tasks and
+execution ownership. The shared layer supplies provider/model registration,
+configuration/discovery, authentication integration, model-specific options,
+normalized output, tools/session capabilities, cancellation and usage. A provider
+SDK supplies model calls; if it lacks an agent/tool loop, that missing component
+must be explicitly accounted for. Do not disguise a catalog-only SDK as a complete
+coding runtime or accidentally start another custom harness project.
 
-Inference: Pi can reduce model/provider work, but adopting it today also adds
-result, isolation, authentication and lifecycle work before improving the user's
-normal path. The native-first process interface is the smaller complete increment.
-Tool selection is not OS isolation; this is a compatibility requirement, not a
-reason to add repetitive human approval. No broader utility survey is needed.
+Expose searchable provider/model selection, known versus configured/available
+status, metadata provenance, supported options and actionable setup errors. New
+IDs must be configurable even when absent from a cached list. Unknown context,
+usage or cost stays unknown; estimates are labelled. Do not equate context
+headroom with account quota. Support capability differences without hardcoding
+model-name role gates or silently substituting a destination.
 
-## Smallest interface to implement
-
-Two process operations are sufficient for the first version:
-
-1. **Describe:** bounded, local metadata containing protocol version, adapter ID,
-   supported execution capabilities, optional model catalog with provenance, and
-   provider-specific option descriptors/defaults. No login, inference, downloads,
-   server startup or implicit network refresh. An empty catalog is valid; manual
-   IDs stay available. Missing data is unknown, not unsupported by inference.
-2. **Run:** one frozen request on stdin, then EOF; LF-delimited JSON events on
-   stdout and bounded diagnostics on stderr. Events cover text, activity/tools,
-   usage and one terminal completion carrying the proposed structured result or
-   classified failure. Adapter translates native protocol; core validates outcome.
-
-The host launches the selected executable directly with argv, never shell command
-interpolation. Register explicitly installed user adapters; do not auto-execute
-project-supplied scripts. Executable adapters are trusted code, not a sandbox.
-The first adapter should be a standalone Rust executable built from the existing
-transport, with resource metadata; no new Rust dynamic-library ABI or Python
-application runtime. A supplied protocol fixture demonstrates that arbitrary
-adapter IDs work without a compiled provider-enum entry.
-
-The request contains adapter/protocol identity, project/attempt identity, selected
-provider/model IDs, options, instructions/context, result schema and the existing
-execution grant. Host control fields (paths, network/tool grants and executable
-selection) cannot be overridden by model options. Validate options through
-adapter descriptors/probing; do not insert model or effort enums into core.
-Core capabilities describe operations such as structured decisions, read-only
-review and worktree edits; they do not encode provider-brand eligibility.
-
-Freeze the adapter executable/resources, underlying resolved client, effective
-configuration and approved destination for the attempt. New attempts resolve
-normal updated installations. Retained attempts keep old semantics; extraction
-must not re-freeze, redirect or replay them. A mutable adapter command that later
-resolves an unrecorded client is insufficient. Generic capability claims do not
-grant authority or prove enforcement; the native adapter must retain its actual
-tool/sandbox checks and unsupported boundaries must be reported before launch.
-
-Cancellation initially uses the runner's existing owned-process-group signals.
-The bridge keeps children in that supervised boundary, drains pipes and waits;
-it cannot daemonize work and report success. A terminal protocol record alone is
-not settlement. Process exit alone is not task success. Existing result/schema,
-scope, commit/review and host settlement checks continue to govern adoption.
-Missing completion after dispatch retains uncertainty; no automatic resend.
-
-Keep Waywr conversation/task state authoritative. Adapter session handles are
-optional private execution metadata, scoped to the same project/attempt and
-explicit destination grant. Durable session resume is not promised by version1;
-neither a saved session ID nor a new TUI can authorize replay. RPC/interactive
-steering can be added only when the corresponding user journey needs it.
-
-Usage events distinguish per-response cumulative readings from increments and
-identify their source so refreshes cannot double-count. Report input/output/cache
-tokens, cost/currency and context used/capacity when known. Preserve unknowns and
-estimates; cost from catalog pricing is not a billed-account balance. Do not
-persist credentials or hidden reasoning to populate a status display.
+A process interface may isolate language/package choices from Rust; it is a means
+to the shared layer, not the feature being delivered. Keep project ownership,
+structured result validation and live-work settlement, without treating old
+provider-specific settings as permanent compatibility constraints. Existing
+local-only Git, no-operator-install and no-authenticated-call instructions still
+apply; waiving integration compatibility does not change those permissions.
 
 ## First implementation slice
 
-**Outcome:** select a registered adapter, enter a model and native option absent
-from Waywr core, save the project profile and run an approved bounded task through
-the ordinary service/runner path, seeing activity and truthful usage. Reopening
-preserves the selection. Existing native profiles remain usable.
+**Outcome:** browse models grouped by provider, configure/select them through the
+same UI, and execute a bounded development request with progress and reported
+usage through a shared multi-provider path. Coordinator, implementation and review
+use capabilities of that path rather than a fixed brand list.
 
-**Present failure:** profile validation only accepts three providers, unknown
-models only accept default effort, and preparation/event/result handling branches
-on provider names. F3 cannot select arbitrary adapters/options. Ordinary manual
-model entry with default effort is existing behavior, not the red example.
+**Current failure:** Rust contains provider enums, model/effort/default checks,
+provider-specific form controls and native execution branches. A different model
+name with default effort or an externally wrapped Codex command alone does not
+resolve this failure.
 
-**Acceptance:** first use one isolated protocol adapter with a novel adapter ID,
-model ID and declared option. Save/select it through public commands used by F3,
-dispatch through the actual service/runner, observe streamed activity/usage and a
-validated result, then reopen the same project. It must fail on current behavior
-before production changes. Deliver the real Codex bridge through that same path,
-including profile selection and visible status, rather than stop at the fixture.
-The fixture cannot establish authentication, native sandbox behavior or model
-quality; real inference remains separately authorized ordinary use.
+**Acceptance:** before changing behavior, exercise one ordinary save/select/
+dispatch journey with provider/model/option data absent from core. Complete that
+journey through at least two provider identities using the shared runtime and a
+representative tool-capable worker, with visible activity/usage and saved selection
+on reopen. An isolated protocol/HTTP fixture can establish routing and event
+behavior, but not inference, login, provider reliability or model quality. Real
+model use remains separately authorized. Catalog breadth must correspond to an
+implemented request path; a long list alone is not support.
 
-Use focused fault cases for unsupported capability/option before native launch,
-malformed or missing completion, cancellation, changed frozen artifacts and
-retained-profile compatibility. Reuse existing evidence instead of rerunning a
-broad suite. Finalize exact JSON field names with the red example; the two
-operations and ownership split above are the decision, not another planning phase.
-
-Implementation owners: extract one native transport from `development.rs`; add
-adapter registration/description and normalized runner decoding; extend revisioned
-preferences/routing and the existing provider form; carry activity/usage through
-the existing IPC projection; package the native bridge with notices/privacy checks.
-Do not fork the scheduler, introduce a second daemon, upgrade dependencies,
-install Pi, replace remaining native paths, add remote execution or build a plugin
-marketplace. Installer/lifecycle and reference-application phases stay next in order.
+Choose the smallest maintained provider/tool runtime that satisfies this slice;
+record that concrete dependency/transport choice before introducing it. Do not
+restart a broad utility survey or make another native-wrapper milestone. No
+parallel legacy integration maintenance, compatibility shims, plugin marketplace
+or model-specific coordinator branches. Lifecycle fluidity follows, then the
+substantial web application across selected models, per the [product plan](usability-plan.md#narrowed-product-direction).

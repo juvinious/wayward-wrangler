@@ -30,12 +30,22 @@ startup reading list. `CLAUDE.md` points here as the canonical working policy.
 Use [the acceptance-driven development approach](docs/development-approach.md)
 and the current slice in [the usability plan](docs/usability-plan.md).
 
-The plan's narrowed direction is extensible execution/model support, lifecycle
-fluidity, then real-application coordination. Keep provider/model catalogs and
-options out of new coordinator logic. The [adapter decision](docs/execution-adapter-decision.md)
-chooses a small process interface and an extracted Codex-native bridge first.
-No third-party harness is selected. Implement that slice before expanding adapters
-or adding a plugin framework; preserve remaining native paths during migration.
+The product order is broad provider/model support, lifecycle fluidity, then
+coordination through a substantial real application. Follow the
+[shared model-layer direction](docs/execution-adapter-decision.md):
+
+- Keep provider/model IDs, catalogs, defaults and native options outside
+  coordinator logic. New models on supported protocols are data/configuration,
+  not core releases. New protocols/authentication can require integration code.
+- Deliver a shared multi-provider execution path with usable selection, activity
+  and usage. A model list, generic fixture or another Codex/Claude wrapper alone
+  does not satisfy support. Pi is a reference, not a selected dependency.
+- The user waived compatibility with current hardcoded integrations/profiles.
+  Replace them directly; do not maintain parallel legacy routes or shims as a
+  migration goal. Preserve project work/history and actual execution ownership.
+- Use capability-based coordination across selected models. Do not silently
+  narrow later milestones to one brand, add model-specific coordinator branches,
+  or turn developer testing rules into arbitrary product-agent restrictions.
 
 - Start with one user-visible outcome, its present failure, an acceptance example
   and explicit exclusions. Finish that vertical slice before expanding scope.
