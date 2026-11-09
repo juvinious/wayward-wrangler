@@ -11,6 +11,14 @@
 
 ## Current product work
 
+[Usability and installation plan](usability-plan.md) is the current proposal:
+remove per-project application build locks and provider version allowlists, make
+public installation/update/uninstall straightforward, and prove one useful
+ordinary workflow. The user requested removal of existing installations before
+implementation; HANDOFF records that cleanup. The first milestone is using the
+application while iterating: one-command local rebuild/install and continuation
+in the same project. The proposal is not implemented.
+
 [Ordinary project workflow](ordinary-project-workflow.md), [providers](provider-selection.md)
 and [distribution](distribution.md) own the connected increment. The
 [approved plan](archive/product-workflow/approved-plan-b810bf1.md) is archived evidence.
@@ -25,9 +33,10 @@ automated fixtures and hashes from native/GitHub behavior awaiting ordinary use.
 
 [Public-source audit/remediation](security-audit-2026-11-08.md) records patched
 dependencies, generalized public source/docs, MIT licensing, bundle notices and
-privacy/security checks. Dependabot controls are enabled; other GitHub features
-remain restricted or await a pushed workflow. The original history remains private;
-publication needs a clean-snapshot/historical-content decision.
+privacy/security checks. The independent public repository has its own required
+PR/build/security gates and free available security controls. The original history
+remains private in a read-only archive. Source migration is complete; binary release
+publication is separate.
 
 ## Maintained contracts — read when relevant
 

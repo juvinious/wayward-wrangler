@@ -1,31 +1,46 @@
-# Waywr handoff — clean repository baseline
+# Waywr handoff — usability planning and installation cleanup
 
-This standalone source snapshot intentionally excludes the original private Git
-and GitHub history. The original repository and exact runtime evidence remain
-private. There are no inherited private branches, tags, PRs, logs or artifacts.
-The public repository's checked-out HEAD is the new source baseline.
+The current task is planning, not another installation or testing campaign. The
+user rejected per-project application build locks and native-client version
+allowlists, requested removal of lingering installations/temp artifacts, and wants
+a practical install/update/uninstall and ordinary-project experience. Review the
+[usability plan](usability-plan.md) before implementation. No application code has
+changed in this checkpoint, and no project binding was upgraded.
 
-The source incorporates security-fixed dependencies, MIT licensing, required
-upstream notices, generalized source/docs, explicit installer repository selection,
-path-remapped builds and privacy/secret/advisory/CodeQL workflows. See the
-[audit and verification record](security-audit-2026-11-08.md), [security policy](../SECURITY.md)
-and [distribution contract](distribution.md) for exact coverage and limits.
+The first proposed milestone is daily use during development: use the app for a
+real task, edit its source, rebuild/select with one command, reopen the same
+project and continue. Public packaging follows that loop. The user will reassess
+continued investment if normal use keeps requiring manual recovery; additional
+orchestration features and broad test campaigns are not the immediate objective.
 
-The user authorized renaming/archiving the original privately and reusing the
-original repository name for this independent source history. Ongoing work belongs
-to this repository. The historical repository is read-only and receives no future
-source, workflow or dependency updates. Its local remote is retired from active use.
+Public main `085cc6c` built and packaged successfully with privacy checks. Its
+installed TUI and real systemd user service started in an isolated project, with
+no model request. On the user's subsequent cleanup instruction, all 40 user-local
+release directories, the launcher, location registry, empty runtime directory and
+identified Waywr temporary artifacts were removed. Fresh PATH checks find no
+`waywr`, `wayward-wrangler` or `awp`; no Waywr service/process was running at cleanup.
+Source checkouts and project work/history remain. Source-tree build output is
+not an installation. Temporary verification records were disposed of as requested.
 
-The replacement's secret scanning/push protection, Dependabot, private reporting,
-read-only workflow tokens and pinned-action policy are configured independently.
-Main uses required PR/build/security checks, squash-only merge and automatic topic
-branch deletion. The sole maintainer decides when to merge; no second reviewer is
-required. Check actual hosted run results and branch rules before merging work;
-this document is not a substitute for those gates. No release or operator upgrade
-is implied by this source migration.
+Existing project release records still name their old build. They are preserved
+legacy data, not a reason to reinstall that build. The proposed lifecycle must
+open retained projects with the installed app, negotiate storage/IPC capabilities,
+and preserve inspection while unsafe execution awaits reconciliation. Provider
+versions should be diagnostic; execution identity/capability fences remain.
+These changes are proposed, not implemented. Do not run another installer or
+change the preserved project's binding as part of this planning checkpoint.
 
-The accepted Rust/Ratatui application is IPC1.10/state9. Native reliability,
-ordinary-project usability and portability remain experimental. Contracts:
-[workflow](ordinary-project-workflow.md), [providers](provider-selection.md),
-[recovery](coordinator-recovery.md), [context](context-delivery.md).
-Historical public reports are generalized context, not fresh trial authority.
+The independent public repository retains MIT licensing, generalized source/docs,
+patched dependencies and privacy/security checks. The original repository stays
+private, archived and read-only. Hosted main requires PR/build/security checks
+and squash merge; no second reviewer is required. No paid security feature or
+subscription was enabled. The [baseline handoff](archive/handoff/2026-11-09-clean-repository-baseline.md)
+and [audit record](security-audit-2026-11-08.md) retain migration/security context.
+No public binary release was published by this task.
+
+The implemented Rust/Ratatui application remains IPC1.10/state9. Native reliability
+and full ordinary-project usability remain experimental. Current contracts:
+[workflow](ordinary-project-workflow.md), [distribution](distribution.md),
+[providers](provider-selection.md), [recovery](coordinator-recovery.md) and
+[context](context-delivery.md). Next action: user review of the proposed use cases,
+lifecycle strategy and delivery order; then implementation within that agreed scope.

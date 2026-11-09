@@ -16,6 +16,7 @@ See [cleanup outcome](closeout-2026-10-15/cleanup.md). No allowance is reopened.
 
 | Group | Historical subject |
 | --- | --- |
+| [Clean repository baseline](handoff/2026-11-09-clean-repository-baseline.md) | Independent public source migration and GitHub safeguards before usability planning and operator-install cleanup |
 | [Post-merge workflow handoff](handoff/2026-10-18-merged-workflow-before-public-audit.md) | Pre-audit handoff from `532e999`; relative links resolve from its original `docs/HANDOFF.md` location |
 | [Ordinary project approved plan](product-workflow/approved-plan-b810bf1.md) | Approved `b810bf1` scope; implemented mechanisms are in current workflow/provider/distribution contracts, with native/GitHub limits retained |
 | [Prior workflow-readiness handoff](product-workflow/2026-10-18-prior-handoff-d1dda24.md), [prior readiness/example](product-workflow/2026-10-18-readiness-and-example.md) | Preserved unmerged recovery/convergence checkpoint, unresolved managed-project question and superseded Example Task App operating guidance before ordinary-project planning |
