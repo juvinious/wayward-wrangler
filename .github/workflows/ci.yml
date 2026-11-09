@@ -41,6 +41,7 @@ jobs:
           cargo test --locked -p waywr --lib ordinary_
           cargo test --locked -p waywr-backend --lib only_exact_proven_builtin_pair_is_allowed_without_enabling_skills_or_tools
           cargo test --locked -p waywr --bin waywr release_guard
+          cargo test --locked -p waywr --bin waywr handover_checks
       - name: Build installable bundle
         run: scripts/package-release.sh v0.0.0-ci.${GITHUB_SHA} /tmp/waywr-artifacts
       - name: Real archive installation and idle TUI startup

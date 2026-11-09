@@ -38,7 +38,11 @@ def main():
                         help='Use real F3 terminal input to select a model at the end of the catalog and save it in the fixture')
     parser.add_argument('--systemd-handover', action='store_true',
                         help='Use real uniquely keyed user units; replace a still-running idle service')
+    parser.add_argument('--portable', action='store_true',
+                        help='Use a temporary symlink directly to paired bundles, without bundle-install')
     args = parser.parse_args()
+    if args.portable and not args.systemd_handover:
+        parser.error('--portable requires --systemd-handover to exercise ordinary service replacement')
     binaries = args.binaries.resolve()
     source = Path(__file__).resolve().parent.parent
     for name in ['waywr', 'waywr-service', 'waywr-runner']:
@@ -77,14 +81,22 @@ def main():
         prefix = root / 'home/.local/share/wayward-wrangler'
         launcher = root / 'home/.local/bin/waywr'
         releases = ['reopen-before', 'reopen-after']
+        if args.portable:
+            launcher = root / 'local-bin/waywr'
+        def release_root(release):
+            return root / release if args.portable else prefix / 'releases' / release
         for release in releases:
             bundle = root / release
             run([binaries / 'waywr', 'bundle-build', '--release-id', release,
                  '--output', bundle, '--source-root', source,
                  '--frontend', binaries / 'waywr', '--service', binaries / 'waywr-service',
                  '--runner', binaries / 'waywr-runner'])
-        run([binaries / 'waywr', 'bundle-install', '--bundle', root / releases[0],
-             '--prefix', prefix, '--select-default'])
+        if args.portable:
+            launcher.parent.mkdir()
+            launcher.symlink_to(release_root(releases[0]) / 'bin/waywr')
+        else:
+            run([binaries / 'waywr', 'bundle-install', '--bundle', root / releases[0],
+                 '--prefix', prefix, '--select-default'])
         initialized = json.loads(run([launcher, 'init', project]))
         state = Path(initialized['state'])
         if args.retired_profiles:
@@ -107,7 +119,7 @@ def main():
         if args.provider_navigation:
             assert len(catalog) > 16, 'SDK catalog must exercise navigation beyond the former preview'
             selected_provider, selected_model = catalog[-2].split(' · context ', 1)[0].split('/', 1)
-            metadata = subprocess.run([node, str(prefix / 'releases' / releases[0] / 'resources/model-runtime/bridge.mjs'), 'describe'],
+            metadata = subprocess.run([node, str(release_root(releases[0]) / 'resources/model-runtime/bridge.mjs'), 'describe'],
                                       input='{}', capture_output=True, text=True, env=env, timeout=15, check=True)
             model = next(m for m in json.loads(metadata.stdout)['models'] if m['provider'] == selected_provider and m['model'] == selected_model)
             selected_thinking = model['thinking_levels'][-1]
@@ -142,7 +154,7 @@ def main():
 
         def start_service(release):
             nonlocal service
-            installed = prefix / 'releases' / release
+            installed = release_root(release)
             log = open(root / (release + '.log'), 'wb')
             try:
                 service = subprocess.Popen(list(map(str, [installed / 'bin/waywr-service',
@@ -168,6 +180,12 @@ def main():
             return run(['systemctl', '--user', 'show', '--property=' + name, '--value', unit]).strip()
 
         def replace_install():
+            if args.portable:
+                next_link = launcher.with_name('waywr.next')
+                next_link.symlink_to(release_root(releases[1]) / 'bin/waywr')
+                os.replace(next_link, launcher)
+                shutil.rmtree(root / releases[0])
+                return
             run([binaries / 'waywr', 'bundle-install', '--bundle', root / releases[1],
                  '--prefix', prefix, '--select-default'])
             shutil.rmtree(prefix / 'releases' / releases[0])
@@ -299,6 +317,7 @@ def main():
                 assert saved_draft() == draft
                 assert not list(state.rglob('spawn-committed.json'))
                 print(json.dumps({'real_systemd_bootstrap_and_idle_handover': True,
+                                  'portable_bundle_symlink': args.portable,
                                   'catalog_navigation_saved_and_reopened': args.provider_navigation,
                                   'thinking_level_saved_and_reopened': args.provider_navigation,
                                   'live_ui_pending_delivery_and_uncertain_launch_preserved': True,

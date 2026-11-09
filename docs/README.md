@@ -37,6 +37,8 @@ and [distribution](distribution.md) own the connected increment. The
 hints and the complete searchable provider/model picker. The
 Thinking selector uses per-model runtime metadata; F3 and the main header show
 the model/level, with draft and active bindings distinguished. The
+idle-service handover also supports a direct temporary paired-bundle symlink,
+with exact process/socket/project checks and preserved busy-owner refusals. The
 [approved plan](archive/product-workflow/approved-plan-b810bf1.md) is archived evidence.
 It builds on preserved recovery/convergence, not older main.
 The [repository cleanup record](repository-cleanup-2026-10-18.md) records both repository-only cleanups, PR/tree proof, former tips and preserved

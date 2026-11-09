@@ -45,6 +45,9 @@ Use `/exit` to save/pause and close the TUI. From the Waywr source checkout,
 repeat `sh scripts/dev-install.sh` after a local application change. Then return
 to the same project and run `waywr` again. `waywr --version` shows the new generated
 artifact ID. No manual bundle IDs, rebinding or project upgrade command is needed.
+When testing a paired bundle through the ignored project-local symlink instead,
+detach the existing TUI and relaunch that symlink after it is refreshed. Idle
+handover supports this portable layout without a global installation.
 Conversation, settings, draft/work and intentional pause should remain. Resume
 only when you intend to restart dispatch.
 

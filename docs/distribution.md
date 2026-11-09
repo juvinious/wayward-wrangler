@@ -49,6 +49,12 @@ record supplies project identity/diagnostics, not an executable dependency. The
 installed bundle's hashes, storage schema and retained semantic contracts remain
 checked. An idle running service can be replaced under exact owner/quiescence checks;
 attached views, pending delivery and uncertain launches preserve its owner.
+This also works for a manifest-validated paired bundle launched directly through
+a temporary/project-local symlink; an installed releases directory is not
+required. Handover verifies the old unit's real executable (including a deleted
+old file), exact project/state/key/release/IPC/runner/frontend command, socket
+peer PID and project snapshot, then applies the existing quiescence fence. It
+does not locate the old service by guessing a sibling installation directory.
 Explicit `waywr --project DIR session upgrade --release ID` checks closed UI/no pending
 input and positively settled operations, stops only that quiescent project service
 under execution fencing, then performs the existing guarded binding migration. PR delivery reconciles the exact
@@ -117,6 +123,10 @@ start and replace only its own uniquely keyed unit. It removes the old installat
 while the service runs, checks refusal for a live TUI, pending input and uncertain
 launch evidence, then verifies a new process/generation restores the saved draft.
 This establishes idle handover, not interruption or resumption of active model work.
+Adding `--portable` uses a temporary local-bin symlink directly to the paired
+bundles without installing them. That real-systemd variant reproduces the local
+development path and checks the same busy/uncertain-owner refusals and idle
+replacement after removal of the old bundle.
 
 `python3 scripts/test-dev-install.py` runs two actual builds/installations with an
 explicit temporary prefix (including spaces) and the permanent Rust toolchain. It

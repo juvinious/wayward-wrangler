@@ -153,7 +153,26 @@ fn service_command(root:&Path,ready:&Ready)->Vec<String>{
     if !ready.herdr.as_os_str().is_empty(){command.extend(["--herdr-socket".into(),ready.herdr.to_string_lossy().into_owned()]);}
     command
 }
-fn handover_idle_service(root:&Path,ready:&Ready)->io::Result<()> {
+// Locate the previous pair from the exact running command, independent of the
+// new bundle's installation layout. /proc still identifies a deleted old ELF.
+fn previous_service_root(ready:&Ready,prior:&str,arguments:&[u8],executable:&Path)->io::Result<PathBuf>{
+    let argv0=arguments.split(|b|*b==0).next().filter(|s|!s.is_empty())
+        .ok_or_else(||err("Previous service command is empty; service preserved"))?;
+    let service=Path::new(std::ffi::OsStr::from_bytes(argv0));
+    let root=service.parent().filter(|p|p.file_name().is_some_and(|name|name=="bin"))
+        .and_then(Path::parent).filter(|_|service.is_absolute()&&service.file_name().is_some_and(|name|name=="waywr-service"))
+        .ok_or_else(||err("Previous service has no paired executable path; service preserved"))?;
+    let deleted=[argv0,b" (deleted)"].concat();
+    if executable.as_os_str().as_bytes()!=argv0 && executable.as_os_str().as_bytes()!=deleted{
+        return Err(err("Previous service executable differs from its command; service preserved"));
+    }
+    let mut previous=ready.clone();previous.release=prior.into();
+    let expected=service_command(root,&previous);
+    let expected=expected.iter().flat_map(|s|s.as_bytes().iter().copied().chain([0])).collect::<Vec<_>>();
+    if arguments!=expected{return Err(err("Previous service command differs from this project; service preserved"));}
+    Ok(root.to_path_buf())
+}
+fn handover_idle_service(ready:&Ready)->io::Result<()> {
     use std::os::fd::AsRawFd;
     let owner=read(&ready.state.join("supervision/owner.json")).map_err(err)?;
     let prior=owner["release_id"].as_str().ok_or_else(||err("Service owner release missing"))?;
@@ -162,17 +181,13 @@ fn handover_idle_service(root:&Path,ready:&Ready)->io::Result<()> {
         !prior.bytes().all(|b|b.is_ascii_alphanumeric()||b"._-".contains(&b)) || prior.starts_with('.'){
         return Err(err("Previous service ownership is invalid; service preserved"));
     }
-    let catalog=root.parent().filter(|p|p.file_name().is_some_and(|p|p=="releases"))
-        .ok_or_else(||err("Service replacement requires an installed paired application"))?;
-    let mut previous=ready.clone();previous.release=prior.into();
     let pid=Command::new("systemctl").args(["--user","show","--property=MainPID","--value",&ready.unit]).output()?;
     if !pid.status.success(){return Err(err("Cannot verify previous service owner"));}
     let pid:u32=String::from_utf8_lossy(&pid.stdout).trim().parse().map_err(err)?;
     if pid<=1{return Err(err("Previous service has no verifiable main process; service preserved"));}
     let arguments=fs::read(format!("/proc/{pid}/cmdline"))?;
-    let expected=service_command(&catalog.join(prior),&previous);
-    let expected=expected.iter().flat_map(|s|s.as_bytes().iter().copied().chain([0])).collect::<Vec<_>>();
-    if arguments!=expected{return Err(err("Previous service command differs from this project; service preserved"));}
+    let executable=fs::read_link(format!("/proc/{pid}/exe"))?;
+    previous_service_root(ready,prior,&arguments,&executable)?;
     let mut peer=session(ready.ipc.to_str().ok_or_else(||err("Non-UTF8 IPC path"))?,&ready.key,prior,"command")?;
     let mut creds:libc::ucred=unsafe{std::mem::zeroed()};
     let mut size=std::mem::size_of::<libc::ucred>() as libc::socklen_t;
@@ -214,7 +229,7 @@ fn ensure_service(root:&Path,ready:&Ready)->io::Result<()> {
         if matches!(state.as_str(),"inactive"|"failed"){break;}
         if state=="active" && request_service(ready,"session.status",json!({})).is_ok(){return Ok(());}
         if state=="active"{
-            handover_idle_service(root,ready)?;
+            handover_idle_service(ready)?;
             if matches!(unit_state(&ready.unit)?.as_str(),"inactive"|"failed"){break;}
         }
         if Instant::now()>=deadline{return Err(io::Error::new(io::ErrorKind::TimedOut,format!("Project service {} did not settle; inspect its journal",ready.unit)));}
@@ -504,6 +519,27 @@ pub fn backend_info(root:&Path,manifest:&Value)->io::Result<()> {
 #[cfg(test)]
 mod registry_tests {
     use super::*;
+    #[test]
+    fn handover_checks_actual_executable_and_exact_project_command_for_portable_pairs(){
+        let ready=Ready{project:"/fixture/project".into(),state:"/fixture/project/.waywr/state".into(),key:"a".repeat(32),
+            release:"new-build".into(),ipc:"/fixture/run/project.sock".into(),herdr:PathBuf::new(),unit:"fixture.service".into()};
+        let mut previous=ready.clone();previous.release="old-build".into();
+        let root=Path::new("/fixture/temporary-pair");
+        let command=service_command(root,&previous);
+        let arguments=command.iter().flat_map(|s|s.as_bytes().iter().copied().chain([0])).collect::<Vec<_>>();
+        let executable=root.join("bin/waywr-service");
+        assert_eq!(previous_service_root(&ready,"old-build",&arguments,&executable).unwrap(),root);
+        let deleted=PathBuf::from(format!("{} (deleted)",executable.display()));
+        assert_eq!(previous_service_root(&ready,"old-build",&arguments,&deleted).unwrap(),root);
+        assert!(previous_service_root(&ready,"old-build",&arguments,Path::new("/fixture/unrelated-program")).is_err());
+        let mut other=ready.clone();other.project="/fixture/other-project".into();
+        assert!(previous_service_root(&other,"old-build",&arguments,&executable).is_err());
+        other=ready.clone();other.state="/fixture/other-state".into();
+        assert!(previous_service_root(&other,"old-build",&arguments,&executable).is_err());
+        other=ready.clone();other.ipc="/fixture/run/other.sock".into();
+        assert!(previous_service_root(&other,"old-build",&arguments,&executable).is_err());
+        assert!(previous_service_root(&ready,"wrong-build",&arguments,&executable).is_err());
+    }
     #[test]fn normal_init_has_live_profile_without_seeded_requests_or_fake_workflow(){
         let d=tempfile::tempdir().unwrap();init_project(d.path()).unwrap();let root=d.path().join(".waywr");let p=read(&root.join("coordinator.json")).unwrap();assert_eq!(p["schema_version"],2);assert_eq!(p["coordinator"],"codex");assert!(!root.join("workflow.toml").exists());assert!(!root.join("state/state.sqlite").exists());
         let conflict=tempfile::tempdir().unwrap();fs::create_dir(conflict.path().join(".waywr")).unwrap();fs::write(conflict.path().join(".waywr/unrelated"),"preserve").unwrap();assert!(init_project(conflict.path()).is_err());assert!(!conflict.path().join(".waywr/project.toml").exists());
