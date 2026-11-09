@@ -133,8 +133,8 @@ pub(super) fn host_attempts_quiescent(state:&Path,key:&str)->io::Result<()> {
     visit(&state.join("session/development"),state,key)?;
     visit(&state.join("runs"),state,key)
 }
-/// Explicit upgrade only: stop a positively quiescent selected service under execution fencing.
-fn stop_quiescent_project(project:&Path,state:&Path,key:&str)->io::Result<()> {
+/// Stop only a positively quiescent selected service under execution fencing.
+pub(super) fn stop_quiescent_project(project:&Path,state:&Path,key:&str)->io::Result<()> {
     let _execution=FileLock::exclusive(&state.join("supervision/fence.lock")).map_err(err)?;
     if state.join("state.sqlite").exists(){Session::open_existing(project,state,key,"upgrade-preflight").map_err(err)?.quiescent_for_release_change().map_err(err)?;host_attempts_quiescent(state,key)?;}
     let unit=format!("waywr-{key}.service");let status=Command::new("systemctl").args(["--user","show","--property=ActiveState","--value",&unit]).output()?;

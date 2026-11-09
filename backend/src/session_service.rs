@@ -784,6 +784,8 @@ impl Service {
     }
     fn attach_direct(&self,pid:u32,payload:&Value)->Result<Value,String>{
         let _guard=self.attach_gate.lock().map_err(|e|e.to_string())?;
+        // Serialize new UI claims with the launcher's quiescent service handover.
+        let _execution=FileLock::exclusive(&self.session.workflow.state.join("supervision/fence.lock"))?;
         let executable=fs::read_link(format!("/proc/{pid}/exe")).map_err(|e|e.to_string())?;
         if executable!=fs::canonicalize(&self.config.frontend).map_err(|e|e.to_string())?{
             return Err("Invoking process is not the bound Waywr release".into());

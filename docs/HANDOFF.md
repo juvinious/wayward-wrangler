@@ -17,8 +17,8 @@ installation is removed, without routing to it or rebinding project metadata.
 Startup validates the installed bundle, project identity, storage range and
 retained semantic markers. Repeated init and offline status use the current app;
 legacy release metadata stays unchanged. IPC release/owner and native execution
-fences remain enforced. Live service handover and provider version gates are not
-fixed by this slice.
+fences remain enforced. The first slice did not include live service handover or provider changes;
+the second slice's idle handover is recorded below.
 
 Acceptance evidence: `python3 scripts/test-project-reopen.py` initially failed with
 `No such file or directory` before the replacement TUI could open. After the fix,
@@ -43,12 +43,20 @@ retains cleanup and repository-security context.
 
 The source builds and starts its TUI/service. Exact project build routing is
 removed for compatible stopped-project opening; provider version allowlists and
-cross-build running-service attachment remain implemented limitations.
+cross-build attachment to a busy service remain implemented limitations.
 Public release/download usability and reliable ordinary work are not established.
 The private historical repository remains read-only; no paid features were enabled.
 
-Next authorized action: define and observe the regression for opening with a
-still-running idle service from the previous build, then implement that bounded
-handover slice. Do not force-stop/replay active or uncertain work. Provider changes
-and the one-command local installer follow separately. Local commits only; no
-operator installation, preserved-project modification or authenticated model calls.
+Second slice: real-systemd idle handover is implemented. Its initial red result
+was a timeout waiting for the old build's active service to settle. The launcher
+now proves the prior unit process/argv and IPC peer, then reuses the existing
+quiescent stop under startup/execution fences. UI claim registration shares that
+fence. The real-systemd regression passes idle replacement with the old files
+removed and preserves the owner for live views, pending input and uncertain launch
+evidence. It uses only a temporary project, HOME and uniquely keyed unit; cleanup
+removes the unit and all fixture files. No model or operator operation is involved.
+
+Next authorized action: acceptance-first provider client updates, retaining
+per-attempt executable identity and actual interface/tool/sandbox checks. Then
+implement the one-command local build/install flow. Local commits only; no operator
+installation, preserved-project changes or authenticated model calls.

@@ -158,6 +158,51 @@ fn service_command(root:&Path,ready:&Ready)->Vec<String>{
     if !ready.herdr.as_os_str().is_empty(){command.extend(["--herdr-socket".into(),ready.herdr.to_string_lossy().into_owned()]);}
     command
 }
+fn handover_idle_service(root:&Path,ready:&Ready)->io::Result<()> {
+    use std::os::fd::AsRawFd;
+    let owner=read(&ready.state.join("supervision/owner.json")).map_err(err)?;
+    let prior=owner["release_id"].as_str().ok_or_else(||err("Service owner release missing"))?;
+    if prior==ready.release{return Ok(());}
+    if owner["project_key"]!=ready.key || prior.is_empty() || prior.len()>64 ||
+        !prior.bytes().all(|b|b.is_ascii_alphanumeric()||b"._-".contains(&b)) || prior.starts_with('.'){
+        return Err(err("Previous service ownership is invalid; service preserved"));
+    }
+    let catalog=root.parent().filter(|p|p.file_name().is_some_and(|p|p=="releases"))
+        .ok_or_else(||err("Service replacement requires an installed paired application"))?;
+    let mut previous=ready.clone();previous.release=prior.into();
+    let pid=Command::new("systemctl").args(["--user","show","--property=MainPID","--value",&ready.unit]).output()?;
+    if !pid.status.success(){return Err(err("Cannot verify previous service owner"));}
+    let pid:u32=String::from_utf8_lossy(&pid.stdout).trim().parse().map_err(err)?;
+    if pid<=1{return Err(err("Previous service has no verifiable main process; service preserved"));}
+    let arguments=fs::read(format!("/proc/{pid}/cmdline"))?;
+    let expected=service_command(&catalog.join(prior),&previous);
+    let expected=expected.iter().flat_map(|s|s.as_bytes().iter().copied().chain([0])).collect::<Vec<_>>();
+    if arguments!=expected{return Err(err("Previous service command differs from this project; service preserved"));}
+    let mut peer=session(ready.ipc.to_str().ok_or_else(||err("Non-UTF8 IPC path"))?,&ready.key,prior,"command")?;
+    let mut creds:libc::ucred=unsafe{std::mem::zeroed()};
+    let mut size=std::mem::size_of::<libc::ucred>() as libc::socklen_t;
+    if unsafe{libc::getsockopt(peer.as_raw_fd(),libc::SOL_SOCKET,libc::SO_PEERCRED,
+        (&raw mut creds).cast(),&mut size)}!=0 || creds.pid<=0 || creds.pid as u32!=pid{
+        return Err(err("Project socket and service process differ; service preserved"));
+    }
+    let snapshot=request(&mut peer,"snapshot","handover-inspect",json!({}))?;
+    if snapshot.kind!="snapshot"||snapshot.body["project_key"]!=ready.key{
+        return Err(err("Previous service did not prove this project's state; service preserved"));
+    }
+    drop(peer);
+    super::rust_maintenance::stop_quiescent_project(&ready.project,&ready.state,&ready.key)
+        .map_err(|error|err(format!("Application update waits for this project to be idle: {error}. Existing service and work are preserved")))?;
+    // Owned units are transient --collect units. Never rewrite a persistent or
+    // unrelated definition to make a replacement fit.
+    let deadline=Instant::now()+Duration::from_secs(5);
+    loop{
+        let loaded=Command::new("systemctl").args(["--user","show","--property=LoadState","--value",&ready.unit]).output()?;
+        if loaded.status.success()&&String::from_utf8_lossy(&loaded.stdout).trim()=="not-found"{break;}
+        if Instant::now()>=deadline{return Err(err("Idle service stopped but its unit is still loaded; project state preserved"));}
+        thread::sleep(Duration::from_millis(50));
+    }
+    Ok(())
+}
 fn ensure_service(root:&Path,ready:&Ready)->io::Result<()> {
     let lock_path=ready.state.join("session/start.lock");
     let lock_deadline=Instant::now()+Duration::from_secs(10);
@@ -173,6 +218,10 @@ fn ensure_service(root:&Path,ready:&Ready)->io::Result<()> {
         let state=unit_state(&ready.unit)?;
         if matches!(state.as_str(),"inactive"|"failed"){break;}
         if state=="active" && request_service(ready,"session.status",json!({})).is_ok(){return Ok(());}
+        if state=="active"{
+            handover_idle_service(root,ready)?;
+            if matches!(unit_state(&ready.unit)?.as_str(),"inactive"|"failed"){break;}
+        }
         if Instant::now()>=deadline{return Err(io::Error::new(io::ErrorKind::TimedOut,format!("Project service {} did not settle; inspect its journal",ready.unit)));}
         thread::sleep(Duration::from_millis(100));
     }

@@ -161,7 +161,8 @@ installation and atomic default selection. `rust_runtime.rs`, `main.rs` and
 explicit guarded migration/rollback. Ordinary startup no longer routes through
 an old executable named in project release metadata. Compatible stopped projects
 reopen with the selected paired application; a running service still enforces
-its own release/owner identity. Live handover across builds is unfinished. Installed
+its own release/owner identity. Idle services hand over under startup/execution fences after exact ownership and
+quiescence checks; busy or uncertain work is preserved. Installed
 bundles are independent of this source checkout. The GitHub PR/build workflow passed focused checks, production packaging, real
 isolated installation/TUI startup and artifact upload. The version-tag release
 workflow remains unexecuted; no release has been published. Versioned Linux binary artifacts, a download entry

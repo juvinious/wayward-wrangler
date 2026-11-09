@@ -62,9 +62,25 @@ and unsupported storage are refused. Both distinct bundle identities use the
 supplied paired binaries; services are started directly inside the fixture. This
 does not establish systemd handover, model-driven work or the full daily-use loop.
 
-Next slice: reopen with an idle service still owned by the previous application
-build, using the same acceptance-first cycle. Active/uncertain jobs keep their
-existing fences; provider and installer changes remain later slices.
+## Second slice — idle service replacement (implemented)
+
+The real-systemd acceptance check initially failed because the previous build's
+service never matched the new launcher's release identity. Normal opening now
+verifies the exact prior unit process, argv and socket peer, then uses the existing
+quiescence/receipt checks under startup/execution fences to stop only that idle
+owner and start the selected application. New UI claims share the execution fence.
+No old installation files or project rebind are required. A live TUI, pending
+client input or uncertain launch evidence refuses replacement and preserves the
+existing owner. Storage and execution records retain their identity.
+
+Run `python3 scripts/test-project-reopen.py --systemd-handover` on a host with a
+systemd user manager. It creates and removes its own unique temporary unit,
+installation and project. CI's existing direct-service variant remains portable;
+the real-systemd variant is a local host check. No model call is made.
+
+Next slice: provider clients can update normally. Client version text is metadata;
+freeze the resolved executable identity per attempt and retain actual interface,
+role/tool and sandbox validation. No authenticated calls or operator setup changes.
 
 ## Required everyday use cases
 

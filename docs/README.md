@@ -15,8 +15,7 @@
 [Acceptance-driven development](development-approach.md) defines the implementation
 loop; AGENTS.md owns the policy. Work stays on `plan/usability-and-installation`
 with local commits only; the user performs remote delivery. The first slice opens a compatible stopped project after its former application
-build is removed; its real isolated TUI regression passes. Live service handover,
-provider flexibility and the full daily-use/install lifecycle remain unfinished.
+build is removed; its real isolated TUI regression passes. Idle service handover is also checked with real systemd. Provider flexibility and the full daily-use/install lifecycle remain unfinished.
 
 [Ordinary project workflow](ordinary-project-workflow.md), [providers](provider-selection.md)
 and [distribution](distribution.md) own the connected increment. The

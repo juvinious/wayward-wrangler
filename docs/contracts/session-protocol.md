@@ -229,6 +229,8 @@ filesystem or execution grant. Profiles/attempts include exact optional transpor
 
 Project opening no longer routes to an executable named in the legacy project
 release record. This is separate from the running IPC connection's release and
-owner identity checks, which remain enforced. The isolated replacement regression
-starts a fresh service from the selected paired bundle; it does not prove that a
-new frontend can attach to a still-running service from a different build.
+owner identity checks, which remain enforced. A new frontend does not bypass the old service's release identity checks. It
+verifies the exact unit process and socket peer, then replaces a positively idle
+owner under startup/execution fences. Attached views, pending input or unresolved
+launch evidence refuse replacement. The optional real-systemd acceptance case
+covers that replacement; it never attaches across incompatible service identities.

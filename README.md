@@ -11,7 +11,9 @@ The accepted [usability plan](docs/usability-plan.md) targets removing applicati
 locks from projects, removing provider version allowlists and simplifying public
 installation/update/uninstall. Follow the [development approach](docs/development-approach.md).
 Compatible stopped projects now reopen without their former build; provider version
-gates, live service handover and the new installer lifecycle remain unfinished.
+gates and the new installer lifecycle remain unfinished. Idle service replacement
+works automatically; attached views, pending input and uncertain work preserve
+the existing service and report why replacement must wait.
 
 Waywr remains experimental. This increment implements existing-project setup,
 exact candidates/checkout handoff, conservative resource retirement, project-aware
@@ -307,9 +309,10 @@ saved record. A routine compatible rebuild needs no per-project rebind or
 
 Close with `/exit` to checkpoint/pause before changing the application; `/detach`
 leaves background work running. Opening a paused project preserves that pause;
-`waywr resume` explicitly resumes dispatch. Automatic handover from a still-running
-service on another build remains unfinished. Active/uncertain work must retain
-its existing execution fences; this slice does not force-stop or replay it.
+`waywr resume` explicitly resumes dispatch. An idle service from another build is replaced automatically after its exact
+process/socket ownership and quiescence are verified. A live view, pending input
+or uncertain execution preserves the existing service and reports the reason;
+there is no force-stop or replay.
 
 Installing a bundle does not convert every older storage format or authorize
 work. Explicit `session upgrade`/`rollback` commands remain advanced maintenance

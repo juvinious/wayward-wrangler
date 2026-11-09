@@ -15,8 +15,9 @@ A canonical project's legacy `.waywr/release.json` is retained metadata. Normal
 opening checks project identity, supported storage/semantic contracts and current
 bundle integrity; it does not require or execute the recorded old build. A
 compatible stopped project can reopen after that installation is removed. No
-historical approval, packet or receipt is relabelled. Active-service handover and
-explicit older-format migrations retain their separate constraints.
+historical approval, packet or receipt is relabelled. Idle-service handover verifies exact process/socket ownership and positive
+quiescence. Live views, pending delivery and uncertain launches retain the current
+owner; explicit older-format migrations keep their separate constraints.
 
 
 For a legacy project, use a current installed release:

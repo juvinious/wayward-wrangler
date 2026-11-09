@@ -31,7 +31,8 @@ Normal startup now opens compatible stopped projects with the selected applicati
 it does not route through an old build named in `.waywr/release.json`. That retained
 record supplies project identity/diagnostics, not an executable dependency. The
 installed bundle's hashes, storage schema and retained semantic contracts remain
-checked. Running-service handover across builds is not implemented by this slice.
+checked. An idle running service can be replaced under exact owner/quiescence checks;
+attached views, pending delivery and uncertain launches preserve its owner.
 Explicit `waywr --project DIR session upgrade --release ID` checks closed UI/no pending
 input and positively settled operations, stops only that quiescent project service
 under execution fencing, then performs the existing guarded binding migration. PR delivery reconciles the exact
@@ -90,3 +91,9 @@ Services are started directly by this fixture, so it does not establish systemd
 bootstrap, live service handover, different-version protocol compatibility or a
 complete ordinary development workflow. Both bundles use the supplied paired
 binaries; the regression isolates application-build identity changes.
+
+The `--systemd-handover` variant uses the real user manager and normal launcher to
+start and replace only its own uniquely keyed unit. It removes the old installation
+while the service runs, checks refusal for a live TUI, pending input and uncertain
+launch evidence, then verifies a new process/generation restores the saved draft.
+This establishes idle handover, not interruption or resumption of active model work.

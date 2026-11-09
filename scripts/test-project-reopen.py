@@ -31,6 +31,8 @@ def wait_for(check, message, seconds=15):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--binaries', type=Path, default=Path('target/release'))
+    parser.add_argument('--systemd-handover', action='store_true',
+                        help='Use real uniquely keyed user units; replace a still-running idle service')
     args = parser.parse_args()
     binaries = args.binaries.resolve()
     source = Path(__file__).resolve().parent.parent
@@ -45,11 +47,20 @@ def main():
         env = {'HOME': str(root / 'home'), 'PATH': '/usr/bin:/bin',
                'TERM': 'xterm-256color', 'LANG': 'C.UTF-8',
                'DBUS_SESSION_BUS_ADDRESS': 'unix:path=' + str(root / 'no-user-bus')}
+        if args.systemd_handover:
+            env['DBUS_SESSION_BUS_ADDRESS'] = os.environ.get(
+                'DBUS_SESSION_BUS_ADDRESS', f'unix:path=/run/user/{os.getuid()}/bus')
         for key, name in [('CONFIG', 'config'), ('DATA', 'data'), ('STATE', 'state'),
                           ('CACHE', 'cache'), ('RUNTIME', 'run')]:
             env['XDG_' + key + ('_HOME' if key != 'RUNTIME' else '_DIR')] = str(root / name)
+        if args.systemd_handover:
+            # systemctl uses the real user manager's runtime directory. Keep
+            # Waywr's IPC isolated through its explicit --ipc-dir option.
+            env['XDG_RUNTIME_DIR'] = os.environ.get('XDG_RUNTIME_DIR', f'/run/user/{os.getuid()}')
 
         def run(argv):
+            if str(argv[0]) == str(launcher):
+                argv = [*argv, '--ipc-dir', root / 'run']
             result = subprocess.run(list(map(str, argv)), cwd=project, env=env,
                                     capture_output=True, text=True, timeout=30)
             assert result.returncode == 0, result.stderr
@@ -69,6 +80,7 @@ def main():
         initialized = json.loads(run([launcher, 'init', project]))
         state = Path(initialized['state'])
         key = initialized['project_key']
+        unit = f'waywr-{key}.service'
         ipc = root / 'run/waywr' / (key + '.sock')
         ipc.parent.mkdir(exist_ok=True)
         kept = [project / '.waywr/project.toml', project / '.waywr/coordinator.json',
@@ -127,10 +139,27 @@ def main():
                 service.wait(timeout=10)
             service = None
 
-        def open_and_detach(expected_draft=None):
+        def unit_property(name):
+            return run(['systemctl', '--user', 'show', '--property=' + name, '--value', unit]).strip()
+
+        def replace_install():
+            run([binaries / 'waywr', 'bundle-install', '--bundle', root / releases[1],
+                 '--prefix', prefix, '--select-default'])
+            shutil.rmtree(prefix / 'releases' / releases[0])
+            shutil.rmtree(root / releases[0])
+
+        def require_handover_refusal():
+            pid = unit_property('MainPID')
+            result = subprocess.run([str(launcher), '--ipc-dir', str(root / 'run')], cwd=project, env=env,
+                                    capture_output=True, text=True, timeout=20)
+            assert result.returncode != 0, 'Replacement interrupted busy service'
+            assert 'update waits for this project to be idle' in result.stderr, result.stderr
+            assert unit_property('MainPID') == pid, 'Busy service owner changed'
+
+        def open_and_detach(expected_draft=None, while_open=None):
             master, slave = pty.openpty()
             fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH', 32, 120, 0, 0))
-            ui = subprocess.Popen([str(launcher)], cwd=project, env=env,
+            ui = subprocess.Popen([str(launcher), '--ipc-dir', str(root / 'run')], cwd=project, env=env,
                                   stdin=slave, stdout=slave, stderr=slave,
                                   start_new_session=True)
             os.close(slave)
@@ -157,6 +186,8 @@ def main():
                              'TUI did not save the composed draft')
                 else:
                     assert expected_draft.encode() in screen, 'Saved draft was not restored in the composer'
+                if while_open:
+                    while_open()
                 os.write(master, b'\x11')  # Ctrl-Q opens Detach without submitting the draft.
                 time.sleep(.2)
                 os.write(master, b'\x1b[C\r')
@@ -169,6 +200,42 @@ def main():
 
         try:
             refuses_invalid_metadata()
+            if args.systemd_handover:
+                # The ordinary launcher owns real systemd bootstrap and handover.
+                # Removing A while its TUI is attached must not interrupt it.
+                def replace_while_attached():
+                    replace_install()
+                    require_handover_refusal()
+                open_and_detach(while_open=replace_while_attached)
+                old_pid = unit_property('MainPID')
+                old_owner = json.loads((state / 'supervision/owner.json').read_text())
+                pending = state / 'session/outbox/fixture-pending.json'
+                pending.parent.mkdir(exist_ok=True)
+                pending.write_text('{}')
+                try:
+                    require_handover_refusal()
+                finally:
+                    pending.unlink()
+                uncertain = state / 'session/coordinator/fixture-call/attempt/launch.json'
+                uncertain.parent.mkdir(parents=True)
+                uncertain.write_text('{}')
+                try:
+                    require_handover_refusal()
+                    assert uncertain.read_text() == '{}', 'Uncertain launch evidence changed'
+                finally:
+                    shutil.rmtree(state / 'session/coordinator/fixture-call')
+                open_and_detach(draft)
+                assert unit_property('MainPID') != old_pid, 'Old service was not handed over'
+                owner = json.loads((state / 'supervision/owner.json').read_text())
+                assert owner['generation'] > old_owner['generation']
+                assert owner['release_id'] == releases[1]
+                assert all(path.read_bytes() == value for path, value in before.items())
+                assert saved_draft() == draft
+                assert not list(state.rglob('spawn-committed.json'))
+                print(json.dumps({'real_systemd_bootstrap_and_idle_handover': True,
+                                  'live_ui_pending_delivery_and_uncertain_launch_preserved': True,
+                                  'old_build_removed': True, 'model_calls': 0}))
+                return
             start_service(releases[0])
             open_and_detach()
             run([launcher, 'session', 'stop'])
@@ -177,10 +244,7 @@ def main():
             stop_service()
             assert saved_draft() == draft
             # Replace through the real installer; never edit the project binding.
-            run([binaries / 'waywr', 'bundle-install', '--bundle', root / releases[1],
-                 '--prefix', prefix, '--select-default'])
-            shutil.rmtree(prefix / 'releases' / releases[0])
-            shutil.rmtree(root / releases[0])
+            replace_install()
             assert launcher.resolve() == prefix / 'releases' / releases[1] / 'bin/waywr'
             refuses_invalid_metadata()
             start_service(releases[1])
@@ -197,6 +261,9 @@ def main():
                               'service_bootstrap': 'direct isolated process, not systemd'}))
         finally:
             stop_service()
+            if args.systemd_handover:
+                subprocess.run(['systemctl', '--user', 'stop', unit], env=env,
+                               capture_output=True, timeout=15)
 
 
 if __name__ == '__main__':
