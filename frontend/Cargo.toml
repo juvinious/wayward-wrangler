@@ -7,7 +7,7 @@ license = "MIT"
 [dependencies]
 ratatui = { version = "=0.30.2", features = ["unstable-rendered-line-info"] }
 crossterm = "=0.29.0"
-ratatui-textarea = { version = "=0.9.3", default-features = false }
+ratatui-textarea = { version = "=0.9.4", default-features = false }
 tachyonfx = { version = "=0.23.0", default-features = false, features = ["std"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }
