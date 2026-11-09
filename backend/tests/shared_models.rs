@@ -18,6 +18,60 @@ fn preferences() -> Value {
 }
 
 #[test]
+fn retired_profiles_open_for_setup_without_running_or_rewriting_them() {
+    let root = tempfile::tempdir().unwrap();
+    let state = root.path().join(".waywr/state");
+    fs::create_dir_all(&state).unwrap();
+    let key = "a".repeat(32);
+    write(&state.join("state-contract.json"), &json!({"schema_version":1,"state_schema":9,
+        "execution_host":"systemd-user-v1","project_key":key}), true).unwrap();
+    let mut legacy = preferences();
+    legacy["schema_version"] = json!(2);
+    for profile in legacy["profiles"].as_object_mut().unwrap().values_mut() {
+        profile.as_object_mut().unwrap().remove("transport");
+        profile.as_object_mut().unwrap().remove("options");
+        profile["binary"] = json!("/retired/native-client-must-not-run");
+    }
+    let path = root.path().join(".waywr/coordinator.json");
+    write(&path, &legacy, true).unwrap();
+    let before = fs::read(&path).unwrap();
+    let session = Session::open(root.path(), &state, &key, "legacy-setup")
+        .expect("Retired profiles must not prevent opening project history and F3 setup");
+    let old_binding = providers::current(&session).unwrap();
+    let snapshot = providers::snapshot(&session).unwrap();
+    assert_eq!(snapshot["setup_required"], true);
+    assert_eq!(snapshot["setup_preferences"]["schema_version"], 3);
+    assert_eq!(session.development_readiness().unwrap()["status"], "blocked");
+    assert!(providers::Preferences::parse(&legacy).is_err(), "Old profiles remain invalid for saving/execution");
+    let (prefs, revision) = providers::preferences(&session).unwrap();
+    assert!(prefs.resolve("implementation", &Value::Null, None, &json!({}), revision, "no execution").is_err());
+    assert!(providers::execution(&session, "coordinator", &Value::Null, None,
+        &json!({"routing":prefs.allowed_policy().unwrap()}), "no retired coordinator dispatch").is_err());
+    assert!(waywr_backend::model_runtime::preflight(&providers::effective(&session).unwrap()).is_err());
+    assert_eq!(fs::read(&path).unwrap(), before);
+    let saved = providers::save(&session, &json!({"command_id":"replace-retired-profiles","action":"providers.save",
+        "payload":{"expected_revision":1,"preferences":snapshot["setup_preferences"]}})).unwrap();
+    assert_eq!(saved["status"], "accepted");
+    assert_eq!(providers::current(&session).unwrap(), old_binding);
+    let historical: String = rusqlite::Connection::open(state.join("state.sqlite")).unwrap().query_row(
+        "SELECT record_json FROM provider_preference_revisions WHERE revision=1", [], |r| r.get(0)).unwrap();
+    assert_eq!(serde_json::from_str::<Value>(&historical).unwrap(), legacy);
+    assert_eq!(providers::snapshot(&session).unwrap()["setup_required"], true,
+        "Saving preferences must not silently replace the old active binding or grant context");
+    drop(session);
+    let reopened = Session::open(root.path(), &state, &key, "legacy-setup").unwrap();
+    assert_eq!(reopened.development_readiness().unwrap()["status"], "blocked");
+    let mut switch = json!({"command_id":"switch-shared-runtime","action":"providers.switch","payload":{
+        "expected_revision":2,"expected_generation":1,"profile_id":"default","mode":"after_current_turn","grant_context":false}});
+    assert!(providers::command(&reopened, &switch).unwrap_err().contains("explicitly allow"));
+    switch["payload"]["grant_context"] = json!(true);
+    assert_eq!(providers::command(&reopened, &switch).unwrap()["status"], "accepted");
+    providers::advance_switch(&reopened).unwrap();
+    assert_eq!(providers::snapshot(&reopened).unwrap()["setup_required"], false);
+    assert_eq!(reopened.development_readiness().unwrap()["status"], "available");
+}
+
+#[test]
 fn shared_models_can_save_select_and_reopen_without_a_core_provider_or_model_entry() {
     let root = tempfile::tempdir().unwrap();
     let state = root.path().join(".waywr/state");

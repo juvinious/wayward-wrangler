@@ -46,7 +46,7 @@ jobs:
       - name: Real archive installation and idle TUI startup
         run: python3 scripts/test-packaged-install.py /tmp/waywr-artifacts/waywr-v0.0.0-ci.${GITHUB_SHA}-linux-x86_64-gnu.tar.gz
       - name: Reopen project after removing its previous application build
-        run: python3 scripts/test-project-reopen.py
+        run: python3 scripts/test-project-reopen.py --retired-profiles
       - name: One-command local rebuild and failed-build preservation
         run: python3 scripts/test-dev-install.py
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

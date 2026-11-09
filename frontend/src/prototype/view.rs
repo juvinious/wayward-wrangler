@@ -922,7 +922,7 @@ impl App {
                 }
             }
         }
-        if modal==Modal::Settings&&self.provider_state()["schema_version"]==1{self.provider_edit=Some(self.provider_state());self.provider_typing=false;self.provider_grant=false;self.provider_interrupt=false;}
+        if modal==Modal::Settings&&self.provider_state()["schema_version"]==1{self.provider_edit=Some(self.provider_draft());self.provider_typing=false;self.provider_grant=false;self.provider_interrupt=false;}
         self.modal = modal;
         self.modal_action = 0;
         self.modal_scroll = 0;

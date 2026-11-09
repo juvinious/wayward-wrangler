@@ -23,7 +23,10 @@ loop; AGENTS.md owns the policy. Work stays on `plan/usability-and-installation`
 with local commits only; the user performs remote delivery. Stopped-project
 reopening, real-systemd idle handover, provider updates and one-command local
 build/install have focused acceptance evidence. The shared-runtime slice now has
-two-protocol SDK/tool/runner checks and searchable persistent selection. The next
+two-protocol SDK/tool/runner checks and searchable persistent selection. A
+startup fix opens retired schema2 projects with execution blocked and an unsaved
+F3 replacement form; real isolated systemd bootstrap and idle handover pass.
+Ordinary provider setup and useful model execution remain unverified. The next
 phase is lifecycle fluidity informed by ordinary use. [User verification](verify-usability.md)
 remains available; native task delivery and fluidity remain to be observed.
 Public download, update/uninstall and additional package channels remain incomplete.

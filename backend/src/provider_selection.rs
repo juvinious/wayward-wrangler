@@ -172,8 +172,13 @@ pub fn efforts(_provider: &str, _model: &str) -> Vec<&'static str> { vec!["provi
 impl Preferences {
     pub fn parse(value: &Value) -> Result<Self, String> {
         if value["schema_version"]!=3{return Err("Native provider profiles are retired; configure shared model-runtime profiles (schema 3). Project files/history are preserved".into())}
+        Self::inspect(value)
+    }
+    // Read retired routing metadata for inspection/setup only. Save and execution
+    // still require the shared-runtime contract; no native client is invoked.
+    fn inspect(value: &Value) -> Result<Self, String> {
         let p: Self = serde_json::from_value(value.clone()).map_err(|e| e.to_string())?;
-        if p.schema_version != 3
+        if !matches!(p.schema_version, 2 | 3)
             || p.profile != "development-profiles-v1"
             || p.profiles.is_empty()
             || p.profiles.len() > 32
@@ -191,7 +196,7 @@ impl Preferences {
                 || profile.model.len() > 4096
                 || profile.model.chars().any(char::is_control)
                 || !profile.options.is_object()
-                || profile.transport.as_ref().and_then(|v|v["entry"].as_str()).is_none_or(|v|v!="bundled"&&!Path::new(v).is_absolute())
+                || (p.schema_version == 3 && profile.transport.as_ref().and_then(|v|v["entry"].as_str()).is_none_or(|v|v!="bundled"&&!Path::new(v).is_absolute()))
                 || !(16 * 1024..=crate::development_context::MEMORY_LIMIT).contains(&profile.context_bytes)
                 || profile
                     .binary_sha256
@@ -292,6 +297,7 @@ impl Preferences {
         revision: u64,
         reason: &str,
     ) -> Result<Value, String> {
+        if self.schema_version != 3 { return Err("Provider setup required in F3; retired profiles cannot execute".into()); }
         let pin=&policy["request_roles"][role];
         let request_override;
         let override_=if let Some(name)=pin["profile_id"].as_str(){
@@ -428,9 +434,8 @@ pub fn schema(s: &Session) -> Result<(), String> {
     s.workflow.connection()?.execute_batch("CREATE TABLE IF NOT EXISTS provider_preference_revisions(revision INTEGER PRIMARY KEY,sha256 TEXT NOT NULL,record_json TEXT NOT NULL);").map_err(|e|e.to_string())?;
     if metadata(s, "provider_preferences")?.is_none() {
         let value = read(&s.project.join(".waywr/coordinator.json"))?;
-        Preferences::parse(&value)?;
         let hash = digest(&value)?;
-        let p = Preferences::parse(&value)?;
+        let p = Preferences::inspect(&value)?;
         let profile = p.profile_value(&p.coordinator)?;
         let mut c = s.workflow.connection()?;
         let tx = c
@@ -456,11 +461,11 @@ pub fn schema(s: &Session) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
         tx.commit().map_err(|e| e.to_string())?;
     }
-    if metadata(s,"provider_discovery")?.is_none(){
+    if metadata(s,"provider_discovery")?.is_none_or(|v|v["protocol"]!=1){
         let value=read(&s.project.join(".waywr/coordinator.json"))?;
-        let p=Preferences::parse(&value)?;
+        let p=Preferences::inspect(&value)?;
         let discovery=discover_with(Some(&p));
-        s.workflow.connection()?.execute("INSERT INTO session_metadata VALUES('provider_discovery',?1)",
+        s.workflow.connection()?.execute("INSERT OR REPLACE INTO session_metadata VALUES('provider_discovery',?1)",
             [encode(&discovery)?]).map_err(|e|e.to_string())?;
     }
     Ok(())
@@ -469,7 +474,7 @@ pub fn preferences(s: &Session) -> Result<(Preferences, u64), String> {
     let head =
         metadata(s, "provider_preferences")?.ok_or("Provider preferences not initialized")?;
     Ok((
-        Preferences::parse(&head["value"])?,
+        Preferences::inspect(&head["value"])?,
         head["revision"]
             .as_u64()
             .ok_or("Preference revision missing")?,
@@ -500,6 +505,10 @@ pub fn effective(s: &Session) -> Result<Value, String> {
     value["main_policy"] = json!(prefs.main_policy);
     value["selection"] = json!({"profile_id":selected["profile_id"],"profile_sha256":selected["profile_sha256"],
         "preferences_revision":revision,"profile":selected["profile"],"role":"coordinator","source":selected["source"].as_str().unwrap_or("project coordinator binding"),"reason":"selected project binding"});
+    if prefs.schema_version != 3 || !value["transport"]["entry"].is_string() {
+        value["client_error"] = json!("Provider setup required: F3 → choose shared provider/model → S save → 4 Switch; grant context explicitly when ready");
+        return Ok(value);
+    }
     Ok(with_client(value))
 }
 /// Reconcile durable file publication first; do not overwrite unexpected external edits.
@@ -634,10 +643,17 @@ pub fn save(s: &Session, body: &Value) -> Result<Value, String> {
 }
 pub fn snapshot(s: &Session) -> Result<Value, String> {
     let (p, revision) = preferences(s)?;
+    let coordinator = current(s)?;
+    let setup_required = p.schema_version != 3 || !coordinator["profile"]["transport"]["entry"].is_string();
+    let discovery = metadata(s,"provider_discovery")?;
+    let setup_preferences = if p.schema_version != 3 {
+        crate::model_runtime::preferences_from_catalog(&discovery.clone().unwrap_or(Value::Null)).ok()
+    } else { None };
     Ok(
-        json!({"schema_version":1,"preferences":p.value(),"revision":revision,"coordinator":current(s)?,
+        json!({"schema_version":1,"preferences":p.value(),"revision":revision,"coordinator":coordinator,
+        "setup_required":setup_required,"setup_preferences":setup_preferences,
         "switch":switch(s)?,"context_grants":metadata(s,"provider_context_grants")?,
-        "discovery":metadata(s,"provider_discovery")?,"evidence":"local capability metadata is not role/authentication proof"}),
+        "discovery":discovery,"evidence":"local capability metadata is not role/authentication proof"}),
     )
 }
 
@@ -772,6 +788,7 @@ pub fn command(s: &Session, body: &Value) -> Result<Value, String> {
     }
     let out = match body["action"].as_str().unwrap_or("") {
         "providers.switch" => {
+            if prefs.schema_version != 3 { return Err("Save shared-runtime profiles in F3 before switching".into()); }
             if switch_pending(s) {
                 return Err("A coordinator switch is pending; inspect or cancel it first".into());
             }
@@ -1155,10 +1172,12 @@ pub fn execution(
     reason: &str,
 ) -> Result<(Value, Value), String> {
     let (prefs, revision) = preferences(s)?;
+    if prefs.schema_version != 3 { return Err("Provider setup required in F3; retired profiles cannot execute".into()); }
     let policy = normalized_policy(s, policy)?;
     let selected = if role == "coordinator" {
         let bound = current(s)?;
         let profile = &bound["profile"];
+        if !profile["transport"]["entry"].is_string() { return Err("Provider setup required: explicitly switch the retired coordinator binding in F3".into()); }
         let hash = digest(profile)?;
         if !policy_allows(&policy, role, &hash, profile)||!crate::request_routing::pin_allows(&policy,role,&hash,profile) {
             return Err(
@@ -1180,7 +1199,7 @@ pub fn execution(
 /// Public catalogs only. No login, inference or model-server start.
 pub fn discover()->Value{discover_with(None)}
 fn discover_with(prefs:Option<&Preferences>)->Value{
-    let selected=prefs.and_then(|p|p.profiles.get(&p.coordinator));
+    let selected=prefs.filter(|p|p.schema_version==3).and_then(|p|p.profiles.get(&p.coordinator));
     let binary=selected.map(|p|PathBuf::from(&p.binary)).map(Ok).unwrap_or_else(crate::model_runtime::node);
     let transport=selected.and_then(|p|p.transport.clone()).map(Ok).unwrap_or_else(crate::model_runtime::default_transport);
     match binary.and_then(|b|transport.and_then(|t|crate::model_runtime::describe(&b,&t))){

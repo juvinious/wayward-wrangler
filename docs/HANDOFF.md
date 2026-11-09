@@ -1,87 +1,74 @@
-# Waywr handoff — shared provider/model execution implemented locally
+# Waywr handoff — retired settings no longer block startup
 
-Branch: `plan/usability-and-installation`. Follow [AGENTS.md](../AGENTS.md) and the
-[product plan](usability-plan.md). Broad model support remains a project precept;
-next phases are lifecycle fluidity and coordination through a substantial web app.
-Local commits only. The user performs every remote delivery; no push/PR/merge,
-publication or hosted settings change is authorized.
+Branch: `plan/usability-and-installation`. Base checkpoint: `9c016a7` (shared
+model runtime); this checkpoint fixes the first ordinary-use startup failure.
+Follow [AGENTS.md](../AGENTS.md), the [product plan](usability-plan.md) and
+[provider contract](provider-selection.md). Local commits only; the user handles
+remote delivery. No operator installation, project mutation or account/model call
+was performed by the agent.
 
-## Implemented
+## Current outcome
 
-The Rust TUI/service/scheduler/runner now uses one shared process interface backed
-by locked standalone pi-ai/pi-agent-core 1.5.0 libraries. This uses provider and
-agent-loop libraries, not Pi's terminal application. The runtime supplies42 provider
-catalogs/1592 models, custom protocol/model configuration, SDK authentication,
-normalized activity/text/usage and typed `submit_result` completion. Core routing
-has no provider/model allowlist. SDK catalog coverage is not all-model verification.
+An existing state9 project with schema2 native preferences previously killed the
+service before readiness, hiding the configuration error behind the launcher's
+timeout. The service now reads those settings as inspection metadata, opens the
+project/history and exposes F3 while execution stays blocked. No native execution
+route was restored. Schema3 remains mandatory for saving and model routing.
 
-F3 searches providers/models and edits IDs/options; normal profile save/selection
-persists across reopen. `waywr models list --search QUERY` works outside a project;
-`waywr models login PROVIDER --method oauth|apiKey` explicitly invokes SDK setup.
-Private credentials use an atomic mode0600 store and a cross-process lock, outside
-project packets. Caller SDK credential variables are forwarded as process
-configuration, never logged into packets. No real login/inference was performed.
+F3 offers a fresh unsaved shared-runtime draft, without translating native choices.
+Choose provider/model, S save, then section4 Switch: G explicitly grants selected
+project context, Enter requests the switch. Saving alone leaves the old active
+binding blocked. Existing request policy amendments and uncertain execution
+settlement remain explicit. Historical preference revisions/binding hashes remain
+unchanged. Old discovery caches refresh through the shared runtime, never through
+retired native executables. Readiness shows the concrete configuration cause.
 
-Preferences are schema3. Old schema1/2 native profiles are deliberately unsupported;
-the user waived compatibility. Files/work/history remain. The standalone native
-Claude/Ollama modules and their obsolete integration harnesses were removed.
-Remaining older workflow readers are historical, not parallel state9 execution.
+The ignored `target/local-bin/waywr` symlink is the user's requested local test
+entry. It points to a temporary paired bundle, not a global installation. The
+bundle identifies itself as `v0.4.0-local.setup-fix`; its manifest SHA256 is
+`8d753a344db1daccee4fe86f903d82015b3c6518c74588a31eacd8e813372f0b`.
+Source, all three remapped binaries and all19 bundle artifacts pass the
+public-content check. The failed operator unit was inspected read-only and is
+unloaded; the agent did not
+restart it or edit the preserved project's settings.
 
-The saved `bundled` runtime locator avoids pinning projects to a release directory.
-Each attempt freezes actual Node/runtime/config identity. Config bytes are copied
-into its private operation before dispatch; custom destination metadata belongs to
-the saved grant. Changes to endpoint/protocol/auth locator require a new saved
-profile rather than silently redirecting approved work. Worker checkout identity,
-owned process groups, positive settlement, exact result/review and receipts remain.
-The generic tool runtime is trusted same-UID code, not an OS filesystem/network
-sandbox; former native CLI sandbox flags are not claimed for it.
+## Verification and limits
 
-Bundles contain the compiled JavaScript runtime and npm notices, without
-node_modules. Source builds install locked npm dependencies with lifecycle scripts
-disabled, then bundle them; Cargo.lock/compiler/dependencies are unchanged. Node
->=22.19 and util-linux `flock` are runtime prerequisites. npm/Python/Rust are build
-or verification tools. Public installer/update/uninstall remain incomplete.
-Local workflow changes add pinned Node, npm advisory/Dependabot coverage and
-JavaScript CodeQL; they have not run on GitHub or enabled any paid features.
+The backend regression first failed on the actual schema2 startup rejection. It
+now opens/reopens, preserves the old configuration and historical revision,
+blocks execution, saves a schema3 draft without changing the binding, refuses a
+switch without a context grant and accepts an explicitly granted switch. F3's
+regression first failed because the form retained schema2; it now presents and
+saves the new draft without an implicit command on opening. Existing shared
+selection/frozen-destination and F3 controls remain checked.
 
-## Evidence and limits
+A remapped locked release build passes. The packaged launcher/TUI/service check
+uses a temporary project/HOME and real uniquely keyed systemd units with schema2
+settings. Bootstrap, F3 setup, detach/reopen and idle handover after removing the
+old build pass, preserving settings/draft and uncertain launch evidence. Test
+units clean up; no model calls occur. This establishes startup/setup access, not
+real provider authentication or useful model delivery.
+The updated direct-service CI reopen path also passes with schema2 settings,
+preserving its saved pause and draft. Workflow edits remain local, not hosted CI
+evidence.
 
-The first behavioral red rejected new runtime options/provider selection in normal
-project opening. Selection/save/reopen now passes. Real SDK/agent-loop fixtures
-exercise OpenAI Completions and Anthropic Messages, custom provider/model IDs,
-a worker writing a file through a tool, structured results and usage/progress.
-Real runner checks use linked Git worktrees and fixture host permits; these are
-not model-quality, human-approval or systemd proofs. Dummy API-key setup preserves
-two concurrent provider entries in a temporary private store; missing credentials
-refuse before HTTP. Actual provider login/token refresh remains unverified.
-
-Existing ordinary candidate/checkout/retirement and conversation checks were
-reconciled with current profile fixtures. F3 search/save and CLI/build checks pass.
-The installed TUI/reopen check preserves draft/settings/pause with the old bundle
-removed and no rebind. Source and rebuilt artifact privacy checks pass after
-removing a source-path fallback from the binaries. Production npm audit reports
-zero known vulnerabilities at this checkpoint. The real archive installer/service/TUI check passes outside the source checkout
-with Rust absent, zero source-file accesses and damaged-resource refusal. Its
-GitHub transport is a fixture; it performs no model calls or systemd bootstrap.
-The final shared-models marker/legacy-dispatch cleanup also passes its release
-guards and the real installer/TUI check on the final review bundle. Its archive
-SHA256 is `f24e4621877c1f150e4cac4f1a8a41cb82c0747659fda0f933202b7685b249b1`.
-All operator/remote boundaries remain.
-
-No operator installation, preserved project, provider credentials/settings or
-shared infrastructure was changed. Runtime tests use temporary projects/HOME;
-fixtures never authorize native calls. The earlier installation cleanup remains
-in effect. No hosted binary release exists and no ordinary unassisted useful task
-has been verified with this model runtime.
+The shared runtime still uses pinned standalone pi-ai/pi-agent-core libraries,
+not Pi's app: broad provider/model catalogs and custom protocols/options remain
+outside coordinator code. Earlier two-protocol SDK/tool/runner fixture evidence
+is unchanged. Node >=22.19 and util-linux flock remain runtime prerequisites.
+The tool process is trusted same-UID code, not an OS sandbox. Public download,
+update/uninstall and additional package channels remain incomplete. Hosted
+security/build changes have not been run by the agent on GitHub; no paid features
+were enabled. Source and bundle privacy checks remain required for delivery.
 
 ## Next authorized action
 
-After the local checkpoint, obtain ordinary-use feedback when the user authorizes installation/account/model use.
-Fix a concrete interruption within the lifecycle journey (detach/reattach/update
-without losing work) rather than adding provider-specific branches or another
-planning/test campaign. Keep future model IDs/options in the shared layer.
+The user retries the local test entry on the existing project and explicitly
+chooses the shared provider/model and coordinator switch. Authentication and any
+actual model call remain the user's next ordinary-use step, not agent authority.
+Fix the next concrete interruption in that journey; do not add provider-specific
+coordinator branches or broaden testing into another acceptance campaign.
 
-Owners: [providers](provider-selection.md), [runtime choice](execution-adapter-decision.md),
-[distribution](distribution.md), [architecture](architecture.md),
-[verification guide](verify-usability.md). Earlier native evidence remains in the
-[archive](archive/README.md); it is not current runtime acceptance or authority.
+Owners: [providers](provider-selection.md), [runtime direction](execution-adapter-decision.md),
+[distribution](distribution.md), [verification](verify-usability.md),
+[architecture](architecture.md). Prior native evidence is [archived](archive/README.md).

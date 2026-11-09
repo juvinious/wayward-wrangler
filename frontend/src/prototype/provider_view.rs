@@ -3,6 +3,13 @@ impl App {
     fn provider_state(&self) -> Value {
         self.development_view()["providers"].clone()
     }
+    fn provider_draft(&self) -> Value {
+        let mut state = self.provider_state();
+        if state["setup_preferences"].is_object() {
+            state["preferences"] = state["setup_preferences"].clone();
+        }
+        state
+    }
     fn provider_settings(&self) -> bool {
         self.modal == Modal::Settings && self.provider_state()["schema_version"] == 1
     }
@@ -75,7 +82,7 @@ impl App {
         if key.code==KeyCode::Char('7')&&!self.provider_typing{self.provider_section=6;self.provider_row=0;self.mark();return}
         if self.provider_section==6&&(self.provider_typing||!matches!(key.code,KeyCode::Char('1'..='6'))){self.project_key(key);return}
         if self.provider_edit.is_none() {
-            self.provider_edit = Some(self.provider_state());
+            self.provider_edit = Some(self.provider_draft());
         }
         self.provider_refresh_saved();
         if self.provider_edit.as_ref().is_some_and(|e| {
@@ -136,7 +143,7 @@ impl App {
         }
         match key.code {
             KeyCode::Char('l') => {
-                self.provider_edit = Some(self.provider_state());
+                self.provider_edit = Some(self.provider_draft());
                 self.notice = "Reloaded saved preferences; unsaved edits discarded".into();
             }
             KeyCode::Char('r') => self.provider_command("providers.refresh", serde_json::json!({})),
@@ -344,6 +351,9 @@ impl App {
             "[1 Profiles] [2 Roles] [3 Fallback] [4 Switch] [5 Tasks] [6 Policy] [7 Project]\nRevision {} · saved current coordinator {}\nSelected profile: {} · ←/→ changes profile\nS saves preference draft · L reloads · R refreshes local metadata · Esc returns\nPreference saves affect future attempts; Switch changes both coordinator lanes.\n\n",
             edit["revision"], saved["coordinator"]["profile_id"], name
         );
+        if saved["setup_required"] == true {
+            text.push_str("Provider setup required. Retired profiles cannot execute.\nChoose provider/model, S save, then 4 Switch. G explicitly grants selected project context; Enter applies the switch. Existing request policies may need approval in 6 Policy.\nThis form is an unsaved draft; opening it changes no provider settings.\n\n");
+        }
         match self.provider_section {
             0 => {
                 for id in p["profiles"].as_object().into_iter().flat_map(|o| o.keys()) {
@@ -452,6 +462,26 @@ impl App {
 #[cfg(test)]
 mod provider_ui_tests {
     use super::*;
+    #[test]
+    fn retired_profiles_offer_an_unsaved_setup_form() {
+        let mut app = App::new_live("project".into(), Draft::default());
+        app.live.as_mut().unwrap().conversation = Some(serde_json::json!({"development":{"providers":{
+            "schema_version":1,"revision":7,"setup_required":true,
+            "preferences":{"schema_version":2,"profiles":{"retired":{"provider":"retired"}}},
+            "setup_preferences":{"schema_version":3,"profile":"development-profiles-v1",
+                "profiles":{"default":{"provider":"new-provider","model":"new-model","binary":"/missing/node",
+                    "transport":{"entry":"bundled"},"effort":"provider_default","options":{},"context_bytes":98304}},
+                "coordinator":"default","worker_default":"default","roles":{},"fallback":{},"concurrency":2,
+                "dependency_network":true,"main_policy":"checked-fast-forward","quality_preference":""},
+            "coordinator":{"profile_id":"retired"}}}}));
+        app.open(Modal::Settings);
+        assert_eq!(app.provider_edit.as_ref().unwrap()["preferences"]["schema_version"], 3);
+        assert_eq!(app.provider_state()["preferences"]["schema_version"], 2);
+        assert!(app.provider_body().1.contains("Provider setup required"));
+        assert!(app.take_intent().is_none(), "Opening settings does not save or authorize execution");
+        app.handle_modal(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::NONE));
+        assert!(matches!(app.take_intent(),Some(LiveIntent::Dialogue(v)) if v["action"]=="providers.save" && v["payload"]["preferences"]["schema_version"]==3 && v["payload"]["expected_revision"]==7));
+    }
     #[test]
     fn provider_forms_edit_save_roles_and_switch_without_sending_a_request() {
         let mut app = App::new_live("project".into(), Draft::default());

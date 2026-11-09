@@ -77,8 +77,12 @@ pub fn describe(binary:&Path,transport:&Value)->Result<Value,String>{
     if v["protocol"]!=1||!v["models"].is_array(){return Err("Unsupported runtime catalog".into())} Ok(v)
 }
 pub fn initial_preferences()->Result<Value,String>{
-    let binary=node()?;let mut transport=default_transport()?;
+    let binary=node()?;let transport=default_transport()?;
     let catalog=describe(&binary,&transport)?;
+    preferences_from_catalog(&catalog)
+}
+pub fn preferences_from_catalog(catalog:&Value)->Result<Value,String>{
+    let binary=node()?;let mut transport=default_transport()?;
     let selected=&catalog["default"];
     transport["destination"]=destination(selected["provider"].as_str().ok_or("Catalog has no default provider")?,&transport)?;
     let profile=json!({"provider":selected["provider"],"model":selected["model"],"binary":binary,

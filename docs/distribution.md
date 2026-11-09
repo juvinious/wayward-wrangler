@@ -16,6 +16,8 @@ requirements still apply. Bundles now include a manifest-hashed shared JavaScrip
 model runtime and its legal notices. Node >=22.19 and util-linux `flock` are binary
 runtime prerequisites; npm, Python and Rust are source-build tools only. Existing
 profiles need schema3 reconfiguration; retained project work is not deleted.
+Schema2 profiles no longer stop service startup: the project opens with execution
+blocked and F3 available for explicit replacement and coordinator switching.
 
 For local development, run `sh scripts/dev-install.sh` from the source checkout.
 It wraps the existing locked remapped build, notice/privacy checks, paired bundle

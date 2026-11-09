@@ -7,6 +7,15 @@ removed. The [old native contract](archive/provider-selection/2026-11-09-retired
 is evidence only. The [product direction](execution-adapter-decision.md) owns the
 breadth requirement; no native compatibility route is maintained for this rewrite.
 
+Schema2 settings can be read to open the project and inspect its history. They
+cannot execute. F3 offers a fresh, unsaved schema3 draft from the shared catalog;
+it does not translate old native choices or invoke their executables. Choose the
+provider/model, S save, then section4 Switch: G explicitly grants that exact
+destination selected project context and Enter requests the switch. Saving alone
+does not replace the active binding. Existing request policies may require a
+separate amendment in section6 Policy. Old preference revisions and bindings stay
+as evidence; no prior approval grants a newly selected destination authority.
+
 ## Runtime and model selection
 
 The Rust TUI, project service, scheduler and runner remain Waywr-owned. A bundled

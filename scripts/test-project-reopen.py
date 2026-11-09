@@ -11,6 +11,7 @@ import json
 import os
 from pathlib import Path
 import pty
+import re
 import select
 import shutil
 import struct
@@ -31,6 +32,8 @@ def wait_for(check, message, seconds=15):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--binaries', type=Path, default=Path('target/release'))
+    parser.add_argument('--retired-profiles', action='store_true',
+                        help='Open schema-2 native settings for F3 replacement without executing or rewriting them')
     parser.add_argument('--systemd-handover', action='store_true',
                         help='Use real uniquely keyed user units; replace a still-running idle service')
     args = parser.parse_args()
@@ -82,6 +85,15 @@ def main():
              '--prefix', prefix, '--select-default'])
         initialized = json.loads(run([launcher, 'init', project]))
         state = Path(initialized['state'])
+        if args.retired_profiles:
+            path = project / '.waywr/coordinator.json'
+            prefs = json.loads(path.read_text())
+            prefs['schema_version'] = 2
+            for profile in prefs['profiles'].values():
+                profile.pop('options', None)
+                profile.pop('transport', None)
+                profile['binary'] = '/retired/native-client-must-not-run'
+            path.write_text(json.dumps(prefs) + '\n')
         key = initialized['project_key']
         unit = f'waywr-{key}.service'
         ipc = root / 'run/waywr' / (key + '.sock')
@@ -183,6 +195,19 @@ def main():
                 assert ready_text in screen, (
                     'Normal launch failed before the composer opened: ' +
                     screen.decode(errors='replace')[-1200:])
+                if args.retired_profiles:
+                    os.write(master, b'\x1b[13~')  # F3: setup must be reachable.
+                    def setup_visible():
+                        # Ratatui may position each word separately in a diff frame.
+                        text = re.sub(rb'\x1b\[[0-?]*[ -/]*[@-~]', b' ', screen)
+                        return re.search(rb'Provider\s+setup\s+required', text) is not None
+                    deadline = time.monotonic() + 10
+                    while not setup_visible() and time.monotonic() < deadline:
+                        if select.select([master], [], [], .1)[0]:
+                            screen.extend(os.read(master, 65536))
+                    assert setup_visible(), ('F3 setup was not reachable: ' + screen.decode(errors='replace')[-1500:])
+                    os.write(master, b'\x1b')
+                    time.sleep(.2)
                 if expected_draft is None:
                     os.write(master, draft.encode())
                     wait_for(lambda: saved_draft() == draft,

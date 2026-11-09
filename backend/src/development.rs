@@ -368,6 +368,7 @@ impl Session {
         request_history::schema(self)?;
         if crate::provider_selection::enabled(self){crate::provider_selection::schema(self)?;crate::coordination::schema(self)?;}
         let p = profile(self)?;
+        if p["client_error"].is_string() { return Ok(()); }
         let c = self.workflow.connection()?;
         c.execute("UPDATE conversation_bindings SET provider=?1,model=?2,effort=?3 WHERE generation=1",params![p["provider"].as_str(),p["model"].as_str(),p["effort"].as_str()]).map_err(|e|e.to_string())?;
         c.execute("UPDATE conversation_budgets SET limit_count=9223372036854775807 WHERE bucket='conversation'",[]).map_err(|e|e.to_string())?;
@@ -382,9 +383,10 @@ impl Session {
         let active = self.chat_reserved()?.is_some();
         if crate::provider_selection::enabled(self){
             let (preferences,_)=crate::provider_selection::preferences(self)?;
-            let missing=crate::model_runtime::preflight(&p).is_err();
+            let runtime_error=crate::model_runtime::preflight(&p).err();
+            let missing=runtime_error.is_some();
             let inventory=preferences.profiles.iter().map(|(id,p)|json!({"profile_id":id,"provider":p.provider,"model":p.model,"effort":p.effort,"configured":true,"binary_present":Path::new(&p.binary).is_file()||(Path::new(&p.binary).file_name().is_some_and(|n|n==p.provider.as_str())&&crate::provider_selection::find_client(&p.provider).is_some()),"authentication":"unknown until an authorized call","role_usability":"unverified until ordinary use"})).collect::<Vec<_>>();
-            return Ok(json!({"profile":p,"profile_sha256":hash(&p)?,"authorized":true,"status":if missing||pause["active"]==true&&pause["hard"]==true{"blocked"}else if active{"running"}else if pause["active"]==true{"recoverable"}else{"available"},"reason":if missing{json!("Shared model runtime is unavailable; configure its Node executable, runtime entry and provider in F3")}else{pause["reason"].clone()},"inventory":inventory,"usage":"No mandatory ceiling; authentication/capacity are not inferred from settings"}));
+            return Ok(json!({"profile":p,"profile_sha256":hash(&p)?,"authorized":!missing,"status":if missing||pause["active"]==true&&pause["hard"]==true{"blocked"}else if active{"running"}else if pause["active"]==true{"recoverable"}else{"available"},"reason":runtime_error.map(Value::from).unwrap_or_else(||pause["reason"].clone()),"inventory":inventory,"usage":"No mandatory ceiling; authentication/capacity are not inferred from settings"}));
         }
         Ok(
             json!({"profile":p,"profile_sha256":hash(&p)?,"authorized":true,"status":if pause["active"]==true&&pause["hard"]==true{"blocked"}else if active{"running"}else if pause["active"]==true{"recoverable"}else{"available"},"reason":pause["reason"],"inventory":[{"provider":"codex","discovered":true,"configured":true,"usable":"checked locally at launch; authentication established by actual call","model":"gpt-6.1-sol","effort":"medium"}],"usage":"observed invocations; no mandatory ceiling; cost unknown until provider reports"}),

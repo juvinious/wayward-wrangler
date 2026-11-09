@@ -3,8 +3,10 @@
 The candidate uses the shared model runtime on Linux x86_64 with a systemd user
 manager, Node >=22.19 and `flock`. Configure a provider through the SDK's explicit
 login/environment setup, then choose a provider/model in F3. No native Codex/Claude
-CLI is required. Existing schema1/2 profiles need reconfiguration; use a fresh
-isolated project first and retain old work/history. See [provider setup](provider-selection.md).
+CLI is required. Retired profiles need reconfiguration. Schema2 projects can open
+for inspection and F3 setup while execution stays blocked. Choose a shared
+provider/model, S save, then section4: G grants selected context and Enter switches.
+Existing request policy amendments remain explicit. See [provider setup](provider-selection.md).
 Automated fixtures do not establish account login or model reliability.
 
 The agent left the operator installation absent and made only local commits on
@@ -25,6 +27,8 @@ setup. Existing project work/settings/history are preserved; there is no
 per-project application version to select. Installation does not sign in or import another agent application's credentials.
 Use `waywr models login PROVIDER --method oauth` (or `apiKey` when supported), then
 F3 →1 →F to select a model and S to save before requesting work.
+For an existing project, use section4 Switch after saving a different coordinator;
+saving preferences alone does not change the active binding.
 
 Discuss one small useful development request. Review its scope/policy card and
 authorize it only when correct. Local delivery keeps this first verification
