@@ -3,8 +3,9 @@
 This document describes implemented behavior. The [narrowed product
 direction](usability-plan.md#narrowed-product-direction) targets model identifiers
 and provider-specific options outside coordinator code, with capability-based
-execution adapters. Native clients and a shared third-party harness are candidate
-implementations; no new harness or extension protocol is selected yet. Current
+execution adapters. The [adapter decision](execution-adapter-decision.md) chooses
+a process interface and an extracted Codex-native bridge first; a shared harness
+remains optional. This is design only, not a new implemented protocol. Current
 provider/role/catalog restrictions below remain limitations until replaced.
 
 State9 / conversation config6 provider selection uses the IPC1.7 capability;

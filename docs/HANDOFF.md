@@ -1,4 +1,4 @@
-# Waywr handoff — extensible execution direction
+# Waywr handoff — adapter decision ready for implementation
 
 Work remains on `plan/usability-and-installation`, with local commits only.
 Follow [AGENTS.md](../AGENTS.md), the [development approach](development-approach.md)
@@ -9,25 +9,36 @@ then coordination honed through a substantial web application.
 ## Current decision and next action
 
 Waywr owns project coordination and the Rust TUI/service experience. Provider/model
-catalogs and options should leave coordinator code. An execution-adapter boundary
-is the recommended design: existing native clients or a shared third-party harness
-can implement it. Pi was a comparison; adoption was not requested. No third-party
-harness, plugin protocol or runtime replacement has been selected or implemented.
+catalogs and options should leave coordinator code. The completed
+[adapter decision](execution-adapter-decision.md) chooses a small external process
+interface and an extracted Codex-native bridge first. Preserve Claude/Ollama paths
+during migration. No third-party harness is adopted; Pi remains an optional adapter
+candidate. Native-first preserves existing logins/control paths but does not itself
+add providers or eliminate adapter maintenance.
 
-Next action is a bounded adapter decision using current paths and one
-shared-harness candidate: model discovery/manual IDs, provider options, streamed
-activity/usage, cancellation, sessions, structured results and existing execution
-boundaries. Start with public protocol/source inspection. Record the smallest
-workable choice; do not build a general plugin SDK or survey every provider.
+Current native source and public Pi documentation/types were compared for model
+configuration, events/usage, authentication, structured results, cancellation,
+sessions and execution boundaries. Pi offers broad metadata and session support;
+matching Waywr result/isolation/ownership requirements needs bridge work. This is
+source evidence only: no utility installation, credential access or inference.
+The decision records its sources and limits. No further utility survey is needed.
 
-The first implementation slice must demonstrate configuring/selecting a supplied
-adapter and a model/option absent from core source through the normal dispatch
-path, without rebuilding Waywr. Establish behavioral red first. Preserve existing
-profiles and retained attempts. A protocol fixture proves extensibility only;
-ordinary model quality/authentication/usefulness needs separately authorized use.
-Thereafter address detach/reattach/update continuity, then the reference web app
-in running increments across selected model profiles. Model-independent interfaces
-do not guarantee equal model quality. No new provider-specific coordinator forks.
+Next action is behavioral red followed by the complete
+[first implementation slice](execution-adapter-decision.md#first-implementation-slice):
+register/select a supplied adapter and model/option absent from core, save through
+the ordinary profile command path, dispatch through the real service/runner, show
+activity/usage and reopen with the selection intact. Then deliver the native Codex
+bridge through that same path, not a fixture-only endpoint. Finalize JSON field
+names with the red example; do not start another planning phase or general SDK.
+
+Use two operations: local bounded description and one frozen request on stdin,
+with normalized JSONL events/terminal outcome on stdout. Reuse runner process-group
+cancellation, positive settlement, validators and receipts. Adapter metadata cannot
+grant execution authority. Freeze bridge/resources and underlying client per
+attempt; new attempts may resolve updates. Preserve old profiles/packets. A fixture
+proves extensibility only; native usefulness requires separately authorized use.
+Lifecycle fluidity and the reference web app follow. Model-independent interfaces
+do not guarantee equal model quality; no provider-specific coordinator forks.
 
 ## Implemented baseline and limits
 
@@ -51,7 +62,9 @@ for this candidate. Active/uncertain work cannot be force-replaced; native-clien
 help probes do not establish inference or sandbox reliability. Public download,
 update/uninstall, artifact collection and Debian packaging are incomplete. The
 user's new execution direction precedes more installer implementation. This
-checkpoint changes planning/policy docs only, not application behavior.
+checkpoint changes design/planning/policy docs only, not application behavior.
+Local reference and diff checks are appropriate; no application test rerun is
+needed until implementing the slice.
 
 ## Authority
 

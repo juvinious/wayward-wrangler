@@ -23,10 +23,10 @@ dependency. A third-party execution utility remains an option to evaluate.
 The recommended boundary is an execution adapter. Native clients and a shared
 third-party harness are possible implementations behind that same boundary;
 plugins versus a third-party utility are not mutually exclusive choices. Keep
-the existing Rust TUI/service and inspect the existing adapter paths before
-extracting anything. The exact extension protocol and initial implementation
-are still design decisions, not implemented capabilities. Do not build a general
-plugin SDK, marketplace or another agent loop to settle them.
+the existing Rust TUI/service. The completed [bounded adapter decision](execution-adapter-decision.md)
+selects a process interface with an extracted Codex-native bridge first, preserving
+other native paths. This is design, not implemented extensibility. No third-party
+harness is adopted. Do not build a general plugin SDK, marketplace or another loop.
 
 ### 1. Extensible execution and model selection
 
@@ -51,12 +51,12 @@ plugin SDK, marketplace or another agent loop to settle them.
   Distinguish measured data from estimates and unavailable values. Context
   headroom is not subscription/account quota; avoid invented remaining balances.
 
-**First slice, before application changes:** decide the smallest adapter contract
-using the current native paths and a bounded comparison with one shared-harness
-candidate. Record whether each can provide the operations above, preserve current
-work and avoid duplicated model/authentication logic. Use public protocol/source
-inspection first; selection must be evidence-based. No adoption is implied by
-comparison. Do not extend the candidate list into an open-ended survey.
+**Adapter decision completed before application changes:** public Pi protocol/source
+inspection and current native source favor an external process interface and
+existing native transport first. Pi offers catalog/telemetry/session capabilities;
+its result and isolation integration is additional work. The
+[decision](execution-adapter-decision.md) records the comparison, ownership split
+and first implementation slice. No further utility survey is prescribed.
 
 Then establish a behavioral red example: configure a locally supplied adapter and
 a model/option absent from Waywr's source, select it for a capability-compatible
@@ -218,8 +218,9 @@ installation is not changed. The user can now install and assess the complete
 ordinary-use/rebuild/reopen loop using the [verification guide](verify-usability.md).
 The agent has not made authenticated model calls or established useful task delivery.
 
-Next checkpoint: the bounded adapter decision and first extensible-execution slice
-above. Public curl, update/uninstall commands, artifact collection and additional
+Next checkpoint: the behavioral red and complete first extensible-execution slice
+in the [adapter decision](execution-adapter-decision.md#first-implementation-slice).
+Public curl, update/uninstall commands, artifact collection and additional
 package channels are not complete. Earlier checks remain available for the
 subsequent lifecycle phase; do not rerun them as a substitute for useful work.
 
@@ -329,7 +330,7 @@ package channels until one installation/update/uninstall route works end to end.
 
 ## Delivery order and bounded checks
 
-1. **Execution boundary.** Settle the bounded adapter decision, then deliver the
+1. **Execution boundary.** Follow the completed adapter decision and deliver the
    new-model-without-core-change journey above. Existing profiles/work remain
    usable. A fixture proves extensibility only; real native usefulness requires
    separately authorized ordinary work. No third-party harness is selected yet.
