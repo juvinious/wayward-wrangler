@@ -5,13 +5,13 @@ edition = "2024"
 license = "MIT"
 
 [dependencies]
-rusqlite = { version = "0.40.2", features = ["bundled"] }
+rusqlite = { version = "0.41.1", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }
-sha2 = "0.10"
+sha2 = "0.11"
 toml = "1.1.8"
 libc = "0.2"
-tokio = { version = "=1.53.3", features = ["rt-multi-thread", "net", "time", "signal", "process", "io-util", "sync", "macros"] }
+tokio = { version = "=1.54.1", features = ["rt-multi-thread", "net", "time", "signal", "process", "io-util", "sync", "macros"] }
 zbus = { version = "=6.2.1", default-features = false, features = ["tokio", "proxy"] }
 
 reqwest = { version = "=0.13.5", default-features = false, features = ["blocking", "json"] }
