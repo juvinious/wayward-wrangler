@@ -1,5 +1,12 @@
 # Project providers and roles
 
+This document describes implemented behavior. The [narrowed product
+direction](usability-plan.md#narrowed-product-direction) targets model identifiers
+and provider-specific options outside coordinator code, with capability-based
+execution adapters. Native clients and a shared third-party harness are candidate
+implementations; no new harness or extension protocol is selected yet. Current
+provider/role/catalog restrictions below remain limitations until replaced.
+
 State9 / conversation config6 provider selection uses the IPC1.7 capability;
 current releases add the IPC1.8 [conversational overlay](conversational-coordination.md).
 Codex `gpt-6.1-sol` / `medium` stays the initial coordinator and worker default.

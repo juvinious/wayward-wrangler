@@ -11,14 +11,18 @@
 
 ## Current product work
 
-[Usability and installation plan](usability-plan.md) is the accepted target.
+[Usability and installation plan](usability-plan.md#narrowed-product-direction)
+sets the narrowed order: extensible model/execution support, lifecycle fluidity,
+then coordination through a substantial web application. An adapter boundary is
+recommended; no third-party harness or extension protocol is selected yet.
 [Acceptance-driven development](development-approach.md) defines the implementation
 loop; AGENTS.md owns the policy. Work stays on `plan/usability-and-installation`
 with local commits only; the user performs remote delivery. Stopped-project
 reopening, real-systemd idle handover, provider updates and one-command local
-build/install now have focused acceptance evidence. [User verification](verify-usability.md)
-is next; native task delivery and fluidity remain to be observed. Public download,
-update/uninstall and additional package channels follow ordinary-use feedback.
+build/install now have focused acceptance evidence. The next action is the bounded
+adapter decision and first extensibility slice. [User verification](verify-usability.md)
+remains available; native task delivery and fluidity remain to be observed.
+Public download, update/uninstall and additional package channels remain incomplete.
 
 [Ordinary project workflow](ordinary-project-workflow.md), [providers](provider-selection.md)
 and [distribution](distribution.md) own the connected increment. The

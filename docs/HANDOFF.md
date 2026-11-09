@@ -1,71 +1,72 @@
-# Waywr handoff — local iteration ready for user verification
+# Waywr handoff — extensible execution direction
 
-Work remains on `plan/usability-and-installation`. Follow
-[AGENTS.md](../AGENTS.md), the [accepted approach](development-approach.md) and
-[usability target](usability-plan.md). Use one observable slice at a time: establish
-its behavioral red result before application changes, implement minimally, verify
-the relevant outcome/fences, then assess actual use. No broad test campaign or
-additional orchestration architecture is prescribed.
+Work remains on `plan/usability-and-installation`, with local commits only.
+Follow [AGENTS.md](../AGENTS.md), the [development approach](development-approach.md)
+and the [narrowed product direction](usability-plan.md#narrowed-product-direction).
+The user sets this order: extensible model/execution support, lifecycle fluidity,
+then coordination honed through a substantial web application.
 
-Git remains read-only for routine inspection, with staging owned changes and
-local commits allowed. The user reviews and performs all remote delivery. Do not
-push, modify PRs, merge remote work, publish releases or change hosted settings.
-Earlier remote permissions are superseded. Preserve unrelated edits/history.
+## Current decision and next action
 
-Implemented local iteration behavior:
+Waywr owns project coordination and the Rust TUI/service experience. Provider/model
+catalogs and options should leave coordinator code. An execution-adapter boundary
+is the recommended design: existing native clients or a shared third-party harness
+can implement it. Pi was a comparison; adoption was not requested. No third-party
+harness, plugin protocol or runtime replacement has been selected or implemented.
 
-- Compatible stopped projects open with the selected paired application, without
-  needing the old build or rewriting legacy project release metadata.
-- An idle old service hands over automatically after exact unit argv/PID/socket
-  ownership and quiescence checks under startup/execution fences. It preserves selected caller environment
-  and XDG locations rather than stale manager HOME/PATH. A live TUI,
-  pending delivery or uncertain launch preserves the old owner and reports why.
-- Native versions are diagnostic. New attempts freeze the current resolved CLI
-  separately from provider/model/role approval; normal updates, symlink moves and
-  removed historical default locators need no F3 save. Prepared attempts retain
-  exact executable checks. Required interface/tool/sandbox/result checks remain.
-  Legacy native packets without identity require a new attempt; fixture hashes
-  remain strict. A frozen-client semantic marker guards incompatible downgrade.
-- `sh scripts/dev-install.sh` builds/checks/selects a fresh paired local artifact
-  with one command. Failed builds preserve the selected installation and project
-  work. It changes no shell/provider settings and starts no service. `--prefix`
-  isolates an install; `waywr --version` reports version/build without project setup.
+Next action is a bounded adapter decision using current paths and one
+shared-harness candidate: model discovery/manual IDs, provider options, streamed
+activity/usage, cancellation, sessions, structured results and existing execution
+boundaries. Start with public protocol/source inspection. Record the smallest
+workable choice; do not build a general plugin SDK or survey every provider.
 
-Red evidence covered missing old-build routing, a still-running old service that
-never settled, provider version/hash gates, missing frozen-client compatibility
-checks, unavailable dev-install/version entry points, and a readiness check that
-still tested a removed locator after resolving its replacement. Final cases also
-proved known user-local discovery and caller HOME/PATH preservation in the actual
-service rather than a stale manager environment. The corresponding
-focused regressions pass. Source-build checks include notice/privacy validation.
-Verification includes real stopped-project and systemd handover/TUI checks,
-two real local builds/installs plus a compiler-failure control, installed CLI help
-probes, focused provider/permission/semantic/CLI regressions, and real archive
-install/startup outside the source tree with Rust absent and zero source accesses.
-Source/binary privacy, notice inventory, shell syntax, workflow YAML and reference
-checks pass. Ordinary native task delivery and subjective fluidity remain for the
-user to verify; no hosted CI run was triggered.
-The local history secret scan has one exact historical fingerprint exception for
-an unmistakably synthetic test project ID; current fixtures use a low-entropy
-repeated-character ID. No scanner rule or path is broadly excluded. See the
-[audit follow-up](security-audit-2026-11-08.md#local-iteration-follow-up).
+The first implementation slice must demonstrate configuring/selecting a supplied
+adapter and a model/option absent from core source through the normal dispatch
+path, without rebuilding Waywr. Establish behavioral red first. Preserve existing
+profiles and retained attempts. A protocol fixture proves extensibility only;
+ordinary model quality/authentication/usefulness needs separately authorized use.
+Thereafter address detach/reattach/update continuity, then the reference web app
+in running increments across selected model profiles. Model-independent interfaces
+do not guarantee equal model quality. No new provider-specific coordinator forks.
 
-Run [the verification guide](verify-usability.md): install from this checkout,
-complete a useful local task, close/pause, rebuild and reopen the same project.
-The agent has not installed into the operator environment, changed the preserved
-project or called a model. Prior cleanup removed 40 operator installations;
-source and project work/history remain. All acceptance installations/services
-belong to temporary fixtures and must be cleaned up.
+## Implemented baseline and limits
 
-Boundaries: idle replacement is supported; busy/uncertain execution is not
-force-stopped or replayed. Real CLI help checks establish interface metadata,
-not authentication, sandbox usability or model reliability. Public curl download,
-`waywr update`/`uninstall`, artifact collection and Debian packaging are later
-slices after ordinary-use feedback. No hosted binary release or paid feature was
-enabled. Historical repositories remain private/read-only.
+At `7f68ee8`, compatible stopped projects reopen without their old application;
+an exactly owned, positively idle service can hand over; native versions are
+diagnostic and new attempts freeze the resolved client; one-command local
+build/install and `--version` work. These have focused isolated acceptance evidence.
+The [prior checkpoint](archive/handoff/2026-11-09-local-iteration-before-execution-direction.md)
+retains verification details, including package/source isolation and the exact
+synthetic-ID secret-scan exception. No broad rerun is needed for this planning work.
+
+Current source still couples provider names, role eligibility, model-specific
+efforts and curated defaults to Rust. Unknown native model IDs already work in
+some paths with provider-default effort; this is not a general extension boundary.
+The [provider contract](provider-selection.md) records actual restrictions. Native
+Codex/Claude execute coding workers; Ollama is conversation/coordination/review;
+other discovered clients are not implemented coding adapters.
+
+Ordinary unassisted task delivery and subjective fluidity remain unestablished
+for this candidate. Active/uncertain work cannot be force-replaced; native-client
+help probes do not establish inference or sandbox reliability. Public download,
+update/uninstall, artifact collection and Debian packaging are incomplete. The
+user's new execution direction precedes more installer implementation. This
+checkpoint changes planning/policy docs only, not application behavior.
+
+## Authority
+
+Routine Git inspection is read-only; owned local commits are permitted. The user
+performs all remote delivery: no pushes, PR changes/merges, publication or hosted
+settings changes. Preserve unrelated work/history. No paid feature was enabled.
+
+Operator installation, preserved-project changes, credentials/provider settings
+and authenticated model calls require explicit task authorization. Prior cleanup
+removed operator installations; none was reinstalled. Use isolated projects for
+authorized runtime checks and clean their owned services/artifacts. Development
+rules must not become arbitrary product-agent restrictions; preserve justified
+project/data/execution boundaries while reducing repeated interaction.
 
 Contracts: [distribution](distribution.md), [providers](provider-selection.md),
 [layout](project-layout.md), [IPC](contracts/session-protocol.md),
-[workflow](ordinary-project-workflow.md). The [core-slice checkpoint](archive/handoff/2026-11-09-usability-core-slices.md)
-retains intermediate evidence. Next action: user review and verification; turn a
-concrete observed interruption into the next failing regression before fixing it.
+[workflow](ordinary-project-workflow.md). [User verification](verify-usability.md)
+remains available for the implemented baseline; it does not authorize a new run.

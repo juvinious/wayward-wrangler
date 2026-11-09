@@ -16,6 +16,7 @@ See [cleanup outcome](closeout-2026-10-15/cleanup.md). No allowance is reopened.
 
 | Group | Historical subject |
 | --- | --- |
+| [Local iteration before execution direction](handoff/2026-11-09-local-iteration-before-execution-direction.md) | Four implemented usability slices and verification limits before the user prioritized extensible execution, lifecycle fluidity and a substantial reference application |
 | [Core usability slices](handoff/2026-11-09-usability-core-slices.md) | Stopped-project reopening, real-systemd idle replacement and provider-update red/green evidence before one-command iteration and user verification |
 | [Usability planning and cleanup](handoff/2026-11-09-usability-planning-and-cleanup.md) | Removed operator installations; proposed daily-use target before adoption of acceptance-driven implementation and local-only delivery |
 | [Clean repository baseline](handoff/2026-11-09-clean-repository-baseline.md) | Independent public source migration and GitHub safeguards before usability planning and operator-install cleanup |

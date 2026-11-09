@@ -30,6 +30,11 @@ startup reading list. `CLAUDE.md` points here as the canonical working policy.
 Use [the acceptance-driven development approach](docs/development-approach.md)
 and the current slice in [the usability plan](docs/usability-plan.md).
 
+The plan's narrowed direction is extensible execution/model support, lifecycle
+fluidity, then real-application coordination. Keep provider/model catalogs and
+options out of new coordinator logic. No third-party harness is selected; settle
+the bounded adapter decision before introducing a runtime or plugin framework.
+
 - Start with one user-visible outcome, its present failure, an acceptance example
   and explicit exclusions. Finish that vertical slice before expanding scope.
 - Before changing application behavior, run an acceptance/regression test against

@@ -12,11 +12,116 @@ A user installs Waywr once, opens any supported project with `waywr`, gives it a
 real development request, reviews the result and can return later. Updating Waywr
 must not require upgrading each project or reinstalling the build that created it.
 
-Keep the existing Rust/Ratatui frontend, Rust service/runner, project identity,
-scope approval, exact commit review, durable receipts and execution fences. Fix
-the lifecycle around them before adding more orchestration features.
+## Narrowed product direction
 
-The first deliverable is a short daily development loop: **use Waywr → edit its
+The user has set this order: extensible model/execution support, application
+fluidity, then coordination refined through a substantial web application.
+Waywr owns project coordination and the user experience. Its core should not own
+a closed catalog of provider/model names. Pi is a comparison, not a selected
+dependency. A third-party execution utility remains an option to evaluate.
+
+The recommended boundary is an execution adapter. Native clients and a shared
+third-party harness are possible implementations behind that same boundary;
+plugins versus a third-party utility are not mutually exclusive choices. Keep
+the existing Rust TUI/service and inspect the existing adapter paths before
+extracting anything. The exact extension protocol and initial implementation
+are still design decisions, not implemented capabilities. Do not build a general
+plugin SDK, marketplace or another agent loop to settle them.
+
+### 1. Extensible execution and model selection
+
+- Model identifiers are data supplied by the adapter, discovered metadata or an
+  explicit user entry. An incomplete catalog must not prevent selecting a new
+  model. No Rust change or Waywr release should be required for a model supported
+  by an already installed adapter. Provider-specific defaults and option catalogs
+  belong with that adapter/configuration, rather than coordinator logic.
+- An adapter reports supported operations and options, streams text/tool/activity
+  events, identifies the requested and observed model when available, reports
+  usage, and exposes cancellation and session behavior. Unknown metadata remains
+  unknown. Native effort tokens are not mapped onto an invented common scale.
+- Core routing checks the capabilities needed by a task. A missing capability
+  gives a specific reason; a provider name alone must not decide role eligibility.
+  Supporting an interface does not establish model quality or reliable planning.
+- Waywr retains scope, project isolation, execution ownership, exact result/review
+  evidence and durable state. Adapter configuration does not grant project or
+  cross-provider data access. Credentials remain owned by the execution utility.
+  Endpoint/account/model changes must not silently redirect an approved task.
+- Live and retained views should expose the selected executor/model, current
+  activity, tool progress, token usage, cost and context remaining where reported.
+  Distinguish measured data from estimates and unavailable values. Context
+  headroom is not subscription/account quota; avoid invented remaining balances.
+
+**First slice, before application changes:** decide the smallest adapter contract
+using the current native paths and a bounded comparison with one shared-harness
+candidate. Record whether each can provide the operations above, preserve current
+work and avoid duplicated model/authentication logic. Use public protocol/source
+inspection first; selection must be evidence-based. No adoption is implied by
+comparison. Do not extend the candidate list into an open-ended survey.
+
+Then establish a behavioral red example: configure a locally supplied adapter and
+a model/option absent from Waywr's source, select it for a capability-compatible
+role, and exercise the ordinary preparation/dispatch path without a core rebuild.
+An isolated protocol fixture may prove this boundary; it cannot prove inference,
+authentication, sandboxing or useful work. Existing native profiles and retained
+attempts must keep their semantics. The first implementation delivers one working
+adapter path and useful status, rather than only moving strings into a file.
+Additional provider integrations and a universal plugin framework are excluded.
+
+### 2. Fluid application lifecycle
+
+The target journey is **start work → detach → reattach → update Waywr → continue**.
+Detach leaves intentionally running work under the project service; pause stops
+new dispatch according to its documented boundary; cancel reports actual
+settlement. Closing a terminal must have a predictable documented effect.
+
+Reattachment restores conversation, active tasks, queued input and decisions.
+Updating selects the application for new launches without project rebinding or
+discarding work. Busy work can retain its service/artifact until settled; its
+status must remain inspectable and attachable. Update must not force-stop or
+replay it. Artifact removal follows positive ownership/settlement evidence.
+Do not promise arbitrary storage compatibility or native-client session resume.
+
+Work through one observed interruption at a time. Public install/update/uninstall
+remain deliverables, using the existing bundle. Additional packaging follows a
+working lifecycle rather than delaying it. Existing reopening, idle-handover and
+local-install checks are reusable evidence, not proof of active-work continuity.
+
+### 3. Coordination through a real application
+
+Proposed reference workload: a project/work management web application with
+authentication and roles, persistent projects/tasks/comments, search/filtering,
+an API, migrations, a background export job and a documented local run path.
+This is a suggested target, not an authorized model run or a fixed product brief.
+Agree the brief before execution; it must describe user behavior and deliverables,
+without prescribing a canned sequence of coordinator decisions.
+
+Grow it in useful increments: first one complete persisted UI/API journey, then
+parallel work across real dependencies, review and integration, a changed
+requirement, and detach/update/recovery during work. The application must run and
+be inspectable after each increment. Record manual rescues, lost/duplicated work,
+time to a useful result and review quality; do not substitute test counts.
+
+Apply the same bounded work brief through at least two selected model profiles
+without changing coordinator code. Include distinct execution adapters when
+claiming adapter independence. Observe quality differences rather than promising
+that all models coordinate equally well. Prefer model-independent fixes to
+observed coordinator failures over special cases for a model or the reference app.
+This is ordinary product use, not a new broad acceptance matrix.
+
+### Scope and authority
+
+Developer rules govern changes to Waywr; they must not become arbitrary runtime
+agent restrictions. Review a restriction against a concrete project, data,
+execution or external-effect boundary. Preserve justified safeguards and remove
+redundant interaction. Existing authority limits remain: local work/commits only,
+no operator installation, preserved-project changes, authenticated model calls or
+remote delivery without the corresponding explicit task authorization.
+
+Keep the existing Rust/Ratatui frontend, Rust service/runner, project identity,
+scope approval, exact commit review, durable receipts and execution fences. Follow
+the narrowed order above before adding more orchestration features.
+
+The lifecycle phase must deliver a short daily development loop: **use Waywr → edit its
 source → rebuild/install with one command → reopen the same project → continue**.
 The user must be able to work with the application while it improves. Public
 release automation and additional packaging must not delay this loop. If this
@@ -40,7 +145,8 @@ Implementation uses isolated acceptance installations only. The agent has not
 reinstalled into the operator environment, changed the preserved project, called
 a model or performed remote delivery. Existing project release records are
 retained data; the current reader opens compatible state without their old binary.
-The user now reviews and installs the candidate for ordinary-use verification.
+Ordinary-use verification remains outstanding; the narrowed execution direction
+now precedes further lifecycle implementation.
 
 ## First slice — reopen after replacement (implemented)
 
@@ -112,9 +218,10 @@ installation is not changed. The user can now install and assess the complete
 ordinary-use/rebuild/reopen loop using the [verification guide](verify-usability.md).
 The agent has not made authenticated model calls or established useful task delivery.
 
-Next checkpoint: user verification and concrete friction reports. Public curl,
-update/uninstall commands, artifact collection and additional package channels
-follow that feedback; they are not claimed complete by this local iteration work.
+Next checkpoint: the bounded adapter decision and first extensible-execution slice
+above. Public curl, update/uninstall commands, artifact collection and additional
+package channels are not complete. Earlier checks remain available for the
+subsequent lifecycle phase; do not rerun them as a substitute for useful work.
 
 ## Required everyday use cases
 
@@ -129,8 +236,9 @@ follow that feedback; they are not claimed complete by this local iteration work
 | Uninstall | `waywr uninstall` removes owned application files; preserves project work by default | No command, service or installation remains; project files/history stay intact |
 
 The first supported distribution remains Linux x86_64 GNU with systemd user
-services. Mac/Windows, additional provider integrations and broad autonomous
-reliability are outside this increment. A narrow supported platform is preferable
+services. Mac/Windows and broad autonomous reliability remain outside this
+increment. Additional integrations follow the adapter decision, not ad hoc
+provider branches in the coordinator. A narrow supported platform is preferable
 to installation instructions that imply unverified portability.
 
 ## Application and project lifecycle
@@ -221,27 +329,22 @@ package channels until one installation/update/uninstall route works end to end.
 
 ## Delivery order and bounded checks
 
-1. **Daily-use vertical slice.** Remove exact project build/client version locks
-   for the current supported state/IPC contracts, handle legacy build records
-   without needing their executable, add `--version` and the one-command local
-   build/install wrapper, and preserve safe service ownership. Verify reopening
-   with the former build removed and refusal to replay an uncertain operation.
-   With explicit user authorization after planning, install the candidate and use
-   the current provider CLI for one useful real task in a chosen project. Fix an
-   observed application issue, rebuild once and continue in that same project.
-   This complete loop is the first milestone; ship no additional orchestration
-   features before it works. Keep older unsupported state inspectable and give a
-   concrete recovery route; do not promise arbitrary forward/backward compatibility.
-2. **Install/update/uninstall.** Add public/latest installation and CLI lifecycle
-   commands using the existing bundle. Check checksum failure leaves the current
-   installation intact, two projects survive an update/removal of the old build,
-   and uninstall preserves project work. Produce the release assets and concrete
-   publication instructions for review. No installation during the planning task.
-3. **First public release and package.** Keep using the application during its
-   development; retain observed defects as the work queue. After the daily loop
-   and clean public install work, publish the user-approved release. Build the
-   Debian package from that same artifact/lifecycle. Prioritize interruptions and
-   lost-time defects over expanding providers, abstractions or acceptance suites.
+1. **Execution boundary.** Settle the bounded adapter decision, then deliver the
+   new-model-without-core-change journey above. Existing profiles/work remain
+   usable. A fixture proves extensibility only; real native usefulness requires
+   separately authorized ordinary work. No third-party harness is selected yet.
+2. **Lifecycle fluidity.** Demonstrate detach/reattach and safe update while work
+   exists, then complete public installation and owned-file uninstall. Fix actual
+   interruptions without expanding orchestration. The four implemented slices
+   above support this phase but do not complete it.
+3. **Substantial application.** Agree a reference brief, deliver a running first
+   increment, then exercise dependencies, concurrent work, review and recovery
+   across selected model profiles. Improve coordination from observed failures.
+   No model-specific coordinator fork or full-application test campaign first.
+
+Publication remains the user's action after local review and normal gates. A
+Debian package follows the same verified bundle/lifecycle when useful; it is not
+a prerequisite for the three phases. No hosted release is available yet.
 
 Choose targeted checks for changed contracts and the few real lifecycle cases
 above. Reuse accepted tests; do not introduce another broad acceptance program or

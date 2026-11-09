@@ -14,6 +14,13 @@ TDD drives correctness inside that journey. Ordinary use determines whether the
 experience is fluid. Passing internal checks alone does not establish usefulness.
 Documentation-only work uses reference/diff checks, not manufactured red tests.
 
+The [narrowed product direction](usability-plan.md#narrowed-product-direction)
+sets the next order: extensible execution/model selection, lifecycle fluidity,
+then coordination through a substantial real application. Development constraints
+are not runtime agent capability limits. Evaluate restrictions against concrete
+failure boundaries; do not equate model-independent architecture with equal model
+quality or make a model-specific coordinator to pass the reference workload.
+
 ## Slice agreement
 
 Before implementation, record four short items in the plan or handoff:
