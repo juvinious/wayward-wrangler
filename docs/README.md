@@ -35,6 +35,8 @@ Public download, update/uninstall and additional package channels remain incompl
 and [distribution](distribution.md) own the connected increment. The
 [TUI keyboard contract](tui-controls.md) owns focused navigation, fixed control
 hints and the complete searchable provider/model picker. The
+Thinking selector uses per-model runtime metadata; F3 and the main header show
+the model/level, with draft and active bindings distinguished. The
 [approved plan](archive/product-workflow/approved-plan-b810bf1.md) is archived evidence.
 It builds on preserved recovery/convergence, not older main.
 The [repository cleanup record](repository-cleanup-2026-10-18.md) records both repository-only cleanups, PR/tree proof, former tips and preserved

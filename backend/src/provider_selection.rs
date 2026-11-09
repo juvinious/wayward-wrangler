@@ -461,7 +461,7 @@ pub fn schema(s: &Session) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
         tx.commit().map_err(|e| e.to_string())?;
     }
-    if metadata(s,"provider_discovery")?.is_none_or(|v|v["protocol"]!=1){
+    if metadata(s,"provider_discovery")?.is_none_or(|v|v["protocol"]!=1||v["catalog_version"]!=2){
         let value=read(&s.project.join(".waywr/coordinator.json"))?;
         let p=Preferences::inspect(&value)?;
         let discovery=discover_with(Some(&p));

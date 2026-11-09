@@ -1,5 +1,20 @@
 // Production F3 forms. No discovery or inference occurs merely by opening Settings.
+const PROVIDER_FIELDS:[&str;7]=["provider","model","thinking","options","binary","transport","context_bytes"];
 impl App {
+    fn model_metadata(&self,profile:&Value)->Value {
+        self.live.as_ref().and_then(|live|live.conversation.as_ref()).and_then(|c|c["development"]["providers"]["discovery"]["models"].as_array()).into_iter().flatten()
+            .find(|m|m["provider"]==profile["provider"]&&m["model"]==profile["model"]).cloned().unwrap_or(Value::Null)
+    }
+    fn thinking_label(&self,profile:&Value)->String {
+        if let Some(level)=profile["options"]["reasoning"].as_str(){return if self.model_metadata(profile)["thinking_levels"].is_array(){level.into()}else{format!("{level} (unverified)")}}
+        if let Some(level)=self.model_metadata(profile)["thinking_default"].as_str(){return format!("default ({level})")}
+        if let Some(effort)=profile["effort"].as_str().filter(|v|*v!="provider_default"){return format!("legacy {effort}")}
+        "default (unreported)".into()
+    }
+    fn active_model_label(&self)->Option<String> {
+        let profile=self.chat().map(|c|c["profile"].clone()).unwrap_or_else(||self.provider_state()["coordinator"]["profile"].clone());
+        profile["model"].as_str().map(|model|format!("Model: {model} · thinking {} · {}",self.thinking_label(&profile),profile["provider"].as_str().unwrap_or("unconfigured")))
+    }
     fn provider_state(&self) -> Value {
         self.development_view()["providers"].clone()
     }
@@ -119,20 +134,27 @@ impl App {
                 return;
             }
             if matches!(key.code,KeyCode::Enter|KeyCode::Tab|KeyCode::BackTab) {
-                let field = ["provider", "model", "options", "binary", "transport", "context_bytes"][self.provider_field % 6];
+                let field = PROVIDER_FIELDS[self.provider_field % PROVIDER_FIELDS.len()];
                 let text = self.scope_editor.text();
+                if field=="thinking" {
+                    let profile=&self.provider_edit.as_ref().unwrap()["preferences"]["profiles"][&name];
+                    let levels=self.model_metadata(profile)["thinking_levels"].clone();
+                    if levels.as_array().is_some_and(|levels|!levels.contains(&Value::String(text.clone()))){self.notice="Choose a runtime-advertised thinking level for this model".into();self.mark();return;}
+                }
                 if let Some(edit) = &mut self.provider_edit {
-                    edit["preferences"]["profiles"][&name][field] = if matches!(field,"transport"|"options"){match serde_json::from_str(&text){Ok(v)=>v,Err(_)=>{self.notice="Enter valid JSON before accepting this field".into();return;}}}else if field == "context_bytes" {
+                    let value = if matches!(field,"transport"|"options"){match serde_json::from_str(&text){Ok(v)=>v,Err(_)=>{self.notice="Enter valid JSON before accepting this field".into();return;}}}else if field == "context_bytes" {
                         text.parse::<u64>().map(Value::from).unwrap_or(Value::Null)
                     } else {
                         Value::from(text)
                     };
+                    if field=="options"&&!value.is_object(){self.notice="Model options must be a JSON object".into();self.mark();return;}
+                    if field=="thinking"{edit["preferences"]["profiles"][&name]["options"]["reasoning"]=value;}else{edit["preferences"]["profiles"][&name][field]=value;}
                     if field == "binary" {
                         edit["preferences"]["profiles"][&name]["binary_sha256"] = Value::Null;
                     }
                 }
                 self.provider_typing = false;
-                if key.code!=KeyCode::Enter{self.provider_field=(self.provider_field+if key.code==KeyCode::Tab{1}else{5})%6;}
+                if key.code!=KeyCode::Enter{self.provider_field=(self.provider_field+if key.code==KeyCode::Tab{1}else{PROVIDER_FIELDS.len()-1})%PROVIDER_FIELDS.len();}
                 self.provider_follow=true;
                 self.mark();
                 return;
@@ -149,6 +171,10 @@ impl App {
             KeyCode::Char('r') => self.provider_command("providers.refresh", serde_json::json!({})),
             KeyCode::Char('s') => {
                 let p = self.provider_edit.as_ref().unwrap()["preferences"].clone();
+                for profile in p["profiles"].as_object().into_iter().flat_map(|profiles|profiles.values()){
+                    let requested=&profile["options"]["reasoning"];
+                    if !requested.is_null()&&(!requested.is_string()||self.model_metadata(profile)["thinking_levels"].as_array().is_some_and(|levels|!levels.contains(requested))){self.notice="Unsupported thinking level: choose one advertised for the selected model".into();self.mark();return;}
+                }
                 match waywr_backend::provider_selection::Preferences::parse(&p) {
                     Ok(_) => self
                         .provider_command("providers.save", serde_json::json!({"preferences":p})),
@@ -165,7 +191,7 @@ impl App {
             }
             KeyCode::Up | KeyCode::Down => {
                 if self.provider_section == 0 {
-                    self.provider_field=if key.code==KeyCode::Down{(self.provider_field+1).min(5)}else{self.provider_field.saturating_sub(1)};
+                    self.provider_field=if key.code==KeyCode::Down{(self.provider_field+1).min(PROVIDER_FIELDS.len()-1)}else{self.provider_field.saturating_sub(1)};
                 }else if self.provider_section == 3 {
                     self.provider_index = if key.code == KeyCode::Down {
                         (self.provider_index + 1) % names.len()
@@ -187,7 +213,7 @@ impl App {
                 self.provider_grant = false;
             }
             KeyCode::Tab | KeyCode::BackTab => {
-                if self.provider_section==0{self.provider_field=(self.provider_field+if key.code==KeyCode::Tab{1}else{5})%6;}
+                if self.provider_section==0{self.provider_field=(self.provider_field+if key.code==KeyCode::Tab{1}else{PROVIDER_FIELDS.len()-1})%PROVIDER_FIELDS.len();}
                 else{let code=if key.code==KeyCode::Tab{KeyCode::Down}else{KeyCode::Up};self.provider_key(KeyEvent::new(code,KeyModifiers::NONE));return;}
             }
             KeyCode::Char('+') if self.provider_section == 0 => {
@@ -282,6 +308,7 @@ impl App {
                     match self.provider_field {
                         0=>self.open_catalog(CatalogScope::Providers),
                         1=>{let provider=self.provider_edit.as_ref().unwrap()["preferences"]["profiles"][&name]["provider"].as_str().map(str::to_owned);self.open_catalog(CatalogScope::Models(provider));},
+                        2=>self.open_catalog(CatalogScope::Thinking),
                         _=>self.provider_edit_field(&name),
                     }
                 }
@@ -326,8 +353,9 @@ impl App {
         self.provider_follow=true;self.mark();
     }
     fn provider_edit_field(&mut self,name:&str) {
-        let field=["provider","model","options","binary","transport","context_bytes"][self.provider_field%6];
-        let value=&self.provider_edit.as_ref().unwrap()["preferences"]["profiles"][name][field];
+        let field=PROVIDER_FIELDS[self.provider_field%PROVIDER_FIELDS.len()];
+        let profile=&self.provider_edit.as_ref().unwrap()["preferences"]["profiles"][name];
+        let value=if field=="thinking"{profile["options"]["reasoning"].as_str().map(|s|Value::String(s.into())).unwrap_or_else(||self.model_metadata(profile)["thinking_default"].clone())}else{profile[field].clone()};
         self.scope_editor=Composer::default();
         self.scope_editor.input(Event::Paste(value.as_str().map(str::to_owned).unwrap_or_else(||value.to_string())));
         self.provider_typing=true;
@@ -356,11 +384,11 @@ impl App {
                         id,
                         v["provider"].as_str().unwrap_or("?"),
                         v["model"].as_str().unwrap_or("?"),
-                        v["effort"].as_str().unwrap_or("?")
+                        self.thinking_label(v)
                     ));
                 }
                 text.push_str("\n←/→ profile · + duplicate · V providers · C provider models · F all models\n");
-                for (i, field) in ["provider", "model", "options", "binary", "transport", "context_bytes"]
+                for (i, field) in PROVIDER_FIELDS
                     .iter()
                     .enumerate()
                 {
@@ -370,7 +398,7 @@ impl App {
                         if *field=="context_bytes"{"working target bytes (optional; soft)"}else{field},
                         if self.provider_typing && i == self.provider_field {
                             self.scope_editor.text()
-                        } else {
+                        } else if *field=="thinking"{self.thinking_label(&p["profiles"][name])}else {
                             p["profiles"][name][*field]
                                 .as_str()
                                 .map(str::to_owned)
@@ -475,6 +503,28 @@ mod provider_ui_tests {
         app
     }
     #[test]
+    fn thinking_selection_uses_runtime_choices_and_shows_draft_and_active_levels() {
+        let mut app=navigation_app();
+        let live=app.live.as_mut().unwrap().conversation.as_mut().unwrap();
+        live["development"]["providers"]["discovery"]["models"][0]["thinking_levels"]=serde_json::json!(["off","high","runtime-defined-level"]);
+        live["development"]["providers"]["discovery"]["models"][0]["thinking_default"]=serde_json::json!("off");
+        live["chat"]=serde_json::json!({"status":"available","profile":{"provider":"provider-a","model":"model-00","options":{"reasoning":"high"}}});
+        let key=|code|Event::Key(KeyEvent::new(code,KeyModifiers::NONE));
+        app.input(key(KeyCode::Down));app.input(key(KeyCode::Down));app.input(key(KeyCode::Enter));app.input(key(KeyCode::End));
+        let screen=capture(&mut app,80,24,"thinking-picker");
+        assert!(screen.contains("runtime-defined-level"),"The chooser must use runtime metadata, not a Rust effort enum");
+        app.input(key(KeyCode::Enter));
+        assert_eq!(app.provider_edit.as_ref().unwrap()["preferences"]["profiles"]["default"]["options"]["reasoning"],"runtime-defined-level");
+        let screen=capture(&mut app,80,24,"thinking-draft");
+        assert!(screen.contains("model-00")&&screen.contains("runtime-defined-level"));
+        assert!(app.take_intent().is_none());
+        app.input(key(KeyCode::Char('s')));
+        assert!(matches!(app.take_intent(),Some(LiveIntent::Dialogue(v)) if v["action"]=="providers.save"&&v["payload"]["preferences"]["profiles"]["default"]["options"]["reasoning"]=="runtime-defined-level"));
+        app.input(key(KeyCode::Esc));
+        let screen=capture(&mut app,80,24,"active-thinking");
+        assert!(screen.contains("model-00")&&screen.contains("thinking high"),"The main view must show the active model and thinking level");
+    }
+    #[test]
     fn settings_arrows_and_reverse_tab_move_fields_and_escape_cancels_only_the_edit() {
         let mut app=navigation_app();
         let key=|code|Event::Key(KeyEvent::new(code,KeyModifiers::NONE));
@@ -482,7 +532,7 @@ mod provider_ui_tests {
         assert!(app.provider_body().1.contains("› model:"),"Down must move to the next form field, even with one profile");
         app.input(key(KeyCode::BackTab));
         assert!(app.provider_body().1.contains("› provider:"));
-        for _ in 0..5 {app.input(key(KeyCode::Tab));}
+        for _ in 0..6 {app.input(key(KeyCode::Tab));}
         app.input(key(KeyCode::Enter));
         assert!(app.provider_typing);
         app.input(key(KeyCode::Esc));
@@ -520,13 +570,13 @@ mod provider_ui_tests {
     fn settings_focus_and_controls_stay_visible_and_manual_ids_remain_possible() {
         for (width,height) in [(60,18),(80,24),(120,40)] {
             let mut app=navigation_app();let key=|code|Event::Key(KeyEvent::new(code,KeyModifiers::NONE));
-            for _ in 0..5{app.input(key(KeyCode::Down));}
+            for _ in 0..6{app.input(key(KeyCode::Down));}
             let screen=capture(&mut app,width,height,"settings");
             assert!(screen.contains("› working target"),"Selected field must stay visible at {width}x{height}");
             assert!(screen.contains("Esc back"),"Controls must stay visible");
             app.input(key(KeyCode::PageDown));
             assert!(capture(&mut app,width,height,"settings-scrolled").contains("Esc back"));
-            for _ in 0..5{app.input(key(KeyCode::Up));}
+            for _ in 0..6{app.input(key(KeyCode::Up));}
             app.input(key(KeyCode::Char('e')));
             app.input(Event::Key(KeyEvent::new(KeyCode::Char('a'),KeyModifiers::CONTROL)));
             app.input(Event::Paste("provider-not-in-catalog".into()));

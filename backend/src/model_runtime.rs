@@ -85,8 +85,10 @@ pub fn preferences_from_catalog(catalog:&Value)->Result<Value,String>{
     let binary=node()?;let mut transport=default_transport()?;
     let selected=&catalog["default"];
     transport["destination"]=destination(selected["provider"].as_str().ok_or("Catalog has no default provider")?,&transport)?;
+    let mut options=json!({});
+    if let Some(level)=catalog["models"].as_array().into_iter().flatten().find(|m|m["provider"]==selected["provider"]&&m["model"]==selected["model"]).and_then(|m|m["thinking_default"].as_str()){options["reasoning"]=json!(level);}
     let profile=json!({"provider":selected["provider"],"model":selected["model"],"binary":binary,
-        "effort":"provider_default","options":{},"transport":transport,"context_bytes":98304});
+        "effort":"provider_default","options":options,"transport":transport,"context_bytes":98304});
     Ok(json!({"schema_version":3,"profile":"development-profiles-v1","profiles":{"default":profile},
         "coordinator":"default","worker_default":"default","roles":{
             "coordinator":{"default":"default","allowed":["default"]},"implementation":{"default":"default","allowed":["default"]},

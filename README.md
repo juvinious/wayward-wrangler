@@ -160,6 +160,9 @@ F3 → F opens the complete searchable model catalog. Type to filter, Up/Down to
 select and Enter to place a model in the draft; S saves after returning to the
 form. E permits exact IDs absent from the catalog. Fixed footer hints follow the
 [TUI keyboard contract](docs/tui-controls.md).
+The Thinking field lists the selected model's supported levels and saves the
+choice with its profile. F3 shows draft and active model/level separately; the
+main view shows the active coordinator pair.
 
 Development activity labels follow saved event status and review disposition, so
 prose about failed-save tests cannot mark a passing review as failed. A completed

@@ -1,5 +1,5 @@
 import {builtinModels} from '@earendil-works/pi-ai/providers/all';
-import {createProvider} from '@earendil-works/pi-ai';
+import {createProvider,getSupportedThinkingLevels,clampThinkingLevel} from '@earendil-works/pi-ai';
 import {openAICompletionsApi} from '@earendil-works/pi-ai/api/openai-completions.lazy';
 import {openAIResponsesApi} from '@earendil-works/pi-ai/api/openai-responses.lazy';
 import {anthropicMessagesApi} from '@earendil-works/pi-ai/api/anthropic-messages.lazy';
@@ -53,7 +53,7 @@ async function registry(config,authenticated=false) {
     }}};
     models.setProvider(createProvider({id:p.id,name:p.name||p.id,baseUrl:p.base_url,auth,
       api:{[p.api]:api()},models:(p.models||[]).map(m=>({id:m.id,name:m.name||m.id,provider:p.id,api:p.api,
-        baseUrl:p.base_url,reasoning:m.reasoning??false,input:['text'],contextWindow:m.context_window??0,
+        baseUrl:p.base_url,reasoning:m.reasoning??false,thinkingLevelMap:m.thinking_level_map,input:['text'],contextWindow:m.context_window??0,
         maxTokens:m.max_tokens??4096,cost:m.cost||{input:0,output:0,cacheRead:0,cacheWrite:0}}))}));
   }
   return models;
@@ -61,10 +61,11 @@ async function registry(config,authenticated=false) {
 async function describe(input) {
   const config=await loadConfig(input.config),models=await registry(config);
   const list=models.getModels().map(m=>({provider:m.provider,model:m.id,name:m.name,
-    context_window:m.contextWindow||null,reasoning:m.reasoning,source:'runtime catalog/configuration',
+    context_window:m.contextWindow||null,reasoning:m.reasoning,
+    thinking_levels:getSupportedThinkingLevels(m),thinking_default:clampThinkingLevel(m,'off'),source:'runtime catalog/configuration',
     authentication:'not checked',capabilities:['conversation','coordinator','implementation','review']}));
   const first=config.defaults||{provider:list[0]?.provider,model:list[0]?.model};
-  emit({protocol:1,providers:models.getProviders().map(p=>({id:p.id,name:p.name,authentication:'not checked',
+  emit({protocol:1,catalog_version:2,providers:models.getProviders().map(p=>({id:p.id,name:p.name,authentication:'not checked',
     methods:Object.entries(p.auth).filter(([,v])=>v).map(([k])=>k)})),models:list,default:first,
     configured_providers:(config.providers||[]).map(p=>p.id),inference:false});
 }
@@ -78,16 +79,20 @@ async function run(input) {
   try {
     const config=await loadConfig(input.config||profile.runtime.config),models=await registry(config,true);
     const provider=models.getProvider(p.provider);if(!provider)throw Error(`Provider ${p.provider} is not registered; configure it in the runtime models file`);
-    let model=models.getModel(p.provider,p.model);
+    let model=models.getModel(p.provider,p.model);const knownModel=!!model;
     if(!model){const template=provider.getModels()[0];if(!template)throw Error('Manual model requires provider protocol metadata in the runtime configuration');model={...template,id:p.model,name:p.model,contextWindow:0};}
-    if(!await models.getAuth(model))throw Error(`Provider ${p.provider} needs credentials; use waywr models login or its SDK environment variable`);
     const options=profile.options||{};for(const key of Object.keys(options))if(forbidden.has(key))throw Error(`Option ${key} belongs to provider configuration, not model options`);
+    const thinking=options.reasoning??clampThinkingLevel(model,'off');
+    if(typeof thinking!=='string'||(knownModel&&!getSupportedThinkingLevels(model).includes(thinking)))throw Error('Selected thinking level is unsupported for this model; choose one of its runtime-advertised levels');
+    runtime.requested_thinking_level=thinking;runtime.thinking_capabilities=knownModel?'runtime metadata':'unverified manual model';
+    const {reasoning:requestedReasoning,...requestOptions}=options;
+    if(!await models.getAuth(model))throw Error(`Provider ${p.provider} needs credentials; use waywr models login or its SDK environment variable`);
     const submit={name:'submit_result',label:'Submit result',description:'Finish this assigned operation with the exact required structured result.',parameters:input.schema,
       execute:async(_id,value)=>{if(submitted!==undefined)throw Error('Result already submitted');submitted=value;return {content:[{type:'text',text:'Result recorded for application validation'}],details:{},terminate:true};}};
     const worker=p.operation_kind==='development-worker';
-    agent=new Agent({initialState:{model,systemPrompt:input.instructions+'\nFinish by calling submit_result; prose alone does not complete this operation.',
+    agent=new Agent({initialState:{model,thinkingLevel:thinking,systemPrompt:input.instructions+'\nFinish by calling submit_result; prose alone does not complete this operation.',
       tools:[...(worker?taskTools(p.worktree):[]),submit]},toolExecution:'sequential',identity:{attribution:null},
-      streamFn:(model,context,base)=>{sent=true;return models.streamSimple(model,context,{...base,...options,signal:base.signal});},
+      streamFn:(model,context,base)=>{sent=true;return models.streamSimple(model,context,{...base,...requestOptions,signal:base.signal});},
       finishTurn:()=>submitted!==undefined?{action:'end'}:undefined});
     agent.subscribe(e=>{
       if(e.type==='turn_start')emit({type:'runtime.activity',id:'model',label:'Requesting model response',status:'running'});
@@ -102,7 +107,7 @@ async function run(input) {
           emit({type:'runtime.usage',scope:'attempt',cumulative:true,usage:{...usage,cost_source:'provider or SDK catalog estimate'}});}
       }
     });
-    emit({type:'runtime.started',provider:p.provider,model:p.model});
+    emit({type:'runtime.started',provider:p.provider,model:p.model,thinking_level:thinking});
     await agent.prompt(JSON.stringify(p));
     const last=agent.state.messages.filter(m=>m.role==='assistant').at(-1);
     responseComplete=!!last&&!['error','aborted','pending'].includes(last.stopReason);

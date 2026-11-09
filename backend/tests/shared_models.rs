@@ -5,7 +5,7 @@ use waywr_backend::{execution::write, provider_selection as providers, session_s
 
 fn preferences() -> Value {
     let profile = |provider: &str| json!({"provider":provider,"binary":"/usr/bin/node",
-        "model":"catalog-independent-model","effort":"provider_default","options":{"temperature":0.2},
+        "model":"catalog-independent-model","effort":"provider_default","options":{"temperature":0.2,"reasoning":"high"},
         "context_bytes":98304,"transport":{"entry":"/tmp/not-executed-runtime.mjs","config":null}});
     json!({"schema_version":3,"profile":"development-profiles-v1",
         "profiles":{"first":profile("provider-one"),"second":profile("provider-two")},
@@ -93,9 +93,11 @@ fn shared_models_can_save_select_and_reopen_without_a_core_provider_or_model_ent
     let selected = prefs.resolve("implementation", &Value::Null, None, &policy, revision, "ordinary task").unwrap();
     assert_eq!(selected["profile"]["provider"], "provider-two");
     assert_eq!(selected["profile"]["options"]["temperature"], 0.2);
+    assert_eq!(selected["profile"]["options"]["reasoning"], "high");
     drop(session);
     let reopened = Session::open(root.path(), &state, &key, "shared-models").unwrap();
     assert_eq!(providers::preferences(&reopened).unwrap().0.worker_default, "second");
+    assert_eq!(providers::preferences(&reopened).unwrap().0.profiles["second"].options["reasoning"], "high");
 }
 
 #[test]

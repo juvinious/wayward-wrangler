@@ -2637,7 +2637,9 @@ impl App {
         let base = Style::default().fg(fg).bg(bg);
         frame.render_widget(Block::default().style(base), screen);
         let wide = screen.width >= 110;
-        let header_h = 1;
+        let active_model=self.active_model_label();
+        let selection_h=active_model.as_ref().map(|s|Paragraph::new(s.as_str()).wrap(Wrap{trim:false}).line_count(screen.width).min(2) as u16).unwrap_or(0);
+        let header_h = 1+selection_h;
         let empty_session = self.live.as_ref().map_or(
             self.journal.first == First::Empty && self.journal.second == Second::None,
             |v|v.tasks.is_empty() && v.conversation.as_ref().is_none_or(|c|
@@ -2676,12 +2678,13 @@ impl App {
             Span::styled(if self.development_mode(){" · DEVELOPMENT"}else if self.chat().is_some_and(|v|v["profile"]["mode"]!="mock-cli") {" · NATIVE CONVERSATION"}else if self.chat().is_some(){" · MOCK CLI STREAM"}else if self.live.is_some() {" · SIMULATED SERVICE"} else {" · SIMULATED DEMO"}, base.fg(tone.attention).add_modifier(Modifier::BOLD)),
             Span::styled(self.live.as_ref().filter(|live|live.phase!="running").map(|live|format!(" · Session {}",live.phase)).unwrap_or_default(),base.fg(tone.attention).add_modifier(Modifier::BOLD)),
             Span::styled(format!(" · {project}"), base.fg(fg)),
-            Span::styled(if let Some(chat)=self.chat(){format!(" · {}/{} · {}",chat["profile"]["provider"].as_str().unwrap_or("Claude"),chat["profile"]["model"].as_str().unwrap_or("unconfigured"),chat["status"].as_str().unwrap_or("blocked"))}else if self.live.is_some(){" · Coordinator: fake/deterministic".into()}else{" · Coordinator: scripted".into()},base.fg(tone.option)),
+            Span::styled(if let Some(chat)=self.chat(){if active_model.is_some(){format!(" · {}",chat["status"].as_str().unwrap_or("blocked"))}else{format!(" · {}/{} · {}",chat["profile"]["provider"].as_str().unwrap_or("Claude"),chat["profile"]["model"].as_str().unwrap_or("unconfigured"),chat["status"].as_str().unwrap_or("blocked"))}}else if self.live.is_some(){" · Coordinator: fake/deterministic".into()}else{" · Coordinator: scripted".into()},base.fg(tone.option)),
             Span::styled(if self.provider_state()["switch"]["status"].as_str().is_some_and(|s|matches!(s,"requested"|"waiting"|"blocked")){" · Switch pending"}else{""},base.fg(tone.attention)),
             Span::styled(if self.journal.connection == "connected" { " · Service connected" } else { " · Service reconnecting" }, base.fg(if self.journal.connection == "connected" { tone.success } else { tone.attention })),
             Span::styled(if wide { " · Settings F3" } else { "" }, base.fg(tone.muted)),
         ]);
         frame.render_widget(Paragraph::new(header).style(base), Rect::new(0, 0, screen.width, 1));
+        if let Some(label)=active_model{frame.render_widget(Paragraph::new(Self::safe(&label)).wrap(Wrap{trim:false}).style(base.fg(tone.option)),Rect::new(0,1,screen.width,selection_h));}
         Self::draw_line(
             frame,
             Rect::new(0, header_h, screen.width, 1),

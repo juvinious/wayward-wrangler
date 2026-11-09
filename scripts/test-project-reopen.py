@@ -107,6 +107,10 @@ def main():
         if args.provider_navigation:
             assert len(catalog) > 16, 'SDK catalog must exercise navigation beyond the former preview'
             selected_provider, selected_model = catalog[-2].split(' · context ', 1)[0].split('/', 1)
+            metadata = subprocess.run([node, str(prefix / 'releases' / releases[0] / 'resources/model-runtime/bridge.mjs'), 'describe'],
+                                      input='{}', capture_output=True, text=True, env=env, timeout=15, check=True)
+            model = next(m for m in json.loads(metadata.stdout)['models'] if m['provider'] == selected_provider and m['model'] == selected_model)
+            selected_thinking = model['thinking_levels'][-1]
         draft = 'Continue this work after updating Waywr'
         service = None
 
@@ -223,13 +227,18 @@ def main():
                         if select.select([master], [], [], .1)[0]:
                             screen.extend(os.read(master, 65536))
                     assert selected_model.encode() in screen, 'Catalog tail model was not visible in the picker'
-                    os.write(master, b'\rs')
+                    # Accept model, move to Thinking, choose its last advertised level, save.
+                    os.write(master, b'\r\x1b[B\r\x1b[F\rs')
                     profile_path = project / '.waywr/coordinator.json'
                     def profile_saved():
                         profile = json.loads(profile_path.read_text())['profiles']['default']
-                        return profile['provider'] == selected_provider and profile['model'] == selected_model
+                        return (profile['provider'] == selected_provider and profile['model'] == selected_model
+                                and profile.get('options', {}).get('reasoning') == selected_thinking)
                     wait_for(profile_saved, 'The explicit picker selection/save did not reach project preferences')
                     before[profile_path] = profile_path.read_bytes()
+                if args.provider_navigation and expected_draft is not None:
+                    profile = json.loads((project / '.waywr/coordinator.json').read_text())['profiles']['default']
+                    assert profile['options']['reasoning'] == selected_thinking, 'Thinking choice did not survive reopening'
                 if args.retired_profiles or (args.provider_navigation and expected_draft is None):
                     os.write(master, b'\x1b')
                     time.sleep(.2)
@@ -291,6 +300,7 @@ def main():
                 assert not list(state.rglob('spawn-committed.json'))
                 print(json.dumps({'real_systemd_bootstrap_and_idle_handover': True,
                                   'catalog_navigation_saved_and_reopened': args.provider_navigation,
+                                  'thinking_level_saved_and_reopened': args.provider_navigation,
                                   'live_ui_pending_delivery_and_uncertain_launch_preserved': True,
                                   'old_build_removed': True, 'model_calls': 0}))
                 return
@@ -315,6 +325,7 @@ def main():
             assert not list(state.rglob('ollama-send-intent.json'))
             print(json.dumps({'reopened_with_old_build_removed': True,
                               'catalog_navigation_saved_and_reopened': args.provider_navigation,
+                              'thinking_level_saved_and_reopened': args.provider_navigation,
                               'draft_settings_and_pause_preserved': True,
                               'manual_rebinds': 0, 'model_calls': 0,
                               'service_bootstrap': 'direct isolated process, not systemd'}))

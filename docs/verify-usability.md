@@ -27,6 +27,9 @@ setup. Existing project work/settings/history are preserved; there is no
 per-project application version to select. Installation does not sign in or import another agent application's credentials.
 Use `waywr models login PROVIDER --method oauth` (or `apiKey` when supported), then
 F3 →1 →F to select a model and S to save before requesting work.
+Choose Thinking in the profile form to select one of that model's advertised
+levels before saving. F3 labels draft and active selections; the main header
+shows the active coordinator's model and level.
 For an existing project, use section4 Switch after saving a different coordinator;
 saving preferences alone does not change the active binding.
 

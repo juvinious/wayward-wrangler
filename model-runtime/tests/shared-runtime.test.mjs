@@ -9,11 +9,26 @@ import {join,resolve} from 'node:path';
 
 import {fixture} from './http-fixture.mjs';
 const workerSchema={type:'object',properties:{schema_version:{type:'integer'},summary:{type:'string'},commit:{type:'string'},checks:{type:'array',items:{type:'string'}},remaining_obligations:{type:'array',items:{type:'string'}}},required:['schema_version','summary','commit','checks','remaining_obligations'],additionalProperties:false};
+test('catalog exposes per-model thinking choices and default from runtime capabilities',async()=>{
+  const root=await mkdtemp(join(tmpdir(),'waywr-thinking-catalog-'));
+  try {
+    const config=join(root,'models.json');await writeFile(config,JSON.stringify({providers:[{id:'thinking-fixture',api:'openai-completions',base_url:'http://127.0.0.1:1',models:[
+      {id:'reasoning-model',reasoning:true,thinking_level_map:{off:null,minimal:null,xhigh:'xhigh',max:null}},
+      {id:'plain-model',reasoning:false}]}]}));
+    const child=spawn(process.execPath,[resolve('dist/bridge.mjs'),'describe'],{env:{PATH:process.env.PATH,HOME:root},stdio:['pipe','pipe','pipe']});
+    let text='';child.stdout.on('data',c=>text+=c);child.stderr.resume();child.stdin.end(JSON.stringify({config}));
+    assert.equal(await new Promise(done=>child.on('close',done)),0);
+    const data=JSON.parse(text),model=data.models.find(m=>m.provider==='thinking-fixture'&&m.model==='reasoning-model');
+    assert.deepEqual(model.thinking_levels,['low','medium','high','xhigh']);
+    assert.equal(model.thinking_default,'low');
+    assert.deepEqual(data.models.find(m=>m.provider==='thinking-fixture'&&m.model==='plain-model').thinking_levels,['off']);
+  }finally{await rm(root,{recursive:true,force:true});}
+});
 for(const api of ['openai-completions','anthropic-messages'])test(`shared worker uses ${api} with tools, custom IDs and usage`,async()=>{
   const root=await mkdtemp(join(tmpdir(),'waywr-model-test-')),http=await fixture(api);
   try{
-    const config=join(root,'models.json');await writeFile(config,JSON.stringify({providers:[{id:'custom-'+api,api,base_url:http.endpoint,models:[{id:'model-outside-core',context_window:32768}]}]}));
-    const input={protocol:1,directory:root,instructions:'Fixture only',schema:workerSchema,packet:{operation_kind:'development-worker',provider:'custom-'+api,model:'model-outside-core',worktree:root,execution:{runtime:{config},options:{temperature:0.2}}}};
+    const config=join(root,'models.json');await writeFile(config,JSON.stringify({providers:[{id:'custom-'+api,api,base_url:http.endpoint,models:[{id:'model-outside-core',context_window:65536,max_tokens:32768,reasoning:true}]}]}));
+    const input={protocol:1,directory:root,instructions:'Fixture only',schema:workerSchema,packet:{operation_kind:'development-worker',provider:'custom-'+api,model:'model-outside-core',worktree:root,execution:{runtime:{config},options:{temperature:0.2,reasoning:'high'}}}};
     const child=spawn(process.execPath,[resolve('dist/bridge.mjs'),'run'],{env:{PATH:process.env.PATH,HOME:root},stdio:['pipe','pipe','pipe']});
     let stdout='',stderr='';child.stdout.on('data',c=>stdout+=c);child.stderr.on('data',c=>stderr+=c);child.stdin.end(JSON.stringify(input));
     const code=await new Promise(done=>child.on('close',done));
@@ -21,9 +36,27 @@ for(const api of ['openai-completions','anthropic-messages'])test(`shared worker
     const events=stdout.trim().split('\n').map(JSON.parse);
     assert.equal(await readFile(join(root,'delivered.txt'),'utf8'),'Created by the actual SDK tool loop');
     assert.equal(http.calls(),2);
+    for(const request of http.requests()){
+      if(api==='openai-completions')assert.equal(request.reasoning_effort,'high');
+      else {assert.equal(request.thinking.type,'enabled');assert(request.thinking.budget_tokens>0);}
+    }
     assert(events.some(e=>e.type==='runtime.activity'&&e.label==='write'));
     assert(events.some(e=>e.type==='runtime.usage'&&e.usage.input>0));
     assert.equal(events.at(-1).outcome,'completed');assert.equal(events.at(-1).provider,'custom-'+api);
+    assert.equal(events.at(-1).runtime.requested_thinking_level,'high');
+  }finally{await http.close();await rm(root,{recursive:true,force:true});}
+});
+
+test('unsupported known-model thinking levels refuse before HTTP without silent downgrade',async()=>{
+  const root=await mkdtemp(join(tmpdir(),'waywr-thinking-refusal-')),http=await fixture('openai-completions');
+  try {
+    const config=join(root,'models.json');await writeFile(config,JSON.stringify({providers:[{id:'thinking-fixture',api:'openai-completions',base_url:http.endpoint,
+      models:[{id:'model-outside-core',reasoning:true,thinking_level_map:{xhigh:null,max:null}}]}]}));
+    const child=spawn(process.execPath,[resolve('dist/bridge.mjs'),'run'],{env:{PATH:process.env.PATH,HOME:root},stdio:['pipe','pipe','pipe']});
+    let text='';child.stdout.on('data',c=>text+=c);child.stderr.resume();
+    child.stdin.end(JSON.stringify({packet:{provider:'thinking-fixture',model:'model-outside-core',execution:{runtime:{config},options:{reasoning:'xhigh'}}}}));
+    assert.equal(await new Promise(done=>child.on('close',done)),3);
+    const final=JSON.parse(text.trim().split('\n').at(-1));assert.equal(final.request_sent,false);assert.match(final.reason,/thinking level is unsupported/);assert.equal(http.calls(),0);
   }finally{await http.close();await rm(root,{recursive:true,force:true});}
 });
 

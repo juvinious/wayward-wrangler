@@ -2,9 +2,10 @@ import {createServer} from 'node:http';
 import assert from 'node:assert/strict';
 export async function fixture(api) {
   let calls=0;
+  const requests=[];
   const server=createServer(async(req,res)=>{
     let raw='';for await(const c of req)raw+=c;
-    const input=JSON.parse(raw);assert.equal(input.model,'model-outside-core');
+    const input=JSON.parse(raw);requests.push(input);assert.equal(input.model,'model-outside-core');
     if(api==='openai-completions')assert.equal(input.temperature,0.2);
     const first=calls++===0;
     const name=first?'write':'submit_result';
@@ -25,7 +26,7 @@ export async function fixture(api) {
     }
   });
   await new Promise(done=>server.listen(0,'127.0.0.1',done));
-  return {endpoint:`http://127.0.0.1:${server.address().port}/v1`,calls:()=>calls,close:()=>new Promise(done=>server.close(done))};
+  return {endpoint:`http://127.0.0.1:${server.address().port}/v1`,calls:()=>calls,requests:()=>requests,close:()=>new Promise(done=>server.close(done))};
 }
 
 if(process.argv[2]){const server=await fixture(process.argv[2]);console.log(server.endpoint);process.stdin.resume();process.stdin.on('end',()=>server.close());}

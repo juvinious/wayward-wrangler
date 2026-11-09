@@ -2,6 +2,7 @@
 enum CatalogScope {
     Providers,
     Models(Option<String>),
+    Thinking,
 }
 struct CatalogPicker {
     scope: CatalogScope,
@@ -54,6 +55,14 @@ impl App {
                 .into_iter()
                 .filter(|m| provider.as_ref().is_none_or(|p| m["provider"] == *p))
                 .collect(),
+            CatalogScope::Thinking => {
+                let names = self.provider_names();
+                names.get(self.provider_index%names.len().max(1)).map(|name|{
+                    let profile=&self.provider_edit.as_ref().unwrap()["preferences"]["profiles"][name];
+                    self.model_metadata(profile)["thinking_levels"].as_array().into_iter().flatten().filter_map(|level|level.as_str())
+                        .map(|level|serde_json::json!({"provider":profile["provider"],"model":profile["model"],"level":level,"name":level})).collect()
+                }).unwrap_or_default()
+            }
         };
         let query = picker.query.text().to_lowercase();
         entries.retain(|m| {
@@ -91,6 +100,12 @@ impl App {
                 .catalog_entries()
                 .iter()
                 .position(|m| {
+                    if matches!(
+                        self.provider_picker.as_ref().unwrap().scope,
+                        CatalogScope::Thinking
+                    ) {
+                        return m["level"] == p["options"]["reasoning"];
+                    }
                     m["provider"] == p["provider"]
                         && (matches!(
                             self.provider_picker.as_ref().unwrap().scope,
@@ -134,14 +149,33 @@ impl App {
                 let names = self.provider_names();
                 let name = &names[self.provider_index % names.len()];
                 let p = &mut self.provider_edit.as_mut().unwrap()["preferences"]["profiles"][name];
-                p["provider"] = selected["provider"].clone();
-                p["model"] = selected["model"].clone();
-                p["options"] = serde_json::json!({});
-                p["effort"] = serde_json::json!("provider_default");
+                let thinking = matches!(picker.scope, CatalogScope::Thinking);
+                if thinking {
+                    p["options"]["reasoning"] = selected["level"].clone();
+                } else {
+                    let old_level = p["options"]["reasoning"].clone();
+                    let level = if selected["thinking_levels"]
+                        .as_array()
+                        .is_some_and(|levels| levels.contains(&old_level))
+                    {
+                        old_level
+                    } else {
+                        selected["thinking_default"].clone()
+                    };
+                    if p["provider"] != selected["provider"] || p["model"] != selected["model"] {
+                        p["options"] = serde_json::json!({});
+                    }
+                    p["provider"] = selected["provider"].clone();
+                    p["model"] = selected["model"].clone();
+                    if level.is_string() {
+                        p["options"]["reasoning"] = level;
+                    }
+                    p["effort"] = serde_json::json!("provider_default");
+                }
                 self.provider_picker = None;
-                self.provider_field = 1;
+                self.provider_field = if thinking { 2 } else { 1 };
                 self.provider_follow = true;
-                self.notice="Model selected in draft; S saves. Coordinator switching and context grants stay explicit.".into();
+                self.notice="Model/thinking selected in draft; S saves. Coordinator switching and context grants stay explicit.".into();
             }
             self.mark();
             return;
@@ -214,6 +248,7 @@ impl App {
                 CatalogScope::Providers => "Choose provider".to_owned(),
                 CatalogScope::Models(Some(p)) => format!("Choose model · {p}"),
                 CatalogScope::Models(None) => "Choose model · all providers".into(),
+                CatalogScope::Thinking => "Choose thinking level".into(),
             }
         } else {
             self.provider_body().0
@@ -294,6 +329,12 @@ impl App {
                             m["name"].as_str().unwrap_or(""),
                             m["model_count"]
                         )
+                    } else if matches!(picker.scope, CatalogScope::Thinking) {
+                        format!(
+                            "Thinking level for {}/{}",
+                            m["provider"].as_str().unwrap_or(""),
+                            m["model"].as_str().unwrap_or("")
+                        )
                     } else {
                         format!(
                             "{} · context {}",
@@ -345,6 +386,12 @@ impl App {
                             m["provider"].as_str().unwrap_or("?"),
                             m["model_count"]
                         )
+                    } else if matches!(picker.scope, CatalogScope::Thinking) {
+                        format!(
+                            "{} {}",
+                            if i == picker.index { "›" } else { " " },
+                            m["level"].as_str().unwrap_or("?")
+                        )
                     } else {
                         format!(
                             "{} {}/{}",
@@ -366,7 +413,15 @@ impl App {
                 .collect::<Vec<_>>();
             let list = Rect::new(area.x, area.y + header_h, area.width, rows as u16);
             if entries.is_empty() {
-                frame.render_widget(Paragraph::new("No catalog matches. Esc returns; E edits an exact provider/model ID in the form.").wrap(Wrap{trim:false}).style(base),list);
+                let empty = if matches!(picker.scope, CatalogScope::Thinking) {
+                    "Thinking levels not reported. Esc returns; R refreshes metadata. Exact options remain editable."
+                } else {
+                    "No catalog matches. Esc returns; E edits an exact provider/model ID in the form."
+                };
+                frame.render_widget(
+                    Paragraph::new(empty).wrap(Wrap { trim: false }).style(base),
+                    list,
+                );
             } else {
                 frame.render_widget(Paragraph::new(lines), list);
             }
@@ -390,9 +445,28 @@ impl App {
         } else {
             ""
         };
-        let header = Paragraph::new(format!("{tabs}\n{profile_line}{setup_line}"))
-            .wrap(Wrap { trim: false })
-            .style(base.fg(accent));
+        let names = self.provider_names();
+        let draft = names
+            .get(self.provider_index % names.len().max(1))
+            .map(|name| &self.provider_edit.as_ref().unwrap()["preferences"]["profiles"][name]);
+        let draft_line = draft
+            .map(|p| {
+                format!(
+                    "\nDraft: {} · thinking {}",
+                    p["model"].as_str().unwrap_or("unconfigured"),
+                    self.thinking_label(p)
+                )
+            })
+            .unwrap_or_default();
+        let active_line = self
+            .active_model_label()
+            .map(|s| format!("\nActive {s}"))
+            .unwrap_or_default();
+        let header = Paragraph::new(format!(
+            "{tabs}\n{profile_line}{draft_line}{active_line}{setup_line}"
+        ))
+        .wrap(Wrap { trim: false })
+        .style(base.fg(accent));
         let header_h = (header.line_count(area.width) as u16).min(area.height);
         frame.render_widget(header, Rect::new(area.x, area.y, area.width, header_h));
         let mut content = Rect::new(

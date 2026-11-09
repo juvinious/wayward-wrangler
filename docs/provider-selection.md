@@ -42,6 +42,13 @@ F3, section1 Profiles:
   editor. E edits any exact ID/value, including models absent from the catalog.
   Enter accepts a text edit; Tab/Shift-Tab accepts and moves focus; Esc cancels
   the edit. Options are SDK options, not an invented universal effort scale.
+- The Thinking field opens the selected model's SDK-advertised levels. These
+  include only the levels that model reports; Rust does not enumerate them.
+  The choice is saved as `options.reasoning`. Selecting another model keeps a
+  compatible explicit level or selects that model's advertised default. Other
+  model-specific options reset when changing models. F3 labels the draft and
+  active model/level separately; the main view shows the active coordinator pair.
+  S saves preferences without silently changing the active binding.
 - S saves a profile revision; L reloads. R refreshes local runtime/catalog/config
   metadata. It performs no inference, login, download or authenticated catalog call.
 - `+` duplicates a profile. Sections2–6 retain role defaults/allowed profiles,
@@ -54,6 +61,20 @@ private credential store. Known catalog models must not be advertised as tested
 or authenticated. Use `waywr models list --search QUERY` outside a project as well.
 
 ## Configuration and authentication
+
+The runtime supplies supported thinking levels and its default through catalog
+metadata. Old catalog caches refresh offline when the new service opens; saved
+profiles and grants are not rewritten. Existing profiles without an explicit
+level display `default (LEVEL)` when metadata is available. For manually entered
+models with no capability metadata, levels remain unverified and exact options
+stay editable. The display describes a requested setting, not provider attestation
+of internal computation. Known unsupported levels refuse before authentication or
+HTTP; they are not silently clamped. The agent loop receives the selected level
+explicitly, and runtime events/receipts retain the requested level.
+
+Custom model entries may set `reasoning: true` and `thinking_level_map` using
+SDK level keys and native values; `null` marks an unsupported level. The runtime
+derives choices/defaults with the SDK helpers, rather than a provider-name table.
 
 `WAYWR_MODELS_CONFIG` selects an absolute model configuration file. Otherwise a
 new project uses the existing `$XDG_CONFIG_HOME/waywr/models.json`, or

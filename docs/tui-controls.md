@@ -33,6 +33,11 @@ pickers. E edits an exact ID or value directly, including IDs absent from the
 catalog. `+` duplicates a profile. Provider results include registered providers
 with zero catalog models; a zero-result model list explains manual entry.
 
+The Thinking field opens levels supplied by the selected model's runtime
+metadata, using the same picker controls. F3 pins draft and active model/level
+labels; the main header shows the active pair. Choosing or saving a different
+level does not switch the active coordinator or expand its context grant.
+
 The full filtered catalog is navigable; only the visible viewport is rendered.
 Counters distinguish total matches from the highlighted position. Selecting a
 model changes the draft only. S persists it; coordinator switching and exact
