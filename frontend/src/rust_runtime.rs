@@ -195,8 +195,10 @@ fn handover_idle_service(ready:&Ready)->io::Result<()> {
         (&raw mut creds).cast(),&mut size)}!=0 || creds.pid<=0 || creds.pid as u32!=pid{
         return Err(err("Project socket and service process differ; service preserved"));
     }
-    let snapshot=request(&mut peer,"snapshot","handover-inspect",json!({}))?;
-    if snapshot.kind!="snapshot"||snapshot.body["project_key"]!=ready.key{
+    // Old services may be unable to serialize a large project snapshot. Their
+    // bounded status reply proves the same project; quiescence is checked below.
+    let snapshot=request(&mut peer,"session.status","handover-inspect",json!({}))?;
+    if snapshot.kind!="session.status_result"||snapshot.body["project_key"]!=ready.key{
         return Err(err("Previous service did not prove this project's state; service preserved"));
     }
     drop(peer);

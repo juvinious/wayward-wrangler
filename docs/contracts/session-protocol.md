@@ -1,20 +1,28 @@
 # Current local session protocol
 
-State9 services now advertise IPC1.9 / `coordinator_recovery_v1` alongside IPC1.8's
+Current state9/conversation6 services use IPC1.10 with `provider_selection_v1`;
+the frontend negotiates minor10. Provider/model options remain opaque profile
+data. IPC1.9 added `coordinator_recovery_v1` alongside IPC1.8's
 `conversational_coordination_v1`. Minor9 adds derived recovery/progress and effective
 finding projections to existing snapshots/events, plus frozen review-result semantics;
-no new transport or execution command. Both sides negotiate minor9. Retained
+no new transport or execution command. Retained
 `recovery-v1` records require a compatible paired release. IPC1.8 added
 `coordination.submit`, `coordination.present` and `coordination.disposition` command
 actions plus `conversation.coordination` snapshot context. The
 [conversation contract](../conversational-coordination.md) owns frozen input/card
-identity and source provenance. Current frontend negotiates minor9; older bound
+identity and source provenance. Older bound
 states retain their existing commands. Submitted legacy messages are not reclassified.
 
 The Rust TUI and CLI communicate with the selected project's Rust service over
 a same-UID Unix socket. Frames are newline-delimited UTF-8 JSON envelopes
-`{v, kind, request_id, body}`; protocol major 1 is required, with a 1 MiB
-frame and 64 KiB command ceiling. `hello` binds project key, exact release
+`{v, kind, request_id, body}`; protocol major1 is required. Shared
+`backend/src/ipc_limits.rs` keeps incoming frames at1MiB and commands at64KiB;
+complete replies may be up to8MiB so the full model catalog and retained project
+projection fit together. A larger reply returns a correlated `response_too_large`
+error with kind/size/budget, leaving the connection usable. It is never presented
+as a partial snapshot or permission to replay an operation. Retained project
+data is unchanged; larger whole-project views will require scoped/paged reads.
+`hello` binds project key, exact release
 and channel before requests. New host-backed services advertise minor 1 and
 `host_operations_v1`, `output_pages_v1`, `artifact_pages_v1` and
 `herdr_views_v1` capabilities. Schema-4 services advertise minor 2 and

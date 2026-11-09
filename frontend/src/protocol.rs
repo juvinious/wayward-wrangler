@@ -4,8 +4,8 @@ use std::io::{self, Read, Write};
 use std::os::unix::net::UnixStream;
 use std::time::Duration;
 
-pub const FRAME_MAX: usize = 1024 * 1024;
-pub const COMMAND_MAX: usize = 64 * 1024;
+pub use waywr_backend::ipc_limits::{RESPONSE_FRAME_MAX as FRAME_MAX,COMMAND_MAX};
+use waywr_backend::ipc_limits::REQUEST_FRAME_MAX;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -48,7 +48,7 @@ pub fn read_frame(stream: &mut UnixStream) -> io::Result<Frame> {
 
 pub fn write_frame(stream: &mut UnixStream, frame: &Frame) -> io::Result<()> {
     let bytes = serde_json::to_vec(frame).map_err(io::Error::other)?;
-    if bytes.len() > FRAME_MAX || (frame.kind == "command" && bytes.len() > COMMAND_MAX) {
+    if bytes.len() > REQUEST_FRAME_MAX || (frame.kind == "command" && bytes.len() > COMMAND_MAX) {
         return Err(io::Error::new(io::ErrorKind::InvalidInput, "frame too large"));
     }
     stream.write_all(&bytes)?;
@@ -91,6 +91,19 @@ pub fn connect_view(socket:&str,project_key:&str,release:&str,id:&str,token:&str
 mod tests {
     use super::*;
     use std::os::unix::net::UnixStream;
+    #[test]
+    fn populated_snapshot_does_not_expand_request_or_command_budgets(){
+        let (mut producer,mut reader)=UnixStream::pair().unwrap();
+        let body=serde_json::json!({"history":"retained history ".repeat(100_000)});
+        let expected=body.clone();
+        let bytes=serde_json::to_vec(&Frame::new("snapshot","large-read",body)).unwrap();
+        assert!(bytes.len()>REQUEST_FRAME_MAX);
+        let thread=std::thread::spawn(move||{producer.write_all(&bytes).unwrap();producer.write_all(b"\n").unwrap();});
+        assert_eq!(read_frame(&mut reader).unwrap().body,expected);
+        thread.join().unwrap();
+        assert!(write_frame(&mut reader,&Frame::new("snapshot","request",expected)).is_err());
+        assert!(write_frame(&mut reader,&Frame::new("command","mutation",serde_json::json!({"text":"x".repeat(COMMAND_MAX)}))).is_err());
+    }
     #[test]
     fn frame_roundtrip_and_ceiling() {
         let (mut a, mut b) = UnixStream::pair().unwrap();

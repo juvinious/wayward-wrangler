@@ -39,6 +39,9 @@ Thinking selector uses per-model runtime metadata; F3 and the main header show
 the model/level, with draft and active bindings distinguished. The
 idle-service handover also supports a direct temporary paired-bundle symlink,
 with exact process/socket/project checks and preserved busy-owner refusals. The
+complete snapshot reply budget now accommodates the catalog plus retained work;
+oversized replies return a correlated error. Bounded-status handover can replace
+an older service whose full snapshot cannot be delivered. The
 [approved plan](archive/product-workflow/approved-plan-b810bf1.md) is archived evidence.
 It builds on preserved recovery/convergence, not older main.
 The [repository cleanup record](repository-cleanup-2026-10-18.md) records both repository-only cleanups, PR/tree proof, former tips and preserved

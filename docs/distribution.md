@@ -53,8 +53,10 @@ This also works for a manifest-validated paired bundle launched directly through
 a temporary/project-local symlink; an installed releases directory is not
 required. Handover verifies the old unit's real executable (including a deleted
 old file), exact project/state/key/release/IPC/runner/frontend command, socket
-peer PID and project snapshot, then applies the existing quiescence fence. It
+peer PID and bounded project status reply, then applies the existing quiescence fence. It
 does not locate the old service by guessing a sibling installation directory.
+Using status instead of the full snapshot also permits upgrading an older
+service whose large project projection exceeds its former1MiB response ceiling.
 Explicit `waywr --project DIR session upgrade --release ID` checks closed UI/no pending
 input and positively settled operations, stops only that quiescent project service
 under execution fencing, then performs the existing guarded binding migration. PR delivery reconciles the exact
@@ -127,6 +129,10 @@ Adding `--portable` uses a temporary local-bin symlink directly to the paired
 bundles without installing them. That real-systemd variant reproduces the local
 development path and checks the same busy/uncertain-owner refusals and idle
 replacement after removal of the old bundle.
+`--populated-history` exercises complete snapshot delivery above1MiB using inert
+retained fixture records. With `--systemd-handover --portable`, an explicit
+`--previous-binaries ABS_BIN` tests an older service that demonstrably closes its
+oversized snapshot, followed by safe idle replacement and successful reopening.
 
 `python3 scripts/test-dev-install.py` runs two actual builds/installations with an
 explicit temporary prefix (including spaces) and the permanent Rust toolchain. It

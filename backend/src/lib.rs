@@ -60,3 +60,4 @@ pub mod candidate;
 pub mod project_resources;
 
 pub mod project_publication;
+pub mod ipc_limits;

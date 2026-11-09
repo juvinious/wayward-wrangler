@@ -14,6 +14,8 @@ import pty
 import re
 import select
 import shutil
+import sqlite3
+import socket
 import struct
 import subprocess
 import tempfile
@@ -40,9 +42,15 @@ def main():
                         help='Use real uniquely keyed user units; replace a still-running idle service')
     parser.add_argument('--portable', action='store_true',
                         help='Use a temporary symlink directly to paired bundles, without bundle-install')
+    parser.add_argument('--populated-history', action='store_true',
+                        help='Seed retained display records so real snapshot delivery exceeds 1 MiB')
+    parser.add_argument('--previous-binaries', type=Path,
+                        help='Use an older paired bin directory for the initial service in the populated systemd upgrade check')
     args = parser.parse_args()
     if args.portable and not args.systemd_handover:
         parser.error('--portable requires --systemd-handover to exercise ordinary service replacement')
+    if args.previous_binaries and not (args.systemd_handover and args.populated_history):
+        parser.error('--previous-binaries requires --systemd-handover and --populated-history')
     binaries = args.binaries.resolve()
     source = Path(__file__).resolve().parent.parent
     for name in ['waywr', 'waywr-service', 'waywr-runner']:
@@ -87,10 +95,11 @@ def main():
             return root / release if args.portable else prefix / 'releases' / release
         for release in releases:
             bundle = root / release
+            pair = args.previous_binaries.resolve() if args.previous_binaries and release == releases[0] else binaries
             run([binaries / 'waywr', 'bundle-build', '--release-id', release,
                  '--output', bundle, '--source-root', source,
-                 '--frontend', binaries / 'waywr', '--service', binaries / 'waywr-service',
-                 '--runner', binaries / 'waywr-runner'])
+                 '--frontend', pair / 'waywr', '--service', pair / 'waywr-service',
+                 '--runner', pair / 'waywr-runner'])
         if args.portable:
             launcher.parent.mkdir()
             launcher.symlink_to(release_root(releases[0]) / 'bin/waywr')
@@ -175,6 +184,52 @@ def main():
                 service.terminate()
                 service.wait(timeout=10)
             service = None
+
+        def seed_history():
+            with sqlite3.connect(state / 'state.sqlite') as database:
+                # Inert retained notifications exercise projection size without
+                # seeding a request, authority, worker or model call.
+                for index in range(8):
+                    record = {'id': f'fixture-history-{index}', 'status': 'retained',
+                              'summary': 'Retained fixture history. ' * 4096}
+                    database.execute('INSERT INTO development_records(kind,id,record_json) VALUES(?,?,?)',
+                                     ('notification', record['id'], json.dumps(record)))
+
+        def prove_old_snapshot_closes():
+            with socket.socket(socket.AF_UNIX) as peer:
+                peer.settimeout(5)
+                peer.connect(str(ipc))
+                stream = peer.makefile('rwb', buffering=0)
+                def send(kind, body):
+                    stream.write(json.dumps({'v': 1, 'kind': kind, 'request_id': kind, 'body': body}).encode() + b'\n')
+                    return stream.readline()
+                hello = send('hello', {'protocol': {'major': 1, 'minor': 10}, 'release_id': releases[0],
+                                      'project_key': key, 'client_id': 'fixture-reader', 'channel': 'events'})
+                assert json.loads(hello)['body']['accepted']
+                assert json.loads(send('session.status', {}))['body']['project_key'] == key
+                assert send('snapshot', {}) == b'', 'Previous binary did not reproduce its oversized-snapshot closure'
+
+        def inspect_populated_snapshot(release):
+            with socket.socket(socket.AF_UNIX) as peer:
+                peer.settimeout(5)
+                peer.connect(str(ipc))
+                stream = peer.makefile('rwb', buffering=0)
+                def send(kind, body):
+                    stream.write(json.dumps({'v': 1, 'kind': kind, 'request_id': kind, 'body': body}).encode() + b'\n')
+                    return stream.readline(9 * 1024 * 1024)
+                hello = send('hello', {'protocol': {'major': 1, 'minor': 10}, 'release_id': release,
+                                      'project_key': key, 'client_id': 'fixture-reader', 'channel': 'events'})
+                assert json.loads(hello)['body']['accepted']
+                raw = send('snapshot', {})
+                assert len(raw) > 1024 * 1024, 'Populated snapshot was truncated instead of delivered'
+                result = json.loads(raw)
+                assert result['kind'] == 'snapshot'
+                development = result['body']['conversation']['development']
+                retained = [r for r in development['notifications'] if r.get('id', '').startswith('fixture-history-')]
+                assert len(retained) == 8
+                assert all(r['summary'] == 'Retained fixture history. ' * 4096 for r in retained)
+                if catalog:
+                    assert len(development['providers']['discovery']['models']) == len(catalog), 'Catalog entries were lost'
 
         def unit_property(name):
             return run(['systemctl', '--user', 'show', '--property=' + name, '--value', unit]).strip()
@@ -293,6 +348,10 @@ def main():
                 open_and_detach(while_open=replace_while_attached)
                 old_pid = unit_property('MainPID')
                 old_owner = json.loads((state / 'supervision/owner.json').read_text())
+                if args.populated_history:
+                    seed_history()
+                    if args.previous_binaries:
+                        prove_old_snapshot_closes()
                 pending = state / 'session/outbox/fixture-pending.json'
                 pending.parent.mkdir(exist_ok=True)
                 pending.write_text('{}')
@@ -309,6 +368,8 @@ def main():
                 finally:
                     shutil.rmtree(state / 'session/coordinator/fixture-call')
                 open_and_detach(draft)
+                if args.populated_history:
+                    inspect_populated_snapshot(releases[1])
                 assert unit_property('MainPID') != old_pid, 'Old service was not handed over'
                 owner = json.loads((state / 'supervision/owner.json').read_text())
                 assert owner['generation'] > old_owner['generation']
@@ -318,12 +379,18 @@ def main():
                 assert not list(state.rglob('spawn-committed.json'))
                 print(json.dumps({'real_systemd_bootstrap_and_idle_handover': True,
                                   'portable_bundle_symlink': args.portable,
+                                  'populated_history_snapshot_delivered': args.populated_history,
+                                  'upgraded_from_snapshot_closing_service': bool(args.previous_binaries),
                                   'catalog_navigation_saved_and_reopened': args.provider_navigation,
                                   'thinking_level_saved_and_reopened': args.provider_navigation,
                                   'live_ui_pending_delivery_and_uncertain_launch_preserved': True,
                                   'old_build_removed': True, 'model_calls': 0}))
                 return
             start_service(releases[0])
+            if args.populated_history:
+                stop_service()
+                seed_history()
+                start_service(releases[0])
             open_and_detach()
             run([launcher, 'session', 'stop'])
             wait_for(lambda: json.loads(run([launcher, 'session', 'status']))['session']['phase'] == 'paused',
@@ -336,6 +403,8 @@ def main():
             refuses_invalid_metadata()
             start_service(releases[1])
             open_and_detach(draft)
+            if args.populated_history:
+                inspect_populated_snapshot(releases[1])
             status = json.loads(run([launcher, 'session', 'status']))
             assert status['session']['phase'] == 'paused', 'Opening resumed execution'
             run([launcher, 'init', project])  # Repeated setup must preserve saved state too.
@@ -345,6 +414,7 @@ def main():
             print(json.dumps({'reopened_with_old_build_removed': True,
                               'catalog_navigation_saved_and_reopened': args.provider_navigation,
                               'thinking_level_saved_and_reopened': args.provider_navigation,
+                              'populated_history_snapshot_delivered': args.populated_history,
                               'draft_settings_and_pause_preserved': True,
                               'manual_rebinds': 0, 'model_calls': 0,
                               'service_bootstrap': 'direct isolated process, not systemd'}))

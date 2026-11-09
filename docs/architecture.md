@@ -23,6 +23,7 @@ candidates, checkout ownership, retention and completion; HANDOFF records verifi
 | `frontend/src/main.rs`, `prototype/view.rs` | Accepted Ratatui composer, exact scope/policy approval, tasks and Inspect |
 | `rust_runtime.rs`, `rust_bundle.rs`, `rust_migrate.rs`, `cli_schema.rs` | Init, paired stable install, stopped-service layout migration, CLI routing, service attachment |
 | `session_service.rs`, `db_writer.rs` | One service per project, responsive IPC and bounded SQLite writer |
+| `ipc_limits.rs`, `frontend/src/protocol.rs` | Shared1MiB incoming/64KiB command budgets,8MiB complete replies and correlated oversized-reply errors |
 | `coordination.rs`, `coordination/providers.rs`, `prototype/coordination_view.rs` | Request-bound chat, presented cards, exact decisions, continued answers, provider choices and append-only repair |
 | `continuous.rs`, `task_scope.rs`, `conversation_store.rs` | Saved discussion, exact proposal/decision authority and causal queue |
 | `output.rs` | Typed result validation; ordinary citation provenance separate from action dependencies |

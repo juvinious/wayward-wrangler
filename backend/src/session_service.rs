@@ -13,8 +13,7 @@ use tokio::{io::{AsyncReadExt,AsyncWriteExt},net::{UnixListener,UnixStream as As
     sync::{Semaphore,watch},task::JoinSet,time::{self,timeout}};
 #[cfg(test)]use std::io::Write;
 
-const FRAME_MAX:usize=1024*1024;
-const COMMAND_MAX:usize=64*1024;
+use crate::ipc_limits::{REQUEST_FRAME_MAX as FRAME_MAX,RESPONSE_FRAME_MAX,COMMAND_MAX};
 const MAX_CONNECTIONS:usize=64;
 const MAX_BLOCKING_DISPATCH:usize=16;
 struct ReadPermit<'a>(&'a AtomicUsize);
@@ -44,9 +43,29 @@ fn read_frame(peer:&mut UnixStream)->Result<Option<Value>,String>{
 }
 #[cfg(test)]
 fn send(peer:&mut UnixStream,value:&Value)->Result<(),String>{
-    let mut bytes=serde_json::to_vec(value).map_err(|e|e.to_string())?;
-    if bytes.len()>FRAME_MAX{return Err("Response frame exceeds 1 MiB".into());}
+    let mut bytes=response_bytes(value)?;
     bytes.push(b'\n');peer.write_all(&bytes).map_err(|e|e.to_string())
+}
+fn response_bytes(value:&Value)->Result<Vec<u8>,String>{
+    let bytes=serde_json::to_vec(value).map_err(|e|e.to_string())?;
+    if bytes.len()<=RESPONSE_FRAME_MAX{return Ok(bytes);}
+    // A bounded correlated error keeps the peer usable and never substitutes
+    // a partial snapshot for complete state or authorizes a retry/mutation.
+    serde_json::to_vec(&frame("error",value["request_id"].as_str().unwrap_or("response"),json!({
+        "code":"response_too_large","message":"Service reply exceeds the 8 MiB response budget; use scoped task/history reads. Project state is preserved.",
+        "response_kind":value["kind"],"response_bytes":bytes.len(),"limit_bytes":RESPONSE_FRAME_MAX
+    }))).map_err(|e|e.to_string())
+}
+#[cfg(test)]
+#[test]
+fn oversize_response_is_correlated_and_keeps_connection_usable(){
+    let (mut service,mut client)=UnixStream::pair().unwrap();
+    send(&mut service,&frame("snapshot","large-read",json!({"history":"x".repeat(RESPONSE_FRAME_MAX)}))).unwrap();
+    let reply=read_frame(&mut client).unwrap().unwrap();
+    assert_eq!(reply["kind"],"error");assert_eq!(reply["request_id"],"large-read");
+    assert_eq!(reply["body"]["code"],"response_too_large");assert_eq!(reply["body"]["limit_bytes"],RESPONSE_FRAME_MAX);
+    send(&mut service,&frame("session.status_result","next-read",json!({"project_key":"fixture"}))).unwrap();
+    assert_eq!(read_frame(&mut client).unwrap().unwrap()["request_id"],"next-read");
 }
 async fn read_frame_async(peer:&mut AsyncUnixStream)->Result<Option<Value>,String>{
     let mut raw=Vec::new();let mut byte=[0u8];
@@ -63,8 +82,7 @@ async fn read_frame_async(peer:&mut AsyncUnixStream)->Result<Option<Value>,Strin
     Ok(Some(value))
 }
 async fn send_async(peer:&mut AsyncUnixStream,value:&Value)->Result<(),String>{
-    let mut bytes=serde_json::to_vec(value).map_err(|e|e.to_string())?;
-    if bytes.len()>FRAME_MAX{return Err("Response frame exceeds 1 MiB".into());}
+    let mut bytes=response_bytes(value)?;
     bytes.push(b'\n');peer.write_all(&bytes).await.map_err(|e|e.to_string())
 }
 fn current_uid(fd:RawFd)->Result<bool,String>{
