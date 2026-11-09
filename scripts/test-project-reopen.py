@@ -34,6 +34,8 @@ def main():
     parser.add_argument('--binaries', type=Path, default=Path('target/release'))
     parser.add_argument('--retired-profiles', action='store_true',
                         help='Open schema-2 native settings for F3 replacement without executing or rewriting them')
+    parser.add_argument('--provider-navigation', action='store_true',
+                        help='Use real F3 terminal input to select a model at the end of the catalog and save it in the fixture')
     parser.add_argument('--systemd-handover', action='store_true',
                         help='Use real uniquely keyed user units; replace a still-running idle service')
     args = parser.parse_args()
@@ -101,6 +103,10 @@ def main():
         kept = [project / '.waywr/project.toml', project / '.waywr/coordinator.json',
                 project / '.waywr/release.json']
         before = {path: path.read_bytes() for path in kept}
+        catalog = run([launcher, 'models', 'list']).splitlines() if args.provider_navigation else []
+        if args.provider_navigation:
+            assert len(catalog) > 16, 'SDK catalog must exercise navigation beyond the former preview'
+            selected_provider, selected_model = catalog[-2].split(' · context ', 1)[0].split('/', 1)
         draft = 'Continue this work after updating Waywr'
         service = None
 
@@ -173,7 +179,8 @@ def main():
 
         def open_and_detach(expected_draft=None, while_open=None):
             master, slave = pty.openpty()
-            fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH', 32, 120, 0, 0))
+            rows, columns = (24, 80) if args.provider_navigation else (32, 120)
+            fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH', rows, columns, 0, 0))
             ui = subprocess.Popen([str(launcher), '--ipc-dir', str(root / 'run')], cwd=project, env=env,
                                   stdin=slave, stdout=slave, stderr=slave,
                                   start_new_session=True)
@@ -206,6 +213,24 @@ def main():
                         if select.select([master], [], [], .1)[0]:
                             screen.extend(os.read(master, 65536))
                     assert setup_visible(), ('F3 setup was not reachable: ' + screen.decode(errors='replace')[-1500:])
+                if args.provider_navigation and expected_draft is None:
+                    if not args.retired_profiles:
+                        os.write(master, b'\x1b[13~')
+                    # End/Up must move the result cursor, not scroll a truncated preview.
+                    os.write(master, b'f\x1b[F\x1b[A')
+                    deadline = time.monotonic() + 10
+                    while selected_model.encode() not in screen and time.monotonic() < deadline:
+                        if select.select([master], [], [], .1)[0]:
+                            screen.extend(os.read(master, 65536))
+                    assert selected_model.encode() in screen, 'Catalog tail model was not visible in the picker'
+                    os.write(master, b'\rs')
+                    profile_path = project / '.waywr/coordinator.json'
+                    def profile_saved():
+                        profile = json.loads(profile_path.read_text())['profiles']['default']
+                        return profile['provider'] == selected_provider and profile['model'] == selected_model
+                    wait_for(profile_saved, 'The explicit picker selection/save did not reach project preferences')
+                    before[profile_path] = profile_path.read_bytes()
+                if args.retired_profiles or (args.provider_navigation and expected_draft is None):
                     os.write(master, b'\x1b')
                     time.sleep(.2)
                 if expected_draft is None:
@@ -265,6 +290,7 @@ def main():
                 assert saved_draft() == draft
                 assert not list(state.rglob('spawn-committed.json'))
                 print(json.dumps({'real_systemd_bootstrap_and_idle_handover': True,
+                                  'catalog_navigation_saved_and_reopened': args.provider_navigation,
                                   'live_ui_pending_delivery_and_uncertain_launch_preserved': True,
                                   'old_build_removed': True, 'model_calls': 0}))
                 return
@@ -288,6 +314,7 @@ def main():
             assert not list(state.rglob('spawn-committed.json'))
             assert not list(state.rglob('ollama-send-intent.json'))
             print(json.dumps({'reopened_with_old_build_removed': True,
+                              'catalog_navigation_saved_and_reopened': args.provider_navigation,
                               'draft_settings_and_pause_preserved': True,
                               'manual_rebinds': 0, 'model_calls': 0,
                               'service_bootstrap': 'direct isolated process, not systemd'}))

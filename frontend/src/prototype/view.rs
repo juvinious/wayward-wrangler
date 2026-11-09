@@ -279,6 +279,7 @@ pub struct App {
     pub conversation_revision_request:bool,
     question_confirmation:Option<Value>,
     project_edit:Option<Value>,provider_edit:Option<Value>,provider_section:usize,provider_index:usize,provider_row:usize,provider_field:usize,provider_typing:bool,provider_grant:bool,provider_interrupt:bool,
+    provider_picker:Option<CatalogPicker>,provider_follow:bool,
 }
 
 impl App {
@@ -347,7 +348,7 @@ impl App {
             live,
             pending_primary_task: None,
             submission_draft: None,
-            scope_edit:None,scope_editor:Composer::default(),scope_field:1,scope_ack:None,scope_step:0,conversation_subject:"discussion".into(),queue_index:0,conversation_revision_request:false,question_confirmation:None,project_edit:None,provider_edit:None,provider_section:0,provider_index:0,provider_row:0,provider_field:0,provider_typing:false,provider_grant:false,provider_interrupt:false,
+            scope_edit:None,scope_editor:Composer::default(),scope_field:1,scope_ack:None,scope_step:0,conversation_subject:"discussion".into(),queue_index:0,conversation_revision_request:false,question_confirmation:None,project_edit:None,provider_edit:None,provider_section:0,provider_index:0,provider_row:0,provider_field:0,provider_typing:false,provider_grant:false,provider_interrupt:false,provider_picker:None,provider_follow:true,
         };
         if app.live.is_none() { app.schedule(); }
         if app.journal.effects == "subtle" {
@@ -922,7 +923,7 @@ impl App {
                 }
             }
         }
-        if modal==Modal::Settings&&self.provider_state()["schema_version"]==1{self.provider_edit=Some(self.provider_draft());self.provider_typing=false;self.provider_grant=false;self.provider_interrupt=false;}
+        if modal==Modal::Settings&&self.provider_state()["schema_version"]==1{self.provider_edit=Some(self.provider_draft());self.provider_typing=false;self.provider_grant=false;self.provider_interrupt=false;self.provider_picker=None;self.provider_follow=true;}
         self.modal = modal;
         self.modal_action = 0;
         self.modal_scroll = 0;
@@ -1617,6 +1618,7 @@ impl App {
         self.mark();
     }
     fn handle_modal(&mut self, key: KeyEvent) {
+        if self.provider_settings(){self.provider_key(key);return;}
         if key.code == KeyCode::Esc {
             self.modal = if self.modal == Modal::Artifact {
                 self.modal_action=if self.candidate_read(){2}else{1};
@@ -1654,9 +1656,11 @@ impl App {
             self.mark();
             return;
         }
-        if self.provider_settings(){self.provider_key(key);return;}
         if !matches!(self.modal, Modal::Question | Modal::Tasks | Modal::Target | Modal::History | Modal::Queue) {
             match key.code {
+                KeyCode::Home | KeyCode::End => {
+                    self.modal_scroll=if key.code==KeyCode::Home{0}else{self.modal_scroll_limit};self.mark();return;
+                }
                 KeyCode::Up => {
                     self.modal_scroll = self.modal_scroll.saturating_sub(1);
                     self.mark();
@@ -2093,6 +2097,9 @@ impl App {
                 self.open(Modal::Detach);
                 return;
             }
+        }
+        if self.provider_settings()&&self.provider_picker.is_some(){
+            if let Event::Paste(value)=&event{let picker=self.provider_picker.as_mut().unwrap();picker.query.input(Event::Paste(value.clone()));picker.index=0;picker.offset=0;self.mark();return;}
         }
         if self.provider_settings()&&self.provider_typing{
             if let Event::Paste(value)=&event{self.scope_editor.input(Event::Paste(value.clone()));self.mark();return;}
@@ -3444,6 +3451,7 @@ impl App {
         accent: Color,
         _attention: Color,
     ) {
+        if self.provider_settings(){self.render_provider_modal(frame,screen,base,accent);return;}
         let (title, body) = self.modal_body();
         let width = screen.width.saturating_sub(4).min(104);
         let height = screen.height.saturating_sub(4).min(if screen.height >= 42 {
@@ -3522,7 +3530,7 @@ impl App {
             Modal::Detach=>format!("{} [Stay] {} [Detach]",if self.modal_action==0{">"}else{" "},if self.modal_action==1{">"}else{" "}),
             Modal::Cancel=>format!("{} [Back] {} [{}]",if self.modal_action==0{">"}else{" "},if self.modal_action==1{">"}else{" "},if self.chat().is_some(){"Interrupt call"}else{"Cancel task"}),
             Modal::UnknownCommand=>format!("{} [Edit draft] {} [Send as literal message]",if self.modal_action==0{">"}else{" "},if self.modal_action==1{">"}else{" "}),
-            _=>"[Back] · Esc returns · Up/Down line · PageUp/PageDown page".into(),
+            _=>"Esc back · ↑/↓ line · PgUp/PgDn page · Home/End bounds".into(),
         }} else { match self.modal {
             Modal::Scope => format!(
                 "{} [Back] {} [Authorize] {} [Cancel]",
@@ -3553,7 +3561,7 @@ impl App {
                 if self.modal_action == 0 { ">" } else { " " },
                 if self.modal_action == 1 { ">" } else { " " }
             ),
-            _ => "[Back]  Esc returns · Up/Down line · PageUp/PageDown page".into(),
+            _ => "Esc back · ↑/↓ line · PgUp/PgDn page · Home/End bounds".into(),
         }};
         frame.render_widget(Paragraph::new(actions).wrap(Wrap{trim:false}).style(base.fg(accent).add_modifier(Modifier::BOLD)),Rect::new(inner.x,inner.y+inner.height.saturating_sub(footer_h),inner.width,footer_h.saturating_sub(1)));
         Self::draw_line(
@@ -4634,6 +4642,10 @@ mod tests {
         let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
         terminal.draw(|frame| app.render(frame, Duration::ZERO)).unwrap();
         assert!(app.modal_scroll_limit > 8);
+        app.input(key(KeyCode::End));
+        assert_eq!(app.modal_scroll,app.modal_scroll_limit,"End reaches the bottom of a content panel");
+        app.input(key(KeyCode::Home));
+        assert_eq!(app.modal_scroll,0);
         app.input(key(KeyCode::Down));
         assert_eq!(app.modal_scroll, 1);
         app.input(key(KeyCode::Up));
@@ -5247,6 +5259,7 @@ mod tests {
 }
 
 include!("provider_view.rs");
+include!("provider_picker.rs");
 
 include!("coordination_view.rs");
 

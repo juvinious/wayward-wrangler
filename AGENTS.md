@@ -64,6 +64,9 @@ coordination through a substantial real application. Follow the
 - Complete authorized work autonomously. A passing mechanism is not completion
   of the promised user journey. Report what now works, remaining intervention and
   verification limits; test counts are supporting detail.
+- Follow the [TUI keyboard contract](docs/tui-controls.md) for new and changed
+  panels: contextual arrows, Tab/Shift-Tab, Enter and layered Escape; visible
+  focus and fixed control hints. Do not silently truncate selectable catalogs.
 - Use ordinary work to assess fluidity when authorized. Convert reproducible
   friction into regressions; preserve the distinction between automated evidence
   and actual use. Never call a model or install into the operator's environment

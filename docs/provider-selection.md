@@ -33,11 +33,15 @@ runtime update. Catalog entries and tool capability do not establish model quali
 
 F3, section1 Profiles:
 
-- F searches provider/model/name; Enter selects the first match. Enter a precise
-  query to choose a particular model. V cycles providers; C cycles their models.
-- Tab chooses provider, model, options JSON, Node binary, transport JSON or optional
-  soft context-byte target. Enter edits/accepts. Provider/model IDs remain manually
-  editable. Options are SDK options, not an invented universal effort scale.
+- F or `/` opens all models; V opens providers; C opens the current provider's
+  models. Type/paste to filter, arrows or Tab/Shift-Tab select, page keys move a
+  page, Home/End selects first/last, Enter chooses and Esc returns one level. The
+  complete catalog is navigable; providers without catalog models remain visible.
+- Up/Down or Tab/Shift-Tab chooses provider, model, options JSON, Node binary,
+  transport JSON or optional soft context-byte target. Enter opens a picker or
+  editor. E edits any exact ID/value, including models absent from the catalog.
+  Enter accepts a text edit; Tab/Shift-Tab accepts and moves focus; Esc cancels
+  the edit. Options are SDK options, not an invented universal effort scale.
 - S saves a profile revision; L reloads. R refreshes local runtime/catalog/config
   metadata. It performs no inference, login, download or authenticated catalog call.
 - `+` duplicates a profile. Sections2–6 retain role defaults/allowed profiles,

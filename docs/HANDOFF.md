@@ -1,74 +1,74 @@
-# Waywr handoff — retired settings no longer block startup
+# Waywr handoff — keyboard navigation and complete model picker
 
-Branch: `plan/usability-and-installation`. Base checkpoint: `9c016a7` (shared
-model runtime); this checkpoint fixes the first ordinary-use startup failure.
-Follow [AGENTS.md](../AGENTS.md), the [product plan](usability-plan.md) and
-[provider contract](provider-selection.md). Local commits only; the user handles
-remote delivery. No operator installation, project mutation or account/model call
-was performed by the agent.
+Branch: `plan/usability-and-installation`. Base: `bff06fd` (retired-profile
+startup fix). Follow [AGENTS.md](../AGENTS.md) and the
+[TUI keyboard contract](tui-controls.md). Only local implementation, isolated
+checks and local commits are authorized; the user performs remote delivery.
+No operator project/service/settings, account or global installation was changed.
 
-## Current outcome
+## Delivered behavior
 
-An existing state9 project with schema2 native preferences previously killed the
-service before readiness, hiding the configuration error behind the launcher's
-timeout. The service now reads those settings as inspection metadata, opens the
-project/history and exposes F3 while execution stays blocked. No native execution
-route was restored. Schema3 remains mandatory for saving and model routing.
+F3 previously showed only the first16 models for the selected provider. Its arrows
+cycled profiles, appearing inert with one profile; global Escape closed the form
+even while editing. F3 now offers a complete viewport-based provider/model picker.
+Type or paste to filter provider/model IDs or names. Up/Down or Tab/Shift-Tab moves
+the highlighted result, page keys move a visible page, Home/End reaches first/last,
+Enter explicitly chooses, and Esc returns one level. Providers with no catalog
+models remain listed. Empty results explain manual entry rather than selecting a
+fallback. No provider/model allowlist or new native integration was added.
 
-F3 offers a fresh unsaved shared-runtime draft, without translating native choices.
-Choose provider/model, S save, then section4 Switch: G explicitly grants selected
-project context, Enter requests the switch. Saving alone leaves the old active
-binding blocked. Existing request policy amendments and uncertain execution
-settlement remain explicit. Historical preference revisions/binding hashes remain
-unchanged. Old discovery caches refresh through the shared runtime, never through
-retired native executables. Readiness shows the concrete configuration cause.
+Profiles use Up/Down or Tab/Shift-Tab for fields and Left/Right for profiles.
+Enter opens the applicable picker/editor; E edits any exact value or ID, including
+IDs absent from the catalog. Enter accepts an edit, Tab/Shift-Tab accepts and moves
+focus, Esc cancels only that edit. Project settings use the same field controls.
+The focused field follows scrolling; section changes reset it. Section tabs,
+control hints and the provider-setup warning stay fixed. Search and value editors
+show a real text cursor. Validation/save feedback stays visible in the modal.
+Read-only content popups support Home/End as well as line/page navigation.
+AGENTS and the control contract establish these conventions for future panels.
 
-The ignored `target/local-bin/waywr` symlink is the user's requested local test
-entry. It points to a temporary paired bundle, not a global installation. The
-bundle identifies itself as `v0.4.0-local.setup-fix`; its manifest SHA256 is
-`8d753a344db1daccee4fe86f903d82015b3c6518c74588a31eacd8e813372f0b`.
-Source, all three remapped binaries and all19 bundle artifacts pass the
-public-content check. The failed operator unit was inspected read-only and is
-unloaded; the agent did not
-restart it or edit the preserved project's settings.
+Picker selection changes a draft only. S persists preferences; coordinator
+switching, exact context grants and request policy amendments stay explicit.
+The schema2 inspection-only startup fix remains: legacy work/history opens while
+old execution stays blocked. Old revisions and execution ownership are preserved.
+The shared standalone pi-ai/pi-agent-core runtime, model-independent coordination
+and existing recovery boundaries are unchanged. Node >=22.19/flock remain runtime
+prerequisites. Real model authentication/quality and useful delivery remain
+unverified; the runtime is trusted same-UID code, not an OS sandbox.
 
-## Verification and limits
+## Evidence
 
-The backend regression first failed on the actual schema2 startup rejection. It
-now opens/reopens, preserves the old configuration and historical revision,
-blocks execution, saves a schema3 draft without changing the binding, refuses a
-switch without a context grant and accepts an explicitly granted switch. F3's
-regression first failed because the form retained schema2; it now presents and
-saves the new draft without an implicit command on opening. Existing shared
-selection/frozen-destination and F3 controls remain checked.
+Behavioral reds reproduced the inert Down key, unreachable catalog tail, Escape
+closing an editor, absent Home/End content navigation, edit-Tab behavior and nested
+picker return. The real-terminal check exposed a setup warning scrolling away on
+reopen; its fixed-header regression also began red. Focused input/render checks now
+cover these outcomes, empty results/providers, manual IDs, explicit save/switch,
+and focused rows/control visibility at60x18,80x24 and120x40. TestBackend render
+captures were visually reviewed; ordinary user judgment on fluidity remains needed.
+Frontend library checks passed apart from a sandbox-blocked Unix socket-pair test,
+which passed when rerun with socket permission. The explicit30-second latency
+probe remains ignored. No backend/model execution code changed in this slice.
 
-A remapped locked release build passes. The packaged launcher/TUI/service check
-uses a temporary project/HOME and real uniquely keyed systemd units with schema2
-settings. Bootstrap, F3 setup, detach/reopen and idle handover after removing the
-old build pass, preserving settings/draft and uncertain launch evidence. Test
-units clean up; no model calls occur. This establishes startup/setup access, not
-real provider authentication or useful model delivery.
-The updated direct-service CI reopen path also passes with schema2 settings,
-preserving its saved pause and draft. Workflow edits remain local, not hosted CI
-evidence.
-
-The shared runtime still uses pinned standalone pi-ai/pi-agent-core libraries,
-not Pi's app: broad provider/model catalogs and custom protocols/options remain
-outside coordinator code. Earlier two-protocol SDK/tool/runner fixture evidence
-is unchanged. Node >=22.19 and util-linux flock remain runtime prerequisites.
-The tool process is trusted same-UID code, not an OS sandbox. Public download,
-update/uninstall and additional package channels remain incomplete. Hosted
-security/build changes have not been run by the agent on GitHub; no paid features
-were enabled. Source and bundle privacy checks remain required for delivery.
+The remapped locked build and actual paired-binary/IPC/TUI fixture exercise F3
+through terminal input, choose a model near the end of the SDK catalog, explicitly
+save it, remove the old build and reopen with settings/draft/pause preserved.
+No model calls occur. The CI/release fixture arguments now cover this route;
+workflow edits remain local, not hosted CI evidence. Public download/update and
+additional package channels remain incomplete.
 
 ## Next authorized action
 
-The user retries the local test entry on the existing project and explicitly
-chooses the shared provider/model and coordinator switch. Authentication and any
-actual model call remain the user's next ordinary-use step, not agent authority.
-Fix the next concrete interruption in that journey; do not add provider-specific
-coordinator branches or broaden testing into another acceptance campaign.
+The ignored `target/local-bin/waywr` test entry is refreshed to a temporary paired
+bundle identifying itself as `v0.4.0-local.controls`, manifest SHA256
+`1c352b161fc7126eb357653853538c0c89a9ac3cfa01fa208b0a244365e57c8c`.
+Source, all three binaries and all19 bundle artifacts pass the public-content
+check. Detach the currently open TUI before relaunching so its idle
+service can hand over normally. In F3 use F for all models, type to filter, arrows
+and Enter to choose, then S to save. Switch/context grants remain explicit.
+The user verifies this in ordinary use; fix the next concrete interruption rather
+than adding a model-specific route or another broad acceptance campaign.
+No operator service was restarted and no account/model call was made by the agent.
 
-Owners: [providers](provider-selection.md), [runtime direction](execution-adapter-decision.md),
-[distribution](distribution.md), [verification](verify-usability.md),
-[architecture](architecture.md). Prior native evidence is [archived](archive/README.md).
+Owners: [controls](tui-controls.md), [providers](provider-selection.md),
+[product plan](usability-plan.md), [runtime direction](execution-adapter-decision.md),
+[distribution](distribution.md), [verification](verify-usability.md).

@@ -136,9 +136,10 @@ this runtime. Each new request and approval belongs to you.
 | Alt+Up / Alt+Down | Move the multiline input cursor |
 | PageUp / PageDown | Scroll chat and live activity eight wrapped lines |
 | Alt+PageUp / Alt+PageDown | Scroll chat or the open content panel one wrapped line |
+| Home / End in a content popup | Start/end of content; in the model picker, first/last result |
 | Ctrl-R | Open command history; Enter recalls into the composer without sending |
 | Left / Right in modal action rows | Select previous/next option; Enter activates it. Tab / Shift-Tab also selects |
-| F3 | Inspect settings/policy and choose subtle, reduced or off effects |
+| F3 | Provider/model and project settings; arrows/Tab/Shift-Tab move focus, Enter chooses/edits, Esc backs out one level |
 | F6 | Inspect scopes and concurrent child tasks |
 | `/discuss` | Explicitly switch chat to the inspected task’s request |
 | `/plan` | Review the current topic's saved scope and operating policy |
@@ -154,6 +155,11 @@ message, Left/Right selects its action, and page keys scroll. Closing commands o
 a panel: select **Detach** or **Exit** with Right and confirm with Enter;
 leaving the default **Stay** selected keeps the view open. Reopening `waywr` restores
 context and preserves an intentional pause.
+
+F3 → F opens the complete searchable model catalog. Type to filter, Up/Down to
+select and Enter to place a model in the draft; S saves after returning to the
+form. E permits exact IDs absent from the catalog. Fixed footer hints follow the
+[TUI keyboard contract](docs/tui-controls.md).
 
 Development activity labels follow saved event status and review disposition, so
 prose about failed-save tests cannot mark a passing review as failed. A completed

@@ -76,11 +76,24 @@ impl App {
         }
     }
     fn provider_key(&mut self, key: KeyEvent) {
-        if key.kind != KeyEventKind::Press {
+        if key.kind == KeyEventKind::Release {
             return;
         }
-        if key.code==KeyCode::Char('7')&&!self.provider_typing{self.provider_section=6;self.provider_row=0;self.mark();return}
-        if self.provider_section==6&&(self.provider_typing||!matches!(key.code,KeyCode::Char('1'..='6'))){self.project_key(key);return}
+        if self.provider_picker.is_some(){self.catalog_key(key);return;}
+        if key.kind==KeyEventKind::Repeat&&(key.code==KeyCode::Enter||!self.provider_typing&&!matches!(key.code,KeyCode::Up|KeyCode::Down|KeyCode::Left|KeyCode::Right|KeyCode::Tab|KeyCode::BackTab|KeyCode::PageUp|KeyCode::PageDown|KeyCode::Home|KeyCode::End)){return;}
+        if !self.provider_typing {
+            if key.code==KeyCode::Esc {self.modal=Modal::None;self.mark();return;}
+            if matches!(key.code,KeyCode::PageUp|KeyCode::PageDown|KeyCode::Home|KeyCode::End) {
+                let step=if key.modifiers.contains(KeyModifiers::ALT){1}else{8};
+                self.modal_scroll=match key.code{KeyCode::PageUp=>self.modal_scroll.saturating_sub(step),KeyCode::PageDown=>self.modal_scroll.saturating_add(step).min(self.modal_scroll_limit),KeyCode::Home=>0,_=>self.modal_scroll_limit};
+                self.provider_follow=false;self.mark();return;
+            }
+            if let KeyCode::Char(c @ '1'..='7')=key.code {
+                self.provider_section=(c as u8-b'1') as usize;self.provider_row=0;self.provider_grant=false;
+                self.modal_scroll=0;self.provider_follow=true;self.mark();return;
+            }
+        }
+        if self.provider_section==6{self.provider_follow=true;self.project_key(key);return}
         if self.provider_edit.is_none() {
             self.provider_edit = Some(self.provider_draft());
         }
@@ -105,15 +118,7 @@ impl App {
                 self.mark();
                 return;
             }
-            if key.code == KeyCode::Enter {
-                if self.provider_field==6 {
-                    let query=self.scope_editor.text().to_lowercase();
-                    let choice=self.provider_state()["discovery"]["models"].as_array().into_iter().flatten()
-                        .find(|m|format!("{}/{} {}",m["provider"].as_str().unwrap_or(""),m["model"].as_str().unwrap_or(""),m["name"].as_str().unwrap_or("")).to_lowercase().contains(&query)).cloned();
-                    if let Some(m)=choice {let p=&mut self.provider_edit.as_mut().unwrap()["preferences"]["profiles"][&name];p["provider"]=m["provider"].clone();p["model"]=m["model"].clone();p["options"]=serde_json::json!({});self.provider_typing=false;self.provider_field=1;}
-                    else {self.notice="No matching model; edit provider/model fields to enter an exact custom ID".into();}
-                    self.mark();return;
-                }
+            if matches!(key.code,KeyCode::Enter|KeyCode::Tab|KeyCode::BackTab) {
                 let field = ["provider", "model", "options", "binary", "transport", "context_bytes"][self.provider_field % 6];
                 let text = self.scope_editor.text();
                 if let Some(edit) = &mut self.provider_edit {
@@ -127,17 +132,12 @@ impl App {
                     }
                 }
                 self.provider_typing = false;
+                if key.code!=KeyCode::Enter{self.provider_field=(self.provider_field+if key.code==KeyCode::Tab{1}else{5})%6;}
+                self.provider_follow=true;
                 self.mark();
                 return;
             }
             self.scope_editor.input(Event::Key(key));
-            self.mark();
-            return;
-        }
-        if let KeyCode::Char(c @ '1'..='6') = key.code {
-            self.provider_section = (c as u8 - b'1') as usize;
-            self.provider_row = 0;
-            self.provider_grant = false;
             self.mark();
             return;
         }
@@ -164,7 +164,9 @@ impl App {
                 self.provider_grant = false;
             }
             KeyCode::Up | KeyCode::Down => {
-                if self.provider_section == 0 || self.provider_section == 3 {
+                if self.provider_section == 0 {
+                    self.provider_field=if key.code==KeyCode::Down{(self.provider_field+1).min(5)}else{self.provider_field.saturating_sub(1)};
+                }else if self.provider_section == 3 {
                     self.provider_index = if key.code == KeyCode::Down {
                         (self.provider_index + 1) % names.len()
                     } else {
@@ -184,8 +186,9 @@ impl App {
                 }
                 self.provider_grant = false;
             }
-            KeyCode::Tab => {
-                self.provider_field = (self.provider_field + 1) % 6;
+            KeyCode::Tab | KeyCode::BackTab => {
+                if self.provider_section==0{self.provider_field=(self.provider_field+if key.code==KeyCode::Tab{1}else{5})%6;}
+                else{let code=if key.code==KeyCode::Tab{KeyCode::Down}else{KeyCode::Up};self.provider_key(KeyEvent::new(code,KeyModifiers::NONE));return;}
             }
             KeyCode::Char('+') if self.provider_section == 0 => {
                 let edit = self.provider_edit.as_mut().unwrap();
@@ -202,18 +205,10 @@ impl App {
                     .position(|n| n == &id)
                     .unwrap_or(0);
             }
-            KeyCode::Char('c') if self.provider_section==0=>{
-                let current=&self.provider_edit.as_ref().unwrap()["preferences"]["profiles"][&name];let provider=current["provider"].clone();let catalog=self.provider_state()["discovery"]["models"].as_array().cloned().unwrap_or_default().into_iter().filter(|m|m["provider"]==provider).collect::<Vec<_>>();
-                if catalog.is_empty(){self.notice="R refreshes runtime metadata; F searches all providers/models".into();return}let i=catalog.iter().position(|m|m["model"]==current["model"]).map_or(0,|i|(i+1)%catalog.len());let p=&mut self.provider_edit.as_mut().unwrap()["preferences"]["profiles"][&name];p["model"]=catalog[i]["model"].clone();p["effort"]=serde_json::json!("provider_default");self.notice="Model selected in draft; edit options JSON if needed, then S Save. Existing attempts stay frozen.".into();
-            }
-            KeyCode::Char('f') if self.provider_section==0=>{self.provider_field=6;self.provider_typing=true;self.scope_editor=Composer::default();self.notice="Search provider/model; Enter selects first match".into();}
-            KeyCode::Char('v') if self.provider_section==0=>{
-                let models=self.provider_state()["discovery"]["models"].as_array().cloned().unwrap_or_default();
-                let mut providers=models.iter().filter_map(|m|m["provider"].as_str()).collect::<Vec<_>>();providers.sort();providers.dedup();
-                let current=self.provider_edit.as_ref().unwrap()["preferences"]["profiles"][&name]["provider"].as_str().unwrap_or("").to_owned();
-                if !providers.is_empty(){let i=providers.iter().position(|p|*p==current).map_or(0,|i|(i+1)%providers.len());
-                    if let Some(m)=models.iter().find(|m|m["provider"]==providers[i]){let p=&mut self.provider_edit.as_mut().unwrap()["preferences"]["profiles"][&name];p["provider"]=m["provider"].clone();p["model"]=m["model"].clone();p["options"]=serde_json::json!({});}}
-            }
+            KeyCode::Char('c') if self.provider_section==0=>{let provider=self.provider_edit.as_ref().unwrap()["preferences"]["profiles"][&name]["provider"].as_str().map(str::to_owned);self.open_catalog(CatalogScope::Models(provider));}
+            KeyCode::Char('f'|'/') if self.provider_section==0=>self.open_catalog(CatalogScope::Models(None)),
+            KeyCode::Char('v') if self.provider_section==0=>self.open_catalog(CatalogScope::Providers),
+            KeyCode::Char('e') if self.provider_section==0=>self.provider_edit_field(&name),
             KeyCode::Char('i') if self.provider_section == 1 && self.provider_row > 0 => {
                 let role = waywr_backend::provider_selection::ROLES[self.provider_row % 3];
                 self.provider_edit.as_mut().unwrap()["preferences"]["roles"]
@@ -284,18 +279,11 @@ impl App {
             }
             KeyCode::Enter => match self.provider_section {
                 0 => {
-                    let field =
-                        ["provider", "model", "options", "binary", "transport", "context_bytes"][self.provider_field % 6];
-                    let value = &self.provider_edit.as_ref().unwrap()["preferences"]["profiles"]
-                        [&name][field];
-                    self.scope_editor = Composer::default();
-                    self.scope_editor.input(Event::Paste(
-                        value
-                            .as_str()
-                            .map(str::to_owned)
-                            .unwrap_or_else(|| value.to_string()),
-                    ));
-                    self.provider_typing = true;
+                    match self.provider_field {
+                        0=>self.open_catalog(CatalogScope::Providers),
+                        1=>{let provider=self.provider_edit.as_ref().unwrap()["preferences"]["profiles"][&name]["provider"].as_str().map(str::to_owned);self.open_catalog(CatalogScope::Models(provider));},
+                        _=>self.provider_edit_field(&name),
+                    }
                 }
                 1 => {
                     let role = waywr_backend::provider_selection::ROLES[self.provider_row % 3];
@@ -335,7 +323,14 @@ impl App {
             },
             _ => {}
         }
-        self.mark();
+        self.provider_follow=true;self.mark();
+    }
+    fn provider_edit_field(&mut self,name:&str) {
+        let field=["provider","model","options","binary","transport","context_bytes"][self.provider_field%6];
+        let value=&self.provider_edit.as_ref().unwrap()["preferences"]["profiles"][name][field];
+        self.scope_editor=Composer::default();
+        self.scope_editor.input(Event::Paste(value.as_str().map(str::to_owned).unwrap_or_else(||value.to_string())));
+        self.provider_typing=true;
     }
     fn provider_body(&self) -> (String, String) {
         if self.provider_section==6{return self.project_body()}
@@ -347,10 +342,7 @@ impl App {
             .get(self.provider_index % names.len().max(1))
             .map(String::as_str)
             .unwrap_or("default");
-        let mut text = format!(
-            "[1 Profiles] [2 Roles] [3 Fallback] [4 Switch] [5 Tasks] [6 Policy] [7 Project]\nRevision {} · saved current coordinator {}\nSelected profile: {} · ←/→ changes profile\nS saves preference draft · L reloads · R refreshes local metadata · Esc returns\nPreference saves affect future attempts; Switch changes both coordinator lanes.\n\n",
-            edit["revision"], saved["coordinator"]["profile_id"], name
-        );
+        let mut text = format!("Revision {} · current coordinator {}\n",edit["revision"],saved["coordinator"]["profile_id"]);
         if saved["setup_required"] == true {
             text.push_str("Provider setup required. Retired profiles cannot execute.\nChoose provider/model, S save, then 4 Switch. G explicitly grants selected project context; Enter applies the switch. Existing request policies may need approval in 6 Policy.\nThis form is an unsaved draft; opening it changes no provider settings.\n\n");
         }
@@ -360,14 +352,14 @@ impl App {
                     let v = &p["profiles"][id];
                     text.push_str(&format!(
                         "{} {}: {}/{} · {}\n",
-                        if id == name { "›" } else { " " },
+                        if id == name { "•" } else { " " },
                         id,
                         v["provider"].as_str().unwrap_or("?"),
                         v["model"].as_str().unwrap_or("?"),
                         v["effort"].as_str().unwrap_or("?")
                     ));
                 }
-                text.push_str("\n↑/↓ profile · + duplicate · V provider · C model · F search catalog · Tab field · Enter edits/accepts\n");
+                text.push_str("\n←/→ profile · + duplicate · V providers · C provider models · F all models\n");
                 for (i, field) in ["provider", "model", "options", "binary", "transport", "context_bytes"]
                     .iter()
                     .enumerate()
@@ -386,16 +378,10 @@ impl App {
                         }
                     ));
                 }
-                let query=if self.provider_typing&&self.provider_field==6{self.scope_editor.text()}else{String::new()};
-                if self.provider_field==6{text.push_str(&format!("\nSearch: {query} (Enter selects first match)\n"));}
                 let state=self.provider_state();let models=state["discovery"]["models"].as_array().cloned().unwrap_or_default();
                 let mut providers=models.iter().filter_map(|m|m["provider"].as_str()).collect::<Vec<_>>();providers.sort();providers.dedup();
-                text.push_str(&format!("\n{} providers · {} catalog models · authentication not checked\n",providers.len(),models.len()));
+                text.push_str(&format!("\n{} providers · {} catalog models · authentication not checked\n",state["discovery"]["providers"].as_array().map_or(providers.len(),Vec::len),models.len()));
                 if let Some(reason)=state["discovery"]["reason"].as_str(){text.push_str(&format!("Catalog unavailable: {reason}\n"));}
-                let selected=p["profiles"][name]["provider"].as_str().unwrap_or("");
-                for m in models.iter().filter(|m|if query.is_empty(){m["provider"]==selected}else{format!("{}/{} {}",m["provider"].as_str().unwrap_or(""),m["model"].as_str().unwrap_or(""),m["name"].as_str().unwrap_or("")).to_lowercase().contains(&query.to_lowercase())}).take(16){
-                    text.push_str(&format!("  {}/{} · context {}\n",m["provider"].as_str().unwrap_or(""),m["model"].as_str().unwrap_or(""),m["context_window"]));
-                }
                 text.push_str("Exact provider/model IDs and runtime JSON options are editable. Catalogs are suggestions, not core allowlists. Configure endpoints/models in the runtime configuration; credentials stay outside project state.\n");
 
             }
@@ -462,6 +448,116 @@ impl App {
 #[cfg(test)]
 mod provider_ui_tests {
     use super::*;
+    fn capture(app:&mut App,width:u16,height:u16,label:&str)->String {
+        let mut terminal=ratatui::Terminal::new(ratatui::backend::TestBackend::new(width,height)).unwrap();
+        terminal.draw(|frame|app.render(frame,Duration::ZERO)).unwrap();
+        let screen=terminal.backend().buffer().content().chunks(width as usize)
+            .map(|row|row.iter().map(|c|c.symbol()).collect::<String>()).collect::<Vec<_>>().join("\n");
+        if let Some(root)=std::env::var_os("WAYWR_UI_SNAPSHOT_DIR") {
+            let root=std::path::PathBuf::from(root);std::fs::create_dir_all(&root).unwrap();
+            std::fs::write(root.join(format!("{label}-{width}x{height}.txt")),&screen).unwrap();
+        }
+        screen
+    }
+    fn navigation_app() -> App {
+        let mut app=App::new_live("project".into(),Draft::default());
+        let prefs=serde_json::json!({"schema_version":3,"profile":"development-profiles-v1",
+            "profiles":{"default":{"provider":"provider-a","model":"model-00","binary":"/missing/node",
+                "transport":{"entry":"bundled"},"effort":"provider_default","options":{},"context_bytes":98304}},
+            "coordinator":"default","worker_default":"default","roles":{},"fallback":{},"concurrency":2,
+            "dependency_network":true,"main_policy":"checked-fast-forward","quality_preference":""});
+        let models=(0..60).map(|i|serde_json::json!({"provider":if i<30{"provider-a"}else{"provider-b"},
+            "model":format!("model-{i:02}"),"name":format!("Model {i:02}"),"context_window":32768})).collect::<Vec<_>>();
+        app.live.as_mut().unwrap().conversation=Some(serde_json::json!({"development":{"providers":{
+            "schema_version":1,"revision":1,"preferences":prefs,"coordinator":{"profile_id":"default"},
+            "discovery":{"providers":[{"id":"provider-a"},{"id":"provider-b"},{"id":"provider-empty"}],"models":models}}}}));
+        app.input(Event::Key(KeyEvent::new(KeyCode::F(3),KeyModifiers::NONE)));
+        app
+    }
+    #[test]
+    fn settings_arrows_and_reverse_tab_move_fields_and_escape_cancels_only_the_edit() {
+        let mut app=navigation_app();
+        let key=|code|Event::Key(KeyEvent::new(code,KeyModifiers::NONE));
+        app.input(key(KeyCode::Down));
+        assert!(app.provider_body().1.contains("› model:"),"Down must move to the next form field, even with one profile");
+        app.input(key(KeyCode::BackTab));
+        assert!(app.provider_body().1.contains("› provider:"));
+        for _ in 0..5 {app.input(key(KeyCode::Tab));}
+        app.input(key(KeyCode::Enter));
+        assert!(app.provider_typing);
+        app.input(key(KeyCode::Esc));
+        assert_eq!(app.modal,Modal::Settings,"Escape cancels an edit before closing its form");
+        assert!(!app.provider_typing);
+        assert_eq!(app.provider_edit.as_ref().unwrap()["preferences"]["profiles"]["default"]["context_bytes"],98304);
+        assert!(app.take_intent().is_none());
+        app.input(key(KeyCode::Enter));
+        app.input(key(KeyCode::Tab));
+        assert!(!app.provider_typing,"Tab accepts the field and returns to form navigation");
+        assert!(app.provider_body().1.contains("› provider:"));
+    }
+    #[test]
+    fn catalog_navigation_reaches_the_last_model_and_applies_only_an_explicit_selection() {
+        let mut app=navigation_app();
+        let key=|code|Event::Key(KeyEvent::new(code,KeyModifiers::NONE));
+        app.input(key(KeyCode::Char('f')));
+        app.input(key(KeyCode::End));
+        let screen=capture(&mut app,80,24,"model-picker");
+        assert!(screen.contains("model-59"),"End must reach and show a model beyond the old preview and initial provider");
+        assert!(screen.contains("Esc"),"Back controls remain visible");
+        assert_eq!(app.provider_edit.as_ref().unwrap()["preferences"]["profiles"]["default"]["model"],"model-00");
+        app.input(key(KeyCode::PageUp));
+        app.input(key(KeyCode::PageDown));
+        app.input(key(KeyCode::Up));
+        app.input(key(KeyCode::Enter));
+        assert_eq!(app.provider_edit.as_ref().unwrap()["preferences"]["profiles"]["default"]["model"],"model-58");
+        assert!(app.take_intent().is_none(),"Browsing/selecting does not save, switch or authorize");
+        app.input(key(KeyCode::Char('f')));
+        app.input(Event::Paste("MODEL-42".into()));
+        app.input(key(KeyCode::Enter));
+        assert_eq!(app.provider_edit.as_ref().unwrap()["preferences"]["profiles"]["default"]["model"],"model-42");
+    }
+    #[test]
+    fn settings_focus_and_controls_stay_visible_and_manual_ids_remain_possible() {
+        for (width,height) in [(60,18),(80,24),(120,40)] {
+            let mut app=navigation_app();let key=|code|Event::Key(KeyEvent::new(code,KeyModifiers::NONE));
+            for _ in 0..5{app.input(key(KeyCode::Down));}
+            let screen=capture(&mut app,width,height,"settings");
+            assert!(screen.contains("› working target"),"Selected field must stay visible at {width}x{height}");
+            assert!(screen.contains("Esc back"),"Controls must stay visible");
+            app.input(key(KeyCode::PageDown));
+            assert!(capture(&mut app,width,height,"settings-scrolled").contains("Esc back"));
+            for _ in 0..5{app.input(key(KeyCode::Up));}
+            app.input(key(KeyCode::Char('e')));
+            app.input(Event::Key(KeyEvent::new(KeyCode::Char('a'),KeyModifiers::CONTROL)));
+            app.input(Event::Paste("provider-not-in-catalog".into()));
+            app.input(key(KeyCode::Enter));
+            assert_eq!(app.provider_edit.as_ref().unwrap()["preferences"]["profiles"]["default"]["provider"],"provider-not-in-catalog");
+            app.input(key(KeyCode::Char('f')));
+            app.input(Event::Paste("no matching model".into()));
+            let screen=capture(&mut app,width,height,"empty-picker");
+            assert!(screen.contains("No catalog matches"));
+            app.input(key(KeyCode::Enter));app.input(key(KeyCode::Esc));
+            assert_eq!(app.modal,Modal::Settings);
+            assert_eq!(app.provider_edit.as_ref().unwrap()["preferences"]["profiles"]["default"]["provider"],"provider-not-in-catalog");
+            assert!(app.take_intent().is_none());
+        }
+    }
+    #[test]
+    fn provider_picker_includes_empty_catalogs_and_escape_returns_one_level() {
+        let mut app=navigation_app();
+        let key=|code|Event::Key(KeyEvent::new(code,KeyModifiers::NONE));
+        app.input(key(KeyCode::Char('v')));
+        app.input(Event::Paste("provider-empty".into()));
+        assert_eq!(app.catalog_entries().len(),1,"Providers with no catalog models remain visible");
+        app.input(key(KeyCode::Enter));
+        assert!(app.catalog_entries().is_empty());
+        app.input(key(KeyCode::Esc));
+        assert!(app.provider_picker.is_some(),"Escape returns to the provider list");
+        app.input(key(KeyCode::Esc));
+        assert_eq!(app.modal,Modal::Settings);
+        assert!(app.provider_picker.is_none());
+        assert!(app.take_intent().is_none());
+    }
     #[test]
     fn retired_profiles_offer_an_unsaved_setup_form() {
         let mut app = App::new_live("project".into(), Draft::default());
@@ -478,6 +574,9 @@ mod provider_ui_tests {
         assert_eq!(app.provider_edit.as_ref().unwrap()["preferences"]["schema_version"], 3);
         assert_eq!(app.provider_state()["preferences"]["schema_version"], 2);
         assert!(app.provider_body().1.contains("Provider setup required"));
+        capture(&mut app,80,24,"retired-settings");
+        app.input(Event::Key(KeyEvent::new(KeyCode::End,KeyModifiers::NONE)));
+        assert!(capture(&mut app,80,24,"retired-settings-scrolled").contains("Provider setup required"),"Setup status stays visible when the form scrolls");
         assert!(app.take_intent().is_none(), "Opening settings does not save or authorize execution");
         app.handle_modal(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::NONE));
         assert!(matches!(app.take_intent(),Some(LiveIntent::Dialogue(v)) if v["action"]=="providers.save" && v["payload"]["preferences"]["schema_version"]==3 && v["payload"]["expected_revision"]==7));
@@ -495,14 +594,16 @@ mod provider_ui_tests {
         app.live.as_mut().unwrap().conversation.as_mut().unwrap()["development"]["providers"]["discovery"]=serde_json::json!({"models":[
             {"provider":"brand-outside-core","model":"custom-model","name":"Searchable model","context_window":32768}]});
         app.handle_modal(KeyEvent::new(KeyCode::Char('f'),KeyModifiers::NONE));
-        app.scope_editor.input(Event::Paste("Searchable".into()));
+        app.input(Event::Paste("Searchable".into()));
         app.handle_modal(KeyEvent::new(KeyCode::Enter,KeyModifiers::NONE));
         let selected=app.provider_names()[app.provider_index].clone();
         assert_eq!(app.provider_edit.as_ref().unwrap()["preferences"]["profiles"][&selected]["provider"],"brand-outside-core");
         assert!(app.provider_body().1.contains("custom-model"));
         let key = |c| KeyEvent::new(c, KeyModifiers::NONE);
         app.handle_modal(key(KeyCode::Down));
-        assert_eq!(app.provider_index, 1); // arrow reaches form, not generic scroll
+        assert_eq!(app.provider_field, 2); // arrows navigate fields; horizontal arrows choose profiles
+        app.handle_modal(key(KeyCode::Right));
+        assert_eq!(app.provider_index, 1);
         app.handle_modal(key(KeyCode::Left));
         app.handle_modal(key(KeyCode::Char('2')));
         app.handle_modal(key(KeyCode::Char(' ')));
