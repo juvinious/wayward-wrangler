@@ -1,0 +1,58 @@
+name: Versioned binary release
+on:
+  push:
+    tags: ['v[0-9]*']
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    container:
+      image: ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac
+    env:
+      WAYWR_BUILDER_IMAGE: ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac
+    steps:
+      - run: apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git build-essential pkg-config python3 strace
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Trust the owned Actions checkout for container build steps
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh
+          sh /tmp/rustup-init.sh -y --profile minimal --default-toolchain 1.99.0
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+      - name: Locked checks and assembly
+        run: |
+          python3 scripts/check-public-content.py
+          python3 tests/session_schema_consistency.py
+          python3 scripts/test-release-installer.py
+          cargo test --locked -p waywr-backend --lib ordinary_
+          cargo test --locked -p waywr-backend --lib ollama::tests
+          cargo test --locked -p waywr-backend --lib ollama_http_
+          cargo test --locked -p waywr-backend --test ollama_lifecycle
+          cargo test --locked -p waywr --lib ordinary_
+          scripts/package-release.sh "$GITHUB_REF_NAME" /tmp/release
+          python3 scripts/test-packaged-install.py "/tmp/release/waywr-$GITHUB_REF_NAME-linux-x86_64-gnu.tar.gz"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release
+          path: |
+            /tmp/release/*.tar.gz
+            /tmp/release/SHA256SUMS
+  publish:
+    needs: package
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release
+          path: release
+      - name: Publish immutable version assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: gh release create "$RELEASE_TAG" release/* --verify-tag --generate-notes

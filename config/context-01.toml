@@ -1,0 +1,17 @@
+# Historical example only. Copy to an ignored *.local.toml profile and select
+# actual absolute CLI paths before any separately authorized native use.
+trial_id = "context-01"
+workflow_version = 2
+review_limit = 2
+max_invocations = 5
+rules = ["../examples/context-rules.md"]
+[roles.author]
+provider = "claude"
+binary = "/absolute/path/to/claude"
+model = "opus"
+reasoning = "high"
+[roles.critic]
+provider = "codex"
+binary = "/absolute/path/to/codex"
+model = "gpt-6.1-sol"
+reasoning = "high"

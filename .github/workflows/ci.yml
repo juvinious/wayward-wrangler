@@ -1,0 +1,47 @@
+name: Rust PR checks and bundle
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    container:
+      image: ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac
+    env:
+      WAYWR_BUILDER_IMAGE: ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac
+    steps:
+      - name: Builder prerequisites
+        run: apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git build-essential pkg-config python3 strace
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Trust the owned Actions checkout for container build steps
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: Permanent pinned Rust toolchain
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh
+          sh /tmp/rustup-init.sh -y --profile minimal --default-toolchain 1.99.0
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+      - name: Focused product checks
+        run: |
+          python3 scripts/check-public-content.py
+          python3 tests/session_schema_consistency.py
+          python3 scripts/test-release-installer.py
+          cargo test --locked -p waywr-backend --lib ordinary_
+          cargo test --locked -p waywr-backend --lib ollama::tests
+          cargo test --locked -p waywr-backend --lib ollama_http_
+          cargo test --locked -p waywr-backend --test ollama_lifecycle
+          cargo test --locked -p waywr --lib ordinary_
+      - name: Build installable bundle
+        run: scripts/package-release.sh v0.0.0-ci.${GITHUB_SHA} /tmp/waywr-artifacts
+      - name: Real archive installation and idle TUI startup
+        run: python3 scripts/test-packaged-install.py /tmp/waywr-artifacts/waywr-v0.0.0-ci.${GITHUB_SHA}-linux-x86_64-gnu.tar.gz
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: linux-x86_64-gnu
+          path: |
+            /tmp/waywr-artifacts/*.tar.gz
+            /tmp/waywr-artifacts/SHA256SUMS

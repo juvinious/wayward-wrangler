@@ -1,0 +1,77 @@
+{
+  "finding_contract_version": 1,
+  "open_findings": [
+    "C1-2",
+    "C1-3",
+    "C2-1",
+    "C2-2",
+    "C2-3"
+  ],
+  "operation_id": "decision-log-01-critique-2",
+  "prior_findings": {
+    "C1-1": {
+      "evidence": "decision-log-01/draft §5 leaves editing unresolved and acceptance check 11 contains no editing verification. The supplied answered decision for Q1 authoritatively selects free in-place editing of title, rationale and alternatives without prior versions.",
+      "id": "C1-1",
+      "origin": "critique-1",
+      "requested_change": "Apply the accepted editing policy to Current and Superseded decisions, specify save and cancel behavior, omit revision storage, and add persistence and no-history checks. The replacement content above applies this answer; do not ask Q1 again.",
+      "severity": "substantive",
+      "status": "addressed"
+    },
+    "C1-2": {
+      "evidence": "decision-log-01/draft §2 provisionally permits zero alternatives, while brief requires creating a decision with alternatives considered. Neither brief nor document:product-context.md settles whether an empty alternatives list is valid.",
+      "id": "C1-2",
+      "origin": "critique-1",
+      "requested_change": "Leave the empty-list validation rule and dependent acceptance check explicitly provisional until the controller settles the minimum. This finding remains open: the packet's new_question_budget is 0, so no new structured question is emitted.",
+      "severity": "substantive",
+      "status": "open"
+    },
+    "C1-3": {
+      "evidence": "decision-log-01/draft §4.4 provisionally excludes reversing supersession and assigns correction to the editing policy. The accepted Q1 question concerns title, rationale and alternatives; it does not settle reversal or retargeting of supersession relationships.",
+      "id": "C1-3",
+      "origin": "critique-1",
+      "requested_change": "Separate relationship correction from the accepted content-editing policy and leave its controls and acceptance checks provisional pending controller resolution. This finding remains open because new_question_budget is 0; do not infer a human answer from the editing decision.",
+      "severity": "substantive",
+      "status": "open"
+    },
+    "C1-4": {
+      "evidence": "decision-log-01/draft §3 addresses unreadable data and unavailable storage but does not define failed writes, quota exhaustion or whether an unsuccessful save can appear committed. Acceptance checks cover corruption but omit failed creation, editing and supersession writes. brief requires preservation across reloads.",
+      "id": "C1-4",
+      "origin": "critique-1",
+      "requested_change": "Require persistence before displaying success, preserve the last committed state and retryable inputs on write failure, and add browser checks for failed writes. The replacement content above includes these requirements.",
+      "severity": "substantive",
+      "status": "addressed"
+    },
+    "C2-1": {
+      "evidence": "decision-log-01/draft §2 and critique-1 C1-2: neither brief nor document:product-context.md sets a minimum for alternatives, yet the brief requires 'alternatives considered'. The packet's new_question_budget is 0, so no question can be raised here.",
+      "id": "C2-1",
+      "origin": "revision-1",
+      "requested_change": "Controller should settle whether at least one alternative is required, then update section 2, section 3 and check 3. This revision keeps these items marked provisional and does not decide them.",
+      "severity": "substantive",
+      "status": "open"
+    },
+    "C2-2": {
+      "evidence": "critique-1 C1-3 and decision-log-01/draft §4.4: the accepted Q1 answer covers only title, rationale and alternatives. Reversing or retargeting supersession is not covered by the brief or document:product-context.md. new_question_budget is 0.",
+      "id": "C2-2",
+      "origin": "revision-1",
+      "requested_change": "Controller should decide whether supersession can be reversed or retargeted. Until then section 5 and check 11 stay provisional.",
+      "severity": "substantive",
+      "status": "open"
+    },
+    "C2-3": {
+      "evidence": "The specification does not say what happens when the app is open in two tabs and one tab saves while the other holds stale data. The brief and document:product-context.md do not cover this.",
+      "id": "C2-3",
+      "origin": "revision-1",
+      "requested_change": "Optionally add a rule, such as re-reading stored data before each write, or accept last-write-wins as a stated limitation.",
+      "severity": "minor",
+      "status": "open"
+    }
+  },
+  "schema_version": 1,
+  "source_sha256": {
+    "output-schema.json": "556f634c9551dac57a48c158bc1a10f80026285d74718b04bf33f9fcb6dcd7fc",
+    "packet.json": "9d816b20d7e97fb86a1d87d74d9b3db33286f975e009e9d92b6abbcd7a1c0865",
+    "prompt.txt": "d32cc2e8ec006188d4eb919d0e45191f577bea300e22441c9e5c9343a6e0881b",
+    "receipt.json": "b4187094b4d271127ffecbc80130727289885d23e3aba180953855dc6250942e",
+    "result.json": "17e13355c99e773892a6c61634b30b57268a114fcdb7401d468053eef774bf55"
+  }
+}

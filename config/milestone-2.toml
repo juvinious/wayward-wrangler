@@ -1,0 +1,22 @@
+# Historical example only. Copy to an ignored *.local.toml profile and select
+# actual absolute CLI paths before any separately authorized native use.
+trial_id = "m2-cli-01"
+review_limit = 2
+max_invocations = 5
+rules = ["../examples/milestone-2-rules.md"]
+[roles.author]
+provider = "claude"
+binary = "/absolute/path/to/claude"
+model = "opus"
+reasoning = "high"
+[roles.critic]
+provider = "codex"
+binary = "/absolute/path/to/codex"
+model = "gpt-6.1-sol"
+reasoning = "high"
+[decision]
+id = "backup-policy"
+question = "Should this release keep the offline-only promise or offer opt-in cloud backup?"
+options = ["Offline only", "Opt-in cloud backup"]
+recommendation = "Offline only"
+consequences = "Offline only keeps all note content local but requires manual exports. Opt-in cloud backup changes the privacy promise and requires clear consent and a retention policy."

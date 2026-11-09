@@ -1,0 +1,24 @@
+[package]
+name = "waywr"
+version = "0.4.0"
+edition = "2024"
+license = "MIT"
+
+[dependencies]
+ratatui = { version = "=0.30.2", features = ["unstable-rendered-line-info"] }
+crossterm = "=0.29.0"
+ratatui-textarea = { version = "=0.9.3", default-features = false }
+tachyonfx = { version = "=0.23.0", default-features = false, features = ["std"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["float_roundtrip"] }
+unicode-segmentation = "1"
+unicode-width = "0.2"
+libc = "0.2"
+sha2 = "0.10"
+waywr-backend = { path = "../backend" }
+toml = "1.1.8"
+clap = { version = "=4.6.7", features = ["derive"] }
+tokio = { version = "=1.53.3", features = ["rt", "process", "time"] }
+
+[dev-dependencies]
+tempfile = "3"

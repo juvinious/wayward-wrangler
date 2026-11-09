@@ -1,0 +1,54 @@
+name: Security checks
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '23 7 * * 1'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Pinned audit tools
+        run: |
+          set -eu
+          tools=$(mktemp -d)
+          curl --proto '=https' --tlsv1.2 -fsSL https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz -o "$tools/gitleaks.tgz"
+          echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  $tools/gitleaks.tgz" | sha256sum -c -
+          tar -xzf "$tools/gitleaks.tgz" -C "$tools" gitleaks
+          curl --proto '=https' --tlsv1.2 -fsSL https://github.com/rustsec/rustsec/releases/download/cargo-audit/v0.22.2/cargo-audit-x86_64-unknown-linux-gnu-v0.22.2.tgz -o "$tools/audit.tgz"
+          echo "ab28a1bdb54db4d5d8ad5981cf1f959410370b3d28250dbd35f6a44248620e39  $tools/audit.tgz" | sha256sum -c -
+          tar -xzf "$tools/audit.tgz" -C "$tools"
+          echo "$tools" >> "$GITHUB_PATH"
+          echo "$tools/cargo-audit-x86_64-unknown-linux-gnu-v0.22.2" >> "$GITHUB_PATH"
+      - name: Current source and introduced credentials
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BASE: ${{ github.event.before }}
+        run: |
+          set -eu
+          python3 scripts/check-public-content.py
+          python3 scripts/test-public-content.py
+          snapshot=$(mktemp -d)
+          trap 'rm -rf "$snapshot"' EXIT
+          git archive HEAD | tar -x -C "$snapshot"
+          gitleaks dir "$snapshot" --redact=100 --no-banner --ignore-gitleaks-allow
+          base=${PR_BASE:-$PUSH_BASE}
+          if [ -n "$base" ] && [ "$base" != 0000000000000000000000000000000000000000 ]; then
+            git rev-parse --verify "$base^{commit}" >/dev/null
+            python3 scripts/check-public-content.py --revisions "$base..HEAD"
+            gitleaks git --log-opts="$base..HEAD" --redact=100 --no-banner --ignore-gitleaks-allow
+          fi
+      - name: Rust dependency advisories
+        run: |
+          cargo-audit audit --deny warnings --file Cargo.lock
+          cargo-audit audit --deny warnings --file frontend/Cargo.lock
+      - name: Python dependency advisories
+        run: python3 scripts/check-python-advisories.py

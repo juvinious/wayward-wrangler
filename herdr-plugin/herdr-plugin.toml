@@ -1,0 +1,18 @@
+id = "local.agent-workflow-review"
+name = "Wayward Wrangler Review"
+version = "0.1.0"
+min_herdr_version = "0.9.3"
+description = "Open hash-checked Wayward Wrangler artifacts in read-only Vim tabs. No workflow execution or approval."
+platforms = ["linux"]
+
+[[actions]]
+id = "open-review"
+title = "Open workflow review in Vim"
+contexts = ["pane"]
+command = ["python3", "open_review.py"]
+
+[[link_handlers]]
+id = "review-artifact"
+title = "Review artifact in Vim"
+pattern = '^https://awp\.invalid/review/[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}/(draft|critique-1|critique-2|revision-1|revision-2)/[0-9a-f]{64}$'
+action = "open-review"

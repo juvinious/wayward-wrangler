@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wayward-wrangler"
+version = "0.3.0"
+description = "Persistent workflows for coding agents."
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+dependencies = ["langgraph==1.2.14", "langgraph-checkpoint==4.3.0", "langgraph-checkpoint-sqlite==3.1.2"]
+
+[project.scripts]
+waywr = "agent_workflow.shell:main"
+wayward-wrangler = "agent_workflow.shell:main"
+awp = "agent_workflow.shell:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"agent_workflow.resources" = ["*.toml"]
+"agent_workflow.resources.skills" = ["*.md"]
+"agent_workflow.resources.herdr" = ["*.toml", "*.py"]

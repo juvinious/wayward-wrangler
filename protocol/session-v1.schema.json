@@ -1,0 +1,207 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wayward-wrangler.local/protocol/session-v1.schema.json",
+  "title": "Wayward Wrangler local session protocol v1",
+  "description": "Language-neutral envelope for same-UID, newline-delimited JSON local IPC. Application schemas narrow the body for each kind.",
+  "type": "object",
+  "required": [
+    "v",
+    "kind",
+    "request_id",
+    "body"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "v": {
+      "const": 1
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "hello",
+        "hello_result",
+        "command",
+        "command_result",
+        "command_get",
+        "snapshot",
+        "task.plan",
+        "task.plan_result",
+        "task.get",
+        "task.result",
+        "conversation.read",
+        "conversation.result",
+        "context.access.list",
+        "context.access.result",
+        "events_read",
+        "events_result",
+        "session.status",
+        "session.status_result",
+        "operation.list",
+        "operation.list_result",
+        "operation.inspect",
+        "operation.inspect_result",
+        "operation.output.read",
+        "operation.output.page",
+        "artifact.read",
+        "artifact.page",
+        "view.prepare",
+        "view.prepare_result",
+        "view.sent",
+        "view.sent_result",
+        "view.bind",
+        "view.bind_result",
+        "ui.attach",
+        "ui.attach_result",
+        "ui.attach_direct",
+        "ui.attach_direct_result",
+        "ui.register",
+        "ui.register_result",
+        "error"
+      ]
+    },
+    "request_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "body": {
+      "type": "object"
+    }
+  },
+  "x-waywr-minor-1": {
+    "host_operations_v1": [
+      "operation.list",
+      "operation.list_result",
+      "operation.inspect",
+      "operation.inspect_result"
+    ],
+    "output_pages_v1": [
+      "operation.output.read",
+      "operation.output.page"
+    ],
+    "artifact_pages_v1": [
+      "artifact.read",
+      "artifact.page"
+    ],
+    "herdr_views_v1": [
+      "view.prepare",
+      "view.prepare_result",
+      "view.sent",
+      "view.sent_result",
+      "view.bind",
+      "view.bind_result"
+    ]
+  },
+  "x-waywr-minor-2": {
+    "conversation_v1": [
+      "conversation.read",
+      "conversation.result"
+    ],
+    "file_candidates_v1": [
+      "artifact.read",
+      "artifact.page"
+    ]
+  },
+  "x-waywr-minor-3": {
+    "claude_chat_v1": [
+      "conversation.read",
+      "conversation.result"
+    ]
+  },
+  "x-waywr-claude-chat-actions": [
+    "submit_message",
+    "select_coordinator",
+    "cancel_conversation",
+    "stop_session",
+    "resume_session"
+  ],
+  "x-waywr-legacy-only": [
+    "context.access.list",
+    "context.access.result",
+    "ui.attach_result",
+    "ui.register_result"
+  ],
+  "x-waywr-currently-refused": [
+    "ui.attach",
+    "ui.register"
+  ],
+  "x-waywr-minor-4": {
+    "task_scope_v1": [
+      "task.get",
+      "task.result",
+      "conversation.read",
+      "conversation.result"
+    ]
+  },
+  "x-waywr-task-scope-actions": [
+    "submit_message",
+    "select_coordinator",
+    "cancel_conversation",
+    "stop_session",
+    "resume_session",
+    "answer_conversation",
+    "save_proposal_revision",
+    "authorize_scope"
+  ],
+  "x-waywr-minor-5": {
+    "continuous_scope_v1": [
+      "conversation.read",
+      "conversation.result",
+      "task.get",
+      "task.result"
+    ]
+  },
+  "x-waywr-minor-6": {
+    "development_v1": [
+      "snapshot.conversation.development",
+      "task.get.scope.operating_policy",
+      "authorize_scope.operating_policy_sha256",
+      "development.steer",
+      "development.resume",
+      "operation.list",
+      "operation.output.read",
+      "development.cancel"
+    ],
+    "request_history_v1": [
+      "stable request identity",
+      "history log/summary/projection paths",
+      "timestamped attributed public events"
+    ]
+  },
+  "x-waywr-minor-7": {
+    "provider_selection_v1": [
+      "snapshot.conversation.development.providers",
+      "providers.save",
+      "providers.refresh",
+      "providers.switch",
+      "providers.cancel_switch",
+      "providers.task_override",
+      "providers.approve_policy"
+    ]
+  },
+  "x-waywr-minor-8": {
+    "conversational_coordination_v1": [
+      "conversation.read",
+      "coordination.submit",
+      "coordination.present",
+      "coordination.disposition"
+    ]
+  },
+  "x-waywr-minor-9": {
+    "coordinator_recovery_v1": [
+      "snapshot.conversation.development.workflows.recovery",
+      "snapshot.conversation.development.units.recovery",
+      "finding lineage and effective disposition",
+      "progress reassessment and wake conditions",
+      "frozen recovery-v1 review result contract"
+    ]
+  },
+  "x-waywr-minor-10": {
+    "ordinary_project_workflow_v1": [
+      "project.setup",
+      "snapshot.conversation.development.project_setup",
+      "frozen baseline, target, completion and validation policy",
+      "incremental exact project index and nested instructions"
+    ]
+  }
+}

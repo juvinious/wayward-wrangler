@@ -1,0 +1,32 @@
+schema_version = 1
+project_id = "example-notes"
+scope = "Example Notes initial offline-only release"
+
+[[entries]]
+kind = "decision"
+run = "m2-cli-01"
+id = "D-backup-policy"
+topic_key = "release.backup-policy"
+scope = "Example Notes initial offline-only release"
+reason = "Manual export specification must honor the accepted release policy."
+
+[[entries]]
+kind = "artifact"
+run = "m2-cli-01"
+id = "revision-2"
+approval = "A1"
+scope = "Example Notes initial offline-only release"
+reason = "Approved product scope defines local export destinations and privacy promises."
+
+[[entries]]
+kind = "findings"
+run = "m2-cli-01"
+ids = ["open"]
+scope = "Example Notes initial offline-only release"
+reason = "Carry any unresolved source findings without reopening addressed ones."
+
+[[entries]]
+kind = "document"
+path = "../../CLAUDE.md"
+scope = "Example Notes initial offline-only release"
+reason = "Use canonical standalone project instructions, resolving its AGENTS.md pointer once."

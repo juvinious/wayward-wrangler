@@ -1,0 +1,235 @@
+{
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 3
+    },
+    "assistant_text": {
+      "type": "string"
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "action": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "ask_question"
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "prompt": {
+                  "type": "string"
+                },
+                "rationale": {
+                  "type": "string"
+                },
+                "options": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "prompt",
+                "rationale",
+                "options"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "kind",
+            "payload"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "upsert_proposal"
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "base": {
+                  "anyOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "task_id": {
+                          "type": "string"
+                        },
+                        "revision": {
+                          "type": "integer"
+                        },
+                        "sha256": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "task_id",
+                        "revision",
+                        "sha256"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "proposal": {
+                  "type": "object",
+                  "properties": {
+                    "title": {
+                      "type": "string"
+                    },
+                    "objective": {
+                      "type": "string"
+                    },
+                    "deliverables": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "in_scope": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "out_of_scope": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "constraints": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "acceptance_criteria": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "unresolved_decisions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "objective",
+                    "deliverables",
+                    "in_scope",
+                    "out_of_scope",
+                    "constraints",
+                    "acceptance_criteria",
+                    "unresolved_decisions"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "base",
+                "proposal"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "kind",
+            "payload"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "suggest_question_disposition"
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "question_id": {
+                  "type": "string"
+                },
+                "question_revision": {
+                  "type": "integer"
+                },
+                "disposition": {
+                  "enum": [
+                    "answer",
+                    "defer"
+                  ]
+                },
+                "answer": {
+                  "type": "string"
+                },
+                "source_message_id": {
+                  "type": "string"
+                },
+                "source_sha256": {
+                  "type": "string"
+                },
+                "quote_start": {
+                  "type": "integer"
+                },
+                "quote_end": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "question_id",
+                "question_revision",
+                "disposition",
+                "answer",
+                "source_message_id",
+                "source_sha256",
+                "quote_start",
+                "quote_end"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "kind",
+            "payload"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "assistant_text",
+    "evidence_refs",
+    "action"
+  ],
+  "additionalProperties": false
+}

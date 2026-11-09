@@ -1,0 +1,20 @@
+[package]
+name = "waywr-backend"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[dependencies]
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["float_roundtrip"] }
+sha2 = "0.10"
+toml = "1.1.8"
+libc = "0.2"
+tokio = { version = "=1.53.3", features = ["rt-multi-thread", "net", "time", "signal", "process", "io-util", "sync", "macros"] }
+zbus = { version = "=6.2.1", default-features = false, features = ["tokio", "proxy"] }
+
+reqwest = { version = "=0.13.5", default-features = false, features = ["blocking", "json"] }
+
+[dev-dependencies]
+tempfile = "3"
