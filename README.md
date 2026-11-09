@@ -10,8 +10,8 @@ The intended workflow supports existing projects and substantial user requests.
 The accepted [usability plan](docs/usability-plan.md) targets removing application build
 locks from projects, removing provider version allowlists and simplifying public
 installation/update/uninstall. Follow the [development approach](docs/development-approach.md).
-Compatible stopped projects now reopen without their former build; native clients update without a version allowlist or F3 resave. The new installer
-lifecycle remains unfinished. Idle service replacement
+Compatible stopped projects now reopen without their former build; native clients update without a version allowlist or F3 resave. One-command local build/install is implemented; the public download/update/uninstall
+lifecycle remains a subsequent increment. Idle service replacement
 works automatically; attached views, pending input and uncertain work preserve
 the existing service and report why replacement must wait.
 
@@ -207,8 +207,10 @@ canonical state and supported migration.
 
 ## Versioned binary installation
 
-This branch supplies release workflows; no GitHub release has been published or
-verified yet. After an authorized version release succeeds, use Fish:
+No GitHub binary release has been published or verified yet. Use the
+[one-command local source installation](#build-and-install-from-source) now.
+After the user publishes a version release, the existing hosted installer can be
+used from Fish:
 
 ```fish
 set waywr_version v0.4.0 # choose an actually published version
@@ -226,8 +228,8 @@ Binary prerequisites: Linux x86_64/glibc2.39+, GitHub CLI, Git, GNU tar, gzip,
 sha256sum and normal systemd/provider execution prerequisites below. Rust is only
 needed for source builds. The installer validates GitHub asset/checksum identity
 and archive safety before the existing staged bundle install. It selects a new
-user-local default without changing existing projects. Upgrade them explicitly
-under [Existing projects](#existing-projects-upgrade-versus-migration).
+user-local default while preserving project data. Compatible projects reopen
+with that application; see [Existing projects](#existing-projects-upgrade-versus-migration).
 [Distribution contract](docs/distribution.md) explains trust, platform limits,
 packaging and publication steps still required.
 
@@ -246,36 +248,39 @@ Prerequisites:
   workaround and distribution gaps. Installing Waywr does not authenticate Codex
   or change shared provider settings.
 
-Run this in Fish from the checkout root, after installing rustup normally.
-The toolchain command uses that permanent installation. Waywr's Rust runtime
-requires no Python, venv, pip or Herdr; legacy Python source and optional developer
-harnesses remain pending a separate source-cleanup assessment.
+From the Waywr checkout, build and select the paired application with one command:
 
 ```fish
-~/.cargo/bin/rustup toolchain install 1.99.0 --profile minimal
-sh scripts/build-release.sh
-
-set waywr_source (pwd -P)
-set waywr_release "local-"(date -u +%Y%m%dT%H%M%SZ)"-"(git rev-parse --short=12 HEAD)
-set waywr_bundle "$waywr_source/target/waywr-bundles/$waywr_release"
-set waywr_prefix "$HOME/.local/share/wayward-wrangler"
-
-./target/release/waywr bundle-build \
-    --release-id "$waywr_release" \
-    --output "$waywr_bundle" \
-    --source-root "$waywr_source" \
-    --frontend "$waywr_source/target/release/waywr" \
-    --service "$waywr_source/target/release/waywr-service" \
-    --runner "$waywr_source/target/release/waywr-runner"
-
-./target/release/waywr bundle-install \
-    --bundle "$waywr_bundle" \
-    --prefix "$waywr_prefix" \
-    --select-default
-
-fish_add_path "$waywr_prefix/bin"
-waywr --help
+sh scripts/dev-install.sh
 ```
+
+This uses permanent rustup and the pinned toolchain, checks license notices and
+source/binary privacy, creates a fresh artifact ID and atomically selects the
+validated paired bundle. Python3 is needed by these source-build checks; it is not
+an installed runtime dependency. A failed build leaves the working installation
+selected. Project settings/history and older artifacts are preserved; shell
+configuration, provider settings and services are not changed by installation.
+
+If needed, add the launcher to Fish's PATH once, then use it normally:
+
+```fish
+fish_add_path "$HOME/.local/bin"
+waywr --version
+cd PROJECT
+waywr
+```
+
+Plain `waywr` prompts for first-use setup when needed. After editing Waywr, close
+its old TUI and repeat `sh scripts/dev-install.sh` from this checkout, then reopen
+the same project with `waywr`. No bundle ID, per-project rebind or separate service
+command is needed. Idle services are replaced safely; busy/uncertain execution
+preserves its current owner and reports the reason. Use `resume` only when you
+intend to resume a paused session. `--prefix ABSOLUTE` provides an isolated/custom
+installation; its launcher is `PREFIX/bin/waywr`.
+
+[Verification guide](docs/verify-usability.md) covers the first real task and
+rebuild/reopen loop. `bundle-build` and `bundle-install` remain the underlying
+advanced assembly/install commands; copying the frontend alone is insufficient.
 
 `bundle-build` requires a new output directory. Release IDs allow at most 64
 letters/digits/dots/hyphens/underscores (not a leading dot); use a fresh ID for changed contents.

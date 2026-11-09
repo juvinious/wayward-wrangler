@@ -204,6 +204,10 @@ def main():
                 # The ordinary launcher owns real systemd bootstrap and handover.
                 # Removing A while its TUI is attached must not interrupt it.
                 def replace_while_attached():
+                    process_env = Path('/proc') / unit_property('MainPID') / 'environ'
+                    inherited = dict(item.split(b'=', 1) for item in process_env.read_bytes().split(b'\0') if b'=' in item)
+                    for name in ['HOME', 'PATH']:
+                        assert inherited.get(name.encode()) == env[name].encode(), 'Service must preserve the calling terminal environment: ' + name
                     replace_install()
                     require_handover_refusal()
                 open_and_detach(while_open=replace_while_attached)

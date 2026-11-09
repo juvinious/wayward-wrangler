@@ -213,7 +213,7 @@ Saved provider/model/role choices remain approval metadata. New reservations add
 SHA256. Normal CLI upgrades and stable symlink changes do not rewrite preferences,
 coordinator bindings or approvals. New projects keep the stable PATH entry rather
 than permanently storing a version directory. A removed historical `codex`/`claude`
-locator can resolve that same provider on PATH; unavailable custom locators report
+locator can resolve that same provider on PATH or a known user-local installation; unavailable custom locators report
 the needed selection. No provider/model substitution is inferred.
 
 Runners use the frozen executable and verify its bytes; they never resolve again
@@ -236,3 +236,12 @@ choices, frozen-attempt refusal and missing-interface diagnostics using metadata
 clients. They cannot infer or authenticate. A separately requested ignored case
 checks the installed clients' real help interfaces with explicit binary paths;
 passing it is not proof of authentication, sandbox execution or a completed job.
+
+A relocated-client readiness regression also removes an old configured version
+path and supplies the replacement on an isolated child process's PATH. The
+coordinator must report available using the resolved client, without rewriting
+its saved profile or bypassing frozen-attempt checks. The same case checks a
+known user-local installation with an otherwise minimal PATH. Service startup
+forwards selected caller HOME/PATH/config-location variables so normal CLI setup
+is not replaced by a stale user-manager environment. Arbitrary token variables
+are not forwarded by the launcher.

@@ -11,7 +11,8 @@ fn op(name:&'static str)->Command{run(name).arg(opt("operation").required(true).
 pub fn command()->Command {
     let globals=["project","state-dir","registry-dir","legacy-origin","color","herdr-socket","ipc-dir","release"];
     let mut root=Command::new("waywr").disable_version_flag(true).arg_required_else_help(false)
-        .subcommand_required(false).allow_external_subcommands(false);
+        .subcommand_required(false).allow_external_subcommands(false)
+        .arg(flag("version").short('V').help("Show the application version and installed build"));
     for name in globals {
         let argument=if name=="color" {opt(name).value_parser(["auto","always","never"])}else{opt(name)};
         root=root.arg(argument.global(true));

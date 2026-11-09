@@ -414,12 +414,14 @@ pub fn policy_allows(policy: &Value, role: &str, hash: &str, profile: &Value) ->
         && profile["effort"] == policy["coordinator"]["effort"]
 }
 pub fn find_client(name: &str) -> Option<PathBuf> {
-    std::env::var_os("PATH")
-        .and_then(|paths| {
-            std::env::split_paths(&paths)
-                .map(|p| p.join(name))
-                .find(|p| p.is_file())
-        })
+    let mut candidates=std::env::var_os("PATH").map(|paths|std::env::split_paths(&paths)
+        .map(|p|p.join(name)).collect::<Vec<_>>()).unwrap_or_default();
+    if let Some(home)=std::env::var_os("HOME").map(PathBuf::from){
+        for folder in [".local/bin",".npm-global/bin",".npm/bin",".opencode/bin"]{
+            candidates.push(home.join(folder).join(name));
+        }
+    }
+    candidates.into_iter().find(|p|p.is_file())
         .map(|p|if p.is_absolute(){p}else{std::env::current_dir().unwrap_or_default().join(p)})
 }
 pub fn imported(legacy: &Value) -> Result<Value, String> {

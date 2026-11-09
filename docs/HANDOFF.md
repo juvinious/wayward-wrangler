@@ -1,77 +1,67 @@
-# Waywr handoff — acceptance-driven usability work
+# Waywr handoff — local iteration ready for user verification
 
-Work on `plan/usability-and-installation`. The user accepted the
-[usability target](usability-plan.md) and [development approach](development-approach.md).
-[AGENTS.md](../AGENTS.md) now requires user-visible vertical slices, an observed
-behavioral red test before application changes, minimal green implementation,
-focused checks and explicit ordinary-use limits. Do not expand into another
-architecture or broad testing campaign.
+Work remains on `plan/usability-and-installation`. Follow
+[AGENTS.md](../AGENTS.md), the [accepted approach](development-approach.md) and
+[usability target](usability-plan.md). Use one observable slice at a time: establish
+its behavioral red result before application changes, implement minimally, verify
+the relevant outcome/fences, then assess actual use. No broad test campaign or
+additional orchestration architecture is prescribed.
 
-Git boundary: read-only routine inspection, staging owned changes and local
-commits. The user reviews and performs all remote delivery. Do not push, modify
-PRs, merge remote work, publish releases or change hosted settings; earlier remote
-permissions are superseded. Preserve unrelated edits and history.
+Git remains read-only for routine inspection, with staging owned changes and
+local commits allowed. The user reviews and performs all remote delivery. Do not
+push, modify PRs, merge remote work, publish releases or change hosted settings.
+Earlier remote permissions are superseded. Preserve unrelated edits/history.
 
-The first slice now opens compatible stopped projects after the old application
-installation is removed, without routing to it or rebinding project metadata.
-Startup validates the installed bundle, project identity, storage range and
-retained semantic markers. Repeated init and offline status use the current app;
-legacy release metadata stays unchanged. IPC release/owner and native execution
-fences remain enforced. The first slice did not include live service handover or provider changes;
-the second slice's idle handover is recorded below.
+Implemented local iteration behavior:
 
-Acceptance evidence: `python3 scripts/test-project-reopen.py` initially failed with
-`No such file or directory` before the replacement TUI could open. After the fix,
-the same scenario opens the real TUI, restores its unsent draft, preserves settings
-and intentional pause, and requires no manual rebind. Negative controls reject
-foreign project metadata and unsupported storage without rewriting it. It uses
-two bundle identities of the supplied paired binaries and directly started
-isolated services; no systemd bootstrap or model call is involved. It cleans its
-temporary HOME/project/installations. The locked remapped release build passed.
-Both existing recovery/convergence release-contract guard tests passed. Source
-and remapped-binary privacy checks, changed workflow YAML parsing, documentation
-references and diff checks passed. The new acceptance check is wired into local
-workflow source for future CI/release runs; no hosted run was triggered.
+- Compatible stopped projects open with the selected paired application, without
+  needing the old build or rewriting legacy project release metadata.
+- An idle old service hands over automatically after exact unit argv/PID/socket
+  ownership and quiescence checks under startup/execution fences. It preserves selected caller environment
+  and XDG locations rather than stale manager HOME/PATH. A live TUI,
+  pending delivery or uncertain launch preserves the old owner and reports why.
+- Native versions are diagnostic. New attempts freeze the current resolved CLI
+  separately from provider/model/role approval; normal updates, symlink moves and
+  removed historical default locators need no F3 save. Prepared attempts retain
+  exact executable checks. Required interface/tool/sandbox/result checks remain.
+  Legacy native packets without identity require a new attempt; fixture hashes
+  remain strict. A frozen-client semantic marker guards incompatible downgrade.
+- `sh scripts/dev-install.sh` builds/checks/selects a fresh paired local artifact
+  with one command. Failed builds preserve the selected installation and project
+  work. It changes no shell/provider settings and starts no service. `--prefix`
+  isolates an install; `waywr --version` reports version/build without project setup.
 
-The earlier cleanup removed all 40 user-local releases, launchers, registry and
-identified temporary artifacts. Source and project work/history were preserved.
-Do not reinstall into the operator environment, change the preserved project or
-make authenticated model calls under this task. Isolated acceptance artifacts
-must be temporary, self-contained and cleaned up. The
-[prior checkpoint](archive/handoff/2026-11-09-usability-planning-and-cleanup.md)
-retains cleanup and repository-security context.
+Red evidence covered missing old-build routing, a still-running old service that
+never settled, provider version/hash gates, missing frozen-client compatibility
+checks, unavailable dev-install/version entry points, and a readiness check that
+still tested a removed locator after resolving its replacement. Final cases also
+proved known user-local discovery and caller HOME/PATH preservation in the actual
+service rather than a stale manager environment. The corresponding
+focused regressions pass. Source-build checks include notice/privacy validation.
+Verification includes real stopped-project and systemd handover/TUI checks,
+two real local builds/installs plus a compiler-failure control, installed CLI help
+probes, focused provider/permission/semantic/CLI regressions, and real archive
+install/startup outside the source tree with Rust absent and zero source accesses.
+Source/binary privacy, notice inventory, shell syntax, workflow YAML and reference
+checks pass. Ordinary native task delivery and subjective fluidity remain for the
+user to verify; no hosted CI run was triggered.
 
-The source builds and starts its TUI/service. Exact project build routing is
-removed for compatible stopped-project opening; cross-build attachment to a busy service remain implemented limitations.
-Public release/download usability and reliable ordinary work are not established.
-The private historical repository remains read-only; no paid features were enabled.
+Run [the verification guide](verify-usability.md): install from this checkout,
+complete a useful local task, close/pause, rebuild and reopen the same project.
+The agent has not installed into the operator environment, changed the preserved
+project or called a model. Prior cleanup removed 40 operator installations;
+source and project work/history remain. All acceptance installations/services
+belong to temporary fixtures and must be cleaned up.
 
-Second slice: real-systemd idle handover is implemented. Its initial red result
-was a timeout waiting for the old build's active service to settle. The launcher
-now proves the prior unit process/argv and IPC peer, then reuses the existing
-quiescent stop under startup/execution fences. UI claim registration shares that
-fence. The real-systemd regression passes idle replacement with the old files
-removed and preserves the owner for live views, pending input and uncertain launch
-evidence. It uses only a temporary project, HOME and uniquely keyed unit; cleanup
-removes the unit and all fixture files. No model or operator operation is involved.
+Boundaries: idle replacement is supported; busy/uncertain execution is not
+force-stopped or replayed. Real CLI help checks establish interface metadata,
+not authentication, sandbox usability or model reliability. Public curl download,
+`waywr update`/`uninstall`, artifact collection and Debian packaging are later
+slices after ordinary-use feedback. No hosted binary release or paid feature was
+enabled. Historical repositories remain private/read-only.
 
-Third slice: provider version and permanent native hash gates are removed. New
-reservations freeze `execution.client` separately from approved profile choices;
-old packets keep exact identity checks. CLI updates/symlink moves need no F3 save.
-Missing help options report the actual interface deficiency. Legacy fixture hashes
-remain strict; historical replay constants are diagnostic only. New native legacy
-conversation packets freeze before reservation; old native packets missing an
-identity refuse execution and require a new attempt. A persisted semantic marker
-and bundle capability prevent guarded downgrade that would ignore frozen clients.
-
-Observed red cases covered version rejection, stale saved fingerprints, legacy
-gates and missing downgrade guards. Metadata fixture regressions, installed CLI
-help-interface probes, all targeted provider policy/switch/fallback checks, exact
-builtin-capability validation and release semantic guards pass. None called a
-model. The remapped release build and source/binary privacy checks also passed.
-
-Next authorized action: implement/test one-command local build/install and version
-reporting. Then hand the candidate and commands to the user for ordinary-workflow
-verification. Do not install into the operator environment or call a model. Public
-curl/update/uninstall and package channels remain subsequent slices. Local commits
-only; remote delivery belongs to the user.
+Contracts: [distribution](distribution.md), [providers](provider-selection.md),
+[layout](project-layout.md), [IPC](contracts/session-protocol.md),
+[workflow](ordinary-project-workflow.md). The [core-slice checkpoint](archive/handoff/2026-11-09-usability-core-slices.md)
+retains intermediate evidence. Next action: user review and verification; turn a
+concrete observed interruption into the next failing regression before fixing it.

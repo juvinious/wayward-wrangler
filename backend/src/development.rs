@@ -224,13 +224,7 @@ fn retain_python_caches(s: &Session, work: &Value, command: &str) -> Result<Opti
     Ok(Some(json!({"manifest":manifest_path,"files":manifest["files"],"head":head})))
 }
 pub fn find_codex() -> Option<PathBuf> {
-    std::env::var_os("PATH")
-        .and_then(|p| {
-            std::env::split_paths(&p)
-                .map(|p| p.join("codex"))
-                .find(|p| p.is_file())
-        })
-        .map(|p|if p.is_absolute(){p}else{std::env::current_dir().unwrap_or_default().join(p)})
+    crate::provider_selection::find_client("codex")
 }
 pub fn profile(s: &Session) -> Result<Value, String> {
     if crate::provider_selection::enabled(s){return crate::provider_selection::effective(s);}
@@ -417,9 +411,9 @@ impl Session {
         let active = self.chat_reserved()?.is_some();
         if crate::provider_selection::enabled(self){
             let (preferences,_)=crate::provider_selection::preferences(self)?;
-            let missing=p["provider"]!="ollama"&&!p["binary"].as_str().is_some_and(|b|Path::new(b).is_file());
-            let inventory=preferences.profiles.iter().map(|(id,p)|json!({"profile_id":id,"provider":p.provider,"model":p.model,"effort":p.effort,"configured":true,"binary_present":Path::new(&p.binary).is_file(),"authentication":"unknown until an authorized call","role_usability":"unverified until ordinary use"})).collect::<Vec<_>>();
-            return Ok(json!({"profile":p,"profile_sha256":hash(&p)?,"authorized":true,"status":if missing||pause["active"]==true&&pause["hard"]==true{"blocked"}else if active{"running"}else if pause["active"]==true{"recoverable"}else{"available"},"reason":if missing{json!("Selected native binary is unavailable; configure its exact path in F3")}else{pause["reason"].clone()},"inventory":inventory,"usage":"No mandatory ceiling; authentication/capacity are not inferred from settings"}));
+            let missing=p["provider"]!="ollama"&&crate::provider_selection::native_binary(&p).is_err();
+            let inventory=preferences.profiles.iter().map(|(id,p)|json!({"profile_id":id,"provider":p.provider,"model":p.model,"effort":p.effort,"configured":true,"binary_present":Path::new(&p.binary).is_file()||(Path::new(&p.binary).file_name().is_some_and(|n|n==p.provider.as_str())&&crate::provider_selection::find_client(&p.provider).is_some()),"authentication":"unknown until an authorized call","role_usability":"unverified until ordinary use"})).collect::<Vec<_>>();
+            return Ok(json!({"profile":p,"profile_sha256":hash(&p)?,"authorized":true,"status":if missing||pause["active"]==true&&pause["hard"]==true{"blocked"}else if active{"running"}else if pause["active"]==true{"recoverable"}else{"available"},"reason":if missing{json!("Selected native CLI is unavailable; install it on PATH or choose its binary in F3")}else{pause["reason"].clone()},"inventory":inventory,"usage":"No mandatory ceiling; authentication/capacity are not inferred from settings"}));
         }
         Ok(
             json!({"profile":p,"profile_sha256":hash(&p)?,"authorized":true,"status":if pause["active"]==true&&pause["hard"]==true{"blocked"}else if active{"running"}else if pause["active"]==true{"recoverable"}else{"available"},"reason":pause["reason"],"inventory":[{"provider":"codex","discovered":true,"configured":true,"usable":"checked locally at launch; authentication established by actual call","model":"gpt-6.1-sol","effort":"medium"}],"usage":"observed invocations; no mandatory ceiling; cost unknown until provider reports"}),

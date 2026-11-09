@@ -36,10 +36,11 @@ the command is absent from PATH afterward. Source repositories, project data,
 worktrees/history, provider installations/credentials and shared infrastructure
 were preserved. Build output inside source checkouts is not an installation.
 
-No new installation, project binding change, authenticated model call, PR merge
-or release publication is part of this planning checkpoint. Existing project
-release records are retained data; the proposed reader must handle them without
-requiring the old executable.
+Implementation uses isolated acceptance installations only. The agent has not
+reinstalled into the operator environment, changed the preserved project, called
+a model or performed remote delivery. Existing project release records are
+retained data; the current reader opens compatible state without their old binary.
+The user now reviews and installs the candidate for ordinary-use verification.
 
 ## First slice — reopen after replacement (implemented)
 
@@ -71,7 +72,9 @@ quiescence/receipt checks under startup/execution fences to stop only that idle
 owner and start the selected application. New UI claims share the execution fence.
 No old installation files or project rebind are required. A live TUI, pending
 client input or uncertain launch evidence refuses replacement and preserves the
-existing owner. Storage and execution records retain their identity.
+existing owner. Selected calling-terminal HOME/PATH/XDG/config locations are
+forwarded without arbitrary token variables; the real service environment is
+checked. Storage and execution records retain their identity.
 
 Run `python3 scripts/test-project-reopen.py --systemd-handover` on a host with a
 systemd user manager. It creates and removes its own unique temporary unit,
@@ -93,9 +96,25 @@ pass. The installed Codex and Claude CLIs also passed the explicit metadata-only
 interface check; no authentication or inference was performed. This does not
 establish a real development task.
 
-Next slice: one-command local build/install and `waywr --version`, tested in an
-isolated installation before the user installs/verifies it. Public download,
-update/uninstall commands and additional packages follow ordinary-use feedback.
+## Fourth slice — one-command local iteration (implemented)
+
+The initial red check found no `dev-install.sh` entry point and no `--version`
+option. `sh scripts/dev-install.sh` now builds/checks/installs a paired local
+application and selects a fresh generated artifact ID. Failed compilation leaves
+the existing installation selected. It changes no shell/provider configuration,
+starts no service and preserves project work. `waywr --version` works both in a
+paired installation and as an unbundled diagnostic without creating project state.
+
+The real local-install regression rebuilds twice in a temporary custom prefix,
+removes the former build, preserves project settings and verifies recovery from
+an injected compiler failure. Rust uses its permanent toolchain; operator
+installation is not changed. The user can now install and assess the complete
+ordinary-use/rebuild/reopen loop using the [verification guide](verify-usability.md).
+The agent has not made authenticated model calls or established useful task delivery.
+
+Next checkpoint: user verification and concrete friction reports. Public curl,
+update/uninstall commands, artifact collection and additional package channels
+follow that feedback; they are not claimed complete by this local iteration work.
 
 ## Required everyday use cases
 

@@ -240,6 +240,14 @@ fn ensure_service(root:&Path,ready:&Ready)->io::Result<()> {
         Command::new("systemd-run").args(["--user","--collect",&format!("--unit={}",ready.unit),
             "--property=Restart=on-failure","--property=RestartSec=1s",
             "--property=StartLimitBurst=3","--property=StartLimitIntervalSec=30"])
+            // Preserve the caller's normal CLI/config locations instead of a
+            // stale user-manager PATH/HOME. Never forward arbitrary token vars.
+            .args(waywr_backend::adapters::ENV_KEYS.iter().copied().chain([
+                "XDG_CONFIG_HOME","XDG_DATA_HOME","XDG_STATE_HOME","XDG_CACHE_HOME"
+            ]).filter_map(|key|env::var_os(key).map(|value|{
+                let mut argument=std::ffi::OsString::from(format!("--setenv={key}="));
+                argument.push(value);argument
+            })))
             .args(&command).output()?
     }else{return Err(err("Could not determine project unit load state"));};
     if !started.status.success(){return Err(err(format!("Project service failed to start: {}",String::from_utf8_lossy(&started.stderr))));}

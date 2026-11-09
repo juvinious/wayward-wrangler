@@ -14,6 +14,17 @@ Initial published target: Linux x86_64 GNU, Ubuntu24.04/glibc2.39. This is not a
 Linux portability claim. Systemd user execution, sandbox support and provider
 requirements still apply. Python and Rust are not binary-install runtime requirements.
 
+For local development, run `sh scripts/dev-install.sh` from the source checkout.
+It wraps the existing locked remapped build, notice/privacy checks, paired bundle
+assembly and staged installation with a fresh generated ID. It selects the new
+application atomically without starting a service, changing shell/provider settings
+or binding each project. Failed compilation/checks leave the previous installation
+selected. `--prefix ABSOLUTE` isolates an installation; Rust/Python are source-build
+tools, not installed runtime dependencies. `waywr --version` reports the frontend
+version and selected artifact; the unbundled diagnostic needs no project/manifest.
+Older artifacts are currently retained; automatic collection/uninstall is later
+work. They are not permanent project dependencies.
+
 `scripts/install.sh --version vMAJOR.MINOR.PATCH` uses authenticated `gh` for a private
 repository. It verifies exact tag, GitHub's checksum-asset digest, archive SHA256,
 platform/libc, safe names, unique entries and regular-file/directory types before
@@ -97,3 +108,17 @@ start and replace only its own uniquely keyed unit. It removes the old installat
 while the service runs, checks refusal for a live TUI, pending input and uncertain
 launch evidence, then verifies a new process/generation restores the saved draft.
 This establishes idle handover, not interruption or resumption of active model work.
+
+`python3 scripts/test-dev-install.py` runs two actual builds/installations with an
+explicit temporary prefix (including spaces) and the permanent Rust toolchain. It
+removes the former build and reinitializes the same project without changing its
+saved settings. A fixture compiler failure then proves the selected working
+installation and project data remain intact. No service/model/operator install is
+involved. See [user verification](verify-usability.md) for ordinary use, which is
+separate from these automated checks.
+
+Service bootstrap forwards the existing allowlisted runtime variables and XDG
+locations from the calling terminal. This preserves normal CLI discovery and
+configuration locations instead of relying on stale user-manager HOME/PATH.
+It does not import arbitrary caller token variables or edit shared configuration.
+The real-systemd regression checks the service's actual HOME/PATH environment.

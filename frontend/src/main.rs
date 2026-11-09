@@ -937,6 +937,16 @@ fn value_from_args(args:&[String],flag:&str)->Option<String>{
     args.windows(2).find(|pair|pair[0]==flag).map(|pair|pair[1].clone())
 }
 
+fn print_version()->io::Result<()> {
+    let root=env::current_exe()?.canonicalize()?;
+    let manifest=root.parent().and_then(|p|p.parent()).map(|p|p.join("manifest.json"));
+    let release=manifest.and_then(|p|fs::read(p).ok()).and_then(|bytes|serde_json::from_slice::<Value>(&bytes).ok())
+        .and_then(|m|m["release_id"].as_str().filter(|id|!id.is_empty()&&id.len()<=64&&
+            id.bytes().all(|b|b.is_ascii_alphanumeric()||b"._-".contains(&b))).map(str::to_owned));
+    println!("waywr {} ({})",env!("CARGO_PKG_VERSION"),release.as_deref().unwrap_or("unbundled"));
+    Ok(())
+}
+
 fn main() {
     let args: Vec<String> = env::args().flat_map(|arg| { if arg.starts_with("--") { if let Some((k,v))=arg.split_once('=') {return vec![k.to_owned(),v.to_owned()]} } vec![arg] }).collect();
     match cli_schema::validate(&args[1..]) {
@@ -944,7 +954,8 @@ fn main() {
         Err(error)=>{eprintln!("waywr: {error}");std::process::exit(2)},
         Ok(true)=>{},
     }
-    let result = if args.iter().any(|x| x == "--backend-info") { backend_info() }
+    let result = if command_name(&args[1..]).is_none()&&args.iter().any(|x|matches!(x.as_str(),"--version"|"-V")){print_version()}
+        else if args.iter().any(|x| x == "--backend-info") { backend_info() }
         else if args.iter().any(|x|x=="--view-output") { rust_views::viewer(&args[1..]) }
         else if command_name(&args[1..])==Some("bundle-build") { rust_bundle::build(&args[1..]) }
         else if command_name(&args[1..])==Some("bundle-install") { rust_bundle::install(&args[1..]) }

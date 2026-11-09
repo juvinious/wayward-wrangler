@@ -156,7 +156,9 @@ availability never establishes model suitability.
 ## Distribution boundary
 
 `frontend/src/rust_bundle.rs` owns paired offline bundle assembly/validation, staged
-installation and atomic default selection. `rust_runtime.rs`, `main.rs` and
+installation and atomic default selection. `scripts/dev-install.sh` wraps the
+locked build, notice/privacy checks and paired local selection; `--version`
+reports the selected artifact without initializing a project. `rust_runtime.rs`, `main.rs` and
 `rust_maintenance.rs` check current storage/semantic compatibility and retain
 explicit guarded migration/rollback. Ordinary startup no longer routes through
 an old executable named in project release metadata. Compatible stopped projects

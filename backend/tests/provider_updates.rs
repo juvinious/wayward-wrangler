@@ -117,3 +117,33 @@ fn provider_updates_installed_cli_metadata(){
         println!("{provider}: required local interface accepted; no model request");
     }
 }
+
+#[test]
+fn provider_updates_missing_historical_locator_is_ready_via_current_path(){
+    const FIXTURE:&str="WAYWR_RELOCATION_METADATA_FIXTURE";
+    if let Some(root)=std::env::var_os(FIXTURE){
+        let root=std::path::PathBuf::from(root);
+        let s=Session::open(&root,&root.join(".waywr/state"),"0123456789abcdef0123456789abcdef","provider-updates").unwrap();
+        let readiness=s.development_readiness().unwrap();
+        assert_eq!(readiness["status"],"available","A removed historical binary locator must not block the resolved client: {readiness}");
+        development::preflight(&readiness["profile"]).unwrap();
+        return;
+    }
+    let root=tempfile::tempdir().unwrap();let old=root.path().join("old");let current=root.path().join("current");
+    fs::create_dir(&old).unwrap();fs::create_dir(&current).unwrap();
+    client(&old.join("codex"),"codex",900,true);
+    let s=project(root.path(),&old.join("codex"),"codex");drop(s);
+    client(&current.join("codex"),"codex",901,true);fs::remove_dir_all(old).unwrap();
+    // A child gets an isolated PATH; parallel tests and the operator environment
+    // are never changed with process-global set_var.
+    let result=std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["--exact","provider_updates_missing_historical_locator_is_ready_via_current_path","--nocapture"])
+        .env(FIXTURE,root.path()).env("PATH",format!("{}:/usr/bin:/bin",current.display())).output().unwrap();
+    assert!(result.status.success(),"{}\n{}",String::from_utf8_lossy(&result.stdout),String::from_utf8_lossy(&result.stderr));
+    let home=root.path().join("home");let local=home.join(".local/bin");fs::create_dir_all(&local).unwrap();
+    client(&local.join("codex"),"codex",902,true);
+    let result=std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["--exact","provider_updates_missing_historical_locator_is_ready_via_current_path","--nocapture"])
+        .env(FIXTURE,root.path()).env("HOME",home).env("PATH","/usr/bin:/bin").output().unwrap();
+    assert!(result.status.success(),"Known user-local clients must also resolve:\n{}",String::from_utf8_lossy(&result.stderr));
+}
