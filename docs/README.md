@@ -11,13 +11,12 @@
 
 ## Current product work
 
-[Usability and installation plan](usability-plan.md) is the current proposal:
-remove per-project application build locks and provider version allowlists, make
-public installation/update/uninstall straightforward, and prove one useful
-ordinary workflow. The user requested removal of existing installations before
-implementation; HANDOFF records that cleanup. The first milestone is using the
-application while iterating: one-command local rebuild/install and continuation
-in the same project. The proposal is not implemented.
+[Usability and installation plan](usability-plan.md) is the accepted target.
+[Acceptance-driven development](development-approach.md) defines the implementation
+loop; AGENTS.md owns the policy. Work stays on `plan/usability-and-installation`
+with local commits only; the user performs remote delivery. The first slice is
+opening a compatible idle project after its old application build is removed.
+The full daily-use and installation lifecycle is not implemented yet.
 
 [Ordinary project workflow](ordinary-project-workflow.md), [providers](provider-selection.md)
 and [distribution](distribution.md) own the connected increment. The

@@ -1,7 +1,10 @@
 # Usability and installation plan
 
-Status: proposed, awaiting user review. No implementation or new installation is
-authorized by this document. It supersedes the proposed per-project build upgrade.
+Status: accepted implementation target on `plan/usability-and-installation`.
+Follow the [acceptance-driven development approach](development-approach.md).
+Local implementation, isolated checks and local commits are authorized. The user
+handles all remote delivery. Operator installation, preserved-project changes and
+authenticated model calls remain outside the current authorization.
 
 ## Outcome
 
@@ -37,6 +40,23 @@ No new installation, project binding change, authenticated model call, PR merge
 or release publication is part of this planning checkpoint. Existing project
 release records are retained data; the proposed reader must handle them without
 requiring the old executable.
+
+## Current slice — reopen after replacement
+
+- **Outcome:** an idle project with compatible current storage opens through the
+  installed `waywr` after its previous application build has been removed.
+- **Present failure:** startup routes through `.waywr/release.json` to the former
+  binary and refuses when that installation is missing.
+- **Acceptance:** initialize/save a project using installation A; replace it with
+  B and remove A; open through the ordinary launcher without rebinding. Assert
+  the actual TUI opens and retained project state, settings and history survive.
+- **Exclusions:** provider changes, developer/public installers, package channels,
+  arbitrary old/future storage migrations and operator-project upgrades. Active
+  or uncertain execution is a separate slice and must retain its existing fences.
+
+Run and observe this failure before production edits. Deliver it through the
+existing components with targeted regression checks; it is one part of the daily
+loop, not proof that ordinary model-driven work is reliable.
 
 ## Required everyday use cases
 
@@ -105,7 +125,7 @@ from the provider's incidental version or filesystem location.
 
 ## Distribution strategy
 
-First provide a proposed `sh scripts/dev-install.sh` command in the source
+Provide a `sh scripts/dev-install.sh` command in the source
 checkout. It wraps the existing locked build, paired bundle creation and atomic
 user-local selection, chooses its own artifact ID and prints the installed
 version. No hand-written bundle IDs, paths, per-project rebinds or GitHub release
@@ -133,8 +153,9 @@ issues and give the exact next command rather than claiming success prematurely.
 Uninstallation must inventory owned files and running services; project data
 deletion is a separate explicit action, never the default.
 
-Publish one actual versioned GitHub release only after the normal PR and release
-gates pass and the user authorizes publication. A prepared workflow or local
+The user publishes the versioned GitHub release after reviewing local commits
+and satisfying the normal PR and release gates. The agent prepares the artifacts
+and instructions without pushing, modifying PRs or publishing. A prepared workflow or local
 archive is not an available public installer. Then add a Debian package built
 from the same verified bundle and using the same state/service lifecycle. Its
 upgrade/removal must pass the same two-project reopening check. Defer additional
@@ -180,4 +201,4 @@ observable user behavior and state what still requires operator intervention.
 | User-facing contracts | [Distribution](distribution.md), [providers](provider-selection.md), [project layout](project-layout.md), [ordinary workflow](ordinary-project-workflow.md), [README](../README.md) |
 
 Those documents describe the implementation until their owning changes land.
-This proposal does not make the new lifecycle available yet.
+Acceptance of this target does not make the new lifecycle available yet.

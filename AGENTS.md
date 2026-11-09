@@ -25,6 +25,44 @@ startup reading list. `CLAUDE.md` points here as the canonical working policy.
   context requires an explicit bounded grant. Model prose/display state cannot
   authorize work. Preserve exact-revision/artifact checks and runtime fencing.
 
+## Development precepts
+
+Use [the acceptance-driven development approach](docs/development-approach.md)
+and the current slice in [the usability plan](docs/usability-plan.md).
+
+- Start with one user-visible outcome, its present failure, an acceptance example
+  and explicit exclusions. Finish that vertical slice before expanding scope.
+- Before changing application behavior, run an acceptance/regression test against
+  the existing code and observe the expected behavioral failure. A broken harness,
+  compiler error or missing dependency is not a valid red test.
+- Use focused TDD for necessary underlying logic: red, minimal implementation,
+  green, then refactor. Assert observable outcomes, not implementation structure.
+- Exercise real installation, persistence, IPC and service components where those
+  are the behavior under test. Mocks support narrow logic/fault cases; they do not
+  establish ordinary usability or native execution.
+- Keep checks proportionate and targeted. Do not turn the slice into an unrelated
+  refactor, dependency upgrade, abstraction or broad acceptance campaign. Surface
+  substantive scope changes instead of silently adopting them.
+- Complete authorized work autonomously. A passing mechanism is not completion
+  of the promised user journey. Report what now works, remaining intervention and
+  verification limits; test counts are supporting detail.
+- Use ordinary work to assess fluidity when authorized. Convert reproducible
+  friction into regressions; preserve the distinction between automated evidence
+  and actual use. Never call a model or install into the operator's environment
+  merely to make a test green.
+
+## Git and review boundary
+
+- Use read-only Git inspection for routine tasks. Staging this task's changes and
+  making local commits on the current work branch are authorized checkpoints.
+- Leave remote writes to the user: do not push, create/update PRs, merge remote
+  work, tag/publish releases or change hosted settings. Earlier remote permissions
+  do not carry forward. Prepare local commits and evidence for the user's review.
+- Do not reset, clean, discard, rebase, delete branches or change checkout/history
+  as routine cleanup. Preserve unrelated edits; seek explicit task authorization
+  for any additional Git mutation. Isolated test repositories may use the local
+  Git setup/commits necessary for the documented acceptance case.
+
 ## Build and verification
 
 Use permanent rustup (`~/.cargo/bin`) and checked-in `rust-toolchain.toml` (1.99.0).
@@ -63,6 +101,6 @@ Do not manufacture churn when reassessment finds no change. Historical permissio
 never authorize a new trial. Keep quoted paths as historical evidence references
 when the user has authorized deleting their resources.
 
-For an authorized PR merge, satisfy gates and use `gh pr merge -sd` when squash is
-allowed (`-d` deletes topic branches). Verify merge/cleanup. Never force-delete
-unmerged work or push/merge without task authorization.
+Handoff local commits to the user for review and remote delivery. Hosted PR/build
+and security requirements remain applicable to the user's eventual publication;
+they do not authorize agent remote writes.

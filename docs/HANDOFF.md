@@ -1,46 +1,37 @@
-# Waywr handoff — usability planning and installation cleanup
+# Waywr handoff — acceptance-driven usability work
 
-The current task is planning, not another installation or testing campaign. The
-user rejected per-project application build locks and native-client version
-allowlists, requested removal of lingering installations/temp artifacts, and wants
-a practical install/update/uninstall and ordinary-project experience. Review the
-[usability plan](usability-plan.md) before implementation. No application code has
-changed in this checkpoint, and no project binding was upgraded.
+Work on `plan/usability-and-installation`. The user accepted the
+[usability target](usability-plan.md) and [development approach](development-approach.md).
+[AGENTS.md](../AGENTS.md) now requires user-visible vertical slices, an observed
+behavioral red test before application changes, minimal green implementation,
+focused checks and explicit ordinary-use limits. Do not expand into another
+architecture or broad testing campaign.
 
-The first proposed milestone is daily use during development: use the app for a
-real task, edit its source, rebuild/select with one command, reopen the same
-project and continue. Public packaging follows that loop. The user will reassess
-continued investment if normal use keeps requiring manual recovery; additional
-orchestration features and broad test campaigns are not the immediate objective.
+Git boundary: read-only routine inspection, staging owned changes and local
+commits. The user reviews and performs all remote delivery. Do not push, modify
+PRs, merge remote work, publish releases or change hosted settings; earlier remote
+permissions are superseded. Preserve unrelated edits and history.
 
-Public main `085cc6c` built and packaged successfully with privacy checks. Its
-installed TUI and real systemd user service started in an isolated project, with
-no model request. On the user's subsequent cleanup instruction, all 40 user-local
-release directories, the launcher, location registry, empty runtime directory and
-identified Waywr temporary artifacts were removed. Fresh PATH checks find no
-`waywr`, `wayward-wrangler` or `awp`; no Waywr service/process was running at cleanup.
-Source checkouts and project work/history remain. Source-tree build output is
-not an installation. Temporary verification records were disposed of as requested.
+The current slice is reopening an idle compatible project after replacing the
+application and removing its old build, without manual rebinding. First reproduce
+that failure through the real launcher/TUI in isolation, preserving project state,
+settings and history. Provider changes, installers, active-job handover and broad
+storage migration are excluded from this slice. Record red/green evidence and
+what the user can actually do; the full daily-use loop remains incomplete.
 
-Existing project release records still name their old build. They are preserved
-legacy data, not a reason to reinstall that build. The proposed lifecycle must
-open retained projects with the installed app, negotiate storage/IPC capabilities,
-and preserve inspection while unsafe execution awaits reconciliation. Provider
-versions should be diagnostic; execution identity/capability fences remain.
-These changes are proposed, not implemented. Do not run another installer or
-change the preserved project's binding as part of this planning checkpoint.
+The earlier cleanup removed all 40 user-local releases, launchers, registry and
+identified temporary artifacts. Source and project work/history were preserved.
+Do not reinstall into the operator environment, change the preserved project or
+make authenticated model calls under this task. Isolated acceptance artifacts
+must be temporary, self-contained and cleaned up. The
+[prior checkpoint](archive/handoff/2026-11-09-usability-planning-and-cleanup.md)
+retains cleanup and repository-security context.
 
-The independent public repository retains MIT licensing, generalized source/docs,
-patched dependencies and privacy/security checks. The original repository stays
-private, archived and read-only. Hosted main requires PR/build/security checks
-and squash merge; no second reviewer is required. No paid security feature or
-subscription was enabled. The [baseline handoff](archive/handoff/2026-11-09-clean-repository-baseline.md)
-and [audit record](security-audit-2026-11-08.md) retain migration/security context.
-No public binary release was published by this task.
+Baseline source builds and starts its TUI/service; exact project build routing
+and provider version allowlists remain implemented limitations at this checkpoint.
+Public release/download usability and reliable ordinary work are not established.
+The private historical repository remains read-only; no paid features were enabled.
 
-The implemented Rust/Ratatui application remains IPC1.10/state9. Native reliability
-and full ordinary-project usability remain experimental. Current contracts:
-[workflow](ordinary-project-workflow.md), [distribution](distribution.md),
-[providers](provider-selection.md), [recovery](coordinator-recovery.md) and
-[context](context-delivery.md). Next action: user review of the proposed use cases,
-lifecycle strategy and delivery order; then implementation within that agreed scope.
+Next authorized action: observe the current slice's acceptance failure before
+changing application behavior, then implement only the smallest complete fix and
+reconcile the affected startup/distribution contracts. Local commits only.

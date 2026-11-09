@@ -7,9 +7,10 @@ The intended workflow supports existing projects and substantial user requests.
 
 ## Current readiness
 
-The [usability plan](docs/usability-plan.md) proposes removing application build
+The accepted [usability plan](docs/usability-plan.md) targets removing application build
 locks from projects, removing provider version allowlists and simplifying public
-installation/update/uninstall. These changes are not implemented yet.
+installation/update/uninstall. Follow the [development approach](docs/development-approach.md);
+the new lifecycle is not implemented yet.
 
 Waywr remains experimental. This increment implements existing-project setup,
 exact candidates/checkout handoff, conservative resource retirement, project-aware
