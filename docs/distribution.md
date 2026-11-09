@@ -26,7 +26,12 @@ for Fish commands. Authenticated download trusts the selected repository/GitHub;
 there is no separate signing or independent release-attestation trust root yet.
 
 Layout remains `~/.local/share/wayward-wrangler/releases/ID`, `current`, `bin/waywr`
-and `~/.local/bin/waywr`. Selecting the default never changes existing project bindings.
+and `~/.local/bin/waywr`. Selecting the default preserves project metadata.
+Normal startup now opens compatible stopped projects with the selected application;
+it does not route through an old build named in `.waywr/release.json`. That retained
+record supplies project identity/diagnostics, not an executable dependency. The
+installed bundle's hashes, storage schema and retained semantic contracts remain
+checked. Running-service handover across builds is not implemented by this slice.
 Explicit `waywr --project DIR session upgrade --release ID` checks closed UI/no pending
 input and positively settled operations, stops only that quiescent project service
 under execution fencing, then performs the existing guarded binding migration. PR delivery reconciles the exact
@@ -72,3 +77,16 @@ After dependency changes, run `python3 scripts/generate-notices.py`, review the
 license inventory, and include it with source and bundles. No public release or
 operator upgrade occurred during security remediation; see the
 [audit/remediation record](security-audit-2026-11-08.md).
+
+## Reopening after a compatible replacement
+
+`python3 scripts/test-project-reopen.py` uses the real bundle builder/installer,
+launcher, service, IPC and TUI in a temporary HOME. It composes an unsent draft,
+saves a pause, selects another bundle identity, deletes the former installation,
+and reopens normally without editing the project binding. Draft/settings/legacy
+metadata and the intentional pause survive; invalid project identity and unsupported
+storage are refused without rewriting their metadata. No model request is sent.
+Services are started directly by this fixture, so it does not establish systemd
+bootstrap, live service handover, different-version protocol compatibility or a
+complete ordinary development workflow. Both bundles use the supplied paired
+binaries; the regression isolates application-build identity changes.

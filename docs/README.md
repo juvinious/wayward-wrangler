@@ -14,9 +14,9 @@
 [Usability and installation plan](usability-plan.md) is the accepted target.
 [Acceptance-driven development](development-approach.md) defines the implementation
 loop; AGENTS.md owns the policy. Work stays on `plan/usability-and-installation`
-with local commits only; the user performs remote delivery. The first slice is
-opening a compatible idle project after its old application build is removed.
-The full daily-use and installation lifecycle is not implemented yet.
+with local commits only; the user performs remote delivery. The first slice opens a compatible stopped project after its former application
+build is removed; its real isolated TUI regression passes. Live service handover,
+provider flexibility and the full daily-use/install lifecycle remain unfinished.
 
 [Ordinary project workflow](ordinary-project-workflow.md), [providers](provider-selection.md)
 and [distribution](distribution.md) own the connected increment. The

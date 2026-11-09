@@ -34,6 +34,7 @@ jobs:
           cargo test --locked -p waywr --lib ordinary_
           scripts/package-release.sh "$GITHUB_REF_NAME" /tmp/release
           python3 scripts/test-packaged-install.py "/tmp/release/waywr-$GITHUB_REF_NAME-linux-x86_64-gnu.tar.gz"
+          python3 scripts/test-project-reopen.py
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release

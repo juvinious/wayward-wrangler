@@ -41,7 +41,7 @@ or release publication is part of this planning checkpoint. Existing project
 release records are retained data; the proposed reader must handle them without
 requiring the old executable.
 
-## Current slice — reopen after replacement
+## First slice — reopen after replacement (implemented)
 
 - **Outcome:** an idle project with compatible current storage opens through the
   installed `waywr` after its previous application build has been removed.
@@ -54,9 +54,17 @@ requiring the old executable.
   arbitrary old/future storage migrations and operator-project upgrades. Active
   or uncertain execution is a separate slice and must retain its existing fences.
 
-Run and observe this failure before production edits. Deliver it through the
-existing components with targeted regression checks; it is one part of the daily
-loop, not proof that ordinary model-driven work is reliable.
+The acceptance check failed against the initial code with a missing-file error
+before the composer opened after the former installation was deleted. After the
+minimal fix, `python3 scripts/test-project-reopen.py` opens the real TUI and restores
+the saved draft, settings and pause without rebinding. Invalid project metadata
+and unsupported storage are refused. Both distinct bundle identities use the
+supplied paired binaries; services are started directly inside the fixture. This
+does not establish systemd handover, model-driven work or the full daily-use loop.
+
+Next slice: reopen with an idle service still owned by the previous application
+build, using the same acceptance-first cycle. Active/uncertain jobs keep their
+existing fences; provider and installer changes remain later slices.
 
 ## Required everyday use cases
 

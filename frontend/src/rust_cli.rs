@@ -1,6 +1,5 @@
-//! Rust-release diagnostics and compatibility boundary. Legacy projects route
-//! to their explicitly bound release before this dispatcher is entered.
-use super::{route_bound_release,rust_runtime,selected_project};
+//! Rust-release diagnostics and storage compatibility boundary.
+use super::{check_project_compatibility,rust_runtime,selected_project};
 use serde_json::{Value,json};
 use sha2::{Digest,Sha256};
 use std::{fs,io,os::unix::fs::PermissionsExt,path::{Path,PathBuf}};
@@ -486,15 +485,11 @@ fn supervise(root:&Path,manifest:&Value,args:&[String],index:usize,install:bool)
     }
     Ok(())
 }
-fn offline(root:&Path,manifest:&Value,args:&[String])->io::Result<(Value,Option<Session>)>{
+fn offline(_root:&Path,manifest:&Value,args:&[String])->io::Result<(Value,Option<Session>)>{
     let project=selected_project(args)?;
     let config:toml::Value=toml::from_str(&fs::read_to_string(project.join(".waywr/project.toml"))?).map_err(err)?;
     let key=config["project_key"].as_str().ok_or_else(||err("Project key missing"))?;
     let release=manifest["release_id"].as_str().ok_or_else(||err("Release ID missing"))?;
-    let binding=read(&project.join(".waywr/release.json")).map_err(err)?;
-    let digest=format!("{:x}",Sha256::digest(fs::read(root.join("manifest.json"))?));
-    if binding["schema_version"]!=1 || binding["project_key"]!=key || binding["release_id"]!=release ||
-        binding["manifest_sha256"]!=digest{return Err(err("Project release binding differs from installed release"));}
     let state=state_dir(&project,args);
     if !state.join("state.sqlite").is_file(){
         return Ok((json!({"project_key":key,"release_id":release,"state_revision":0,
@@ -515,7 +510,7 @@ pub fn legacy(root:&Path,manifest:&Value,args:&[String])->io::Result<()> {
         return Ok(());
     }
     let project=selected_project(args)?;
-    route_bound_release(root,manifest,&project,args)?;
+    check_project_compatibility(root,manifest,&project,args)?;
     if value(args,"--legacy-origin").is_some(){return Err(err("--legacy-origin applies only to an explicitly bound legacy release"));}
     if value(args,"--release").is_some(){return Err(err("--release is only valid for session bind/upgrade/rollback"));}
     if value(args,"--color")==Some("always"){
@@ -654,7 +649,7 @@ pub fn session(root:&Path,manifest:&Value,args:&[String])->io::Result<()> {
     if action=="repair-answer-history"{return super::rust_maintenance::repair_answer_history(args)}
     if action=="migrate"{return super::rust_migrate::migrate(root,manifest,args)}
     if !matches!(action,"bind"|"upgrade"|"rollback"){
-        route_bound_release(root,manifest,&project,args)?;
+        check_project_compatibility(root,manifest,&project,args)?;
     }
     if value(args,"--legacy-origin").is_some(){return Err(err("--legacy-origin applies only to an explicitly bound legacy release"));}
     if value(args,"--release").is_some() && !matches!(action,"bind"|"upgrade"|"rollback"){

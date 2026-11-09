@@ -224,3 +224,11 @@ acceptance refuse. Setup preferences never authorize execution. Existing convers
 input context freezes candidate identity alongside proposal/question/provider identity.
 The Ollama HTTP child is an internal supervised transport, not a new arbitrary IPC
 filesystem or execution grant. Profiles/attempts include exact optional transport identity.
+
+## Application replacement boundary
+
+Project opening no longer routes to an executable named in the legacy project
+release record. This is separate from the running IPC connection's release and
+owner identity checks, which remain enforced. The isolated replacement regression
+starts a fresh service from the selected paired bundle; it does not prove that a
+new frontend can attach to a still-running service from a different build.

@@ -11,6 +11,14 @@ SHA-256 and request ID remain inside the history. Saved legacy paths are unchang
 Explicit external state selections retain their selected history root.
 Init creates no request, task sequence, mock profile or execution approval.
 
+A canonical project's legacy `.waywr/release.json` is retained metadata. Normal
+opening checks project identity, supported storage/semantic contracts and current
+bundle integrity; it does not require or execute the recorded old build. A
+compatible stopped project can reopen after that installation is removed. No
+historical approval, packet or receipt is relabelled. Active-service handover and
+explicit older-format migrations retain their separate constraints.
+
+
 For a legacy project, use a current installed release:
 
 ```fish

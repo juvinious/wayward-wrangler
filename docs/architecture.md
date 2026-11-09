@@ -157,7 +157,11 @@ availability never establishes model suitability.
 
 `frontend/src/rust_bundle.rs` owns paired offline bundle assembly/validation, staged
 installation and atomic default selection. `rust_runtime.rs`, `main.rs` and
-`rust_maintenance.rs` route project bindings and guard upgrade/rollback. Installed
+`rust_maintenance.rs` check current storage/semantic compatibility and retain
+explicit guarded migration/rollback. Ordinary startup no longer routes through
+an old executable named in project release metadata. Compatible stopped projects
+reopen with the selected paired application; a running service still enforces
+its own release/owner identity. Live handover across builds is unfinished. Installed
 bundles are independent of this source checkout. The GitHub PR/build workflow passed focused checks, production packaging, real
 isolated installation/TUI startup and artifact upload. The version-tag release
 workflow remains unexecuted; no release has been published. Versioned Linux binary artifacts, a download entry

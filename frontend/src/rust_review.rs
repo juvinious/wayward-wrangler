@@ -1,5 +1,5 @@
 //! Project-keyed, read-only Herdr review actions for Rust releases.
-use super::{route_bound_release,selected_project};
+use super::{check_project_compatibility,selected_project};
 use serde_json::{Value,json};
 use sha2::{Digest,Sha256};
 use std::{env,fs,io,path::{Path,PathBuf},process::Command};
@@ -129,12 +129,12 @@ pub fn open_link(root:&Path,manifest:&Value,args:&[String])->io::Result<()> {
     let mut routed=vec!["--project".to_owned(),project.to_string_lossy().into_owned(),
         "--state-dir".to_owned(),state.to_string_lossy().into_owned()];
     routed.extend_from_slice(args);
-    route_bound_release(root,manifest,&project,&routed)?;
+    check_project_compatibility(root,manifest,&project,&routed)?;
     editor_tab(root,&project,&routed,run,stage,Some(hash))
 }
 pub fn open_explicit(root:&Path,manifest:&Value,args:&[String],index:usize)->io::Result<()> {
     let project=selected_project(args)?;
-    route_bound_release(root,manifest,&project,args)?;
+    check_project_compatibility(root,manifest,&project,args)?;
     let mut positionals=Vec::new();let mut cursor=index+1;
     while cursor<args.len(){
         if args[cursor].starts_with("--"){cursor+=2;}else{positionals.push(args[cursor].as_str());cursor+=1;}

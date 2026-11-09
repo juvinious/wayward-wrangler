@@ -9,8 +9,9 @@ The intended workflow supports existing projects and substantial user requests.
 
 The accepted [usability plan](docs/usability-plan.md) targets removing application build
 locks from projects, removing provider version allowlists and simplifying public
-installation/update/uninstall. Follow the [development approach](docs/development-approach.md);
-the new lifecycle is not implemented yet.
+installation/update/uninstall. Follow the [development approach](docs/development-approach.md).
+Compatible stopped projects now reopen without their former build; provider version
+gates, live service handover and the new installer lifecycle remain unfinished.
 
 Waywr remains experimental. This increment implements existing-project setup,
 exact candidates/checkout handoff, conservative resource retirement, project-aware
@@ -286,7 +287,7 @@ and does not publish a release.
 | `~/.local/share/wayward-wrangler/releases/RELEASE_ID/` | Paired binaries, resources and manifest |
 | `~/.local/share/wayward-wrangler/current` | Default selected by `--select-default` |
 | `~/.local/share/wayward-wrangler/bin/waywr` | Stable launcher through `current`; legacy aliases are also created |
-| `PROJECT/.waywr/release.json` | Project's exact release/manifest binding |
+| `PROJECT/.waywr/release.json` | Retained initial/legacy installation metadata; ordinary opening does not pin a build |
 | `PROJECT/.waywr/{state,worktrees,history}/` | Project-owned execution, task worktrees and readable history |
 
 `fish_add_path` persists the installer's bin directory for future Fish sessions.
@@ -297,35 +298,25 @@ for this example is `~/.local/share/wayward-wrangler/bin/waywr`. No sudo is need
 
 ## Existing projects: upgrade versus migration
 
-Selecting a default affects new projects. Existing projects stay pinned by
-`.waywr/release.json`; ordinary startup and repeated init honor that binding.
-Installing another bundle does not upgrade a project, move files, convert
-older states3–7 to the current schema or grant scope approval. A normal quiescent state8 upgrade imports state9 provider preferences while preserving Codex-only authority; see [provider upgrade](docs/provider-selection.md#upgrade-and-verification-boundary). Retain installed releases referenced
-by bindings or recovery records.
+The selected application opens compatible stopped projects directly. Existing
+`.waywr/release.json` metadata is preserved; startup checks project identity,
+storage compatibility, required semantic contracts and the installed bundle's
+integrity without looking for the former executable. Repeated init preserves the
+saved record. A routine compatible rebuild needs no per-project rebind or
+`session upgrade` command.
 
-For a canonical `.waywr` project, install the new bundle first. Close its TUI with
-`/exit` to checkpoint/pause; `/detach` alone leaves work running. Alternatively:
+Close with `/exit` to checkpoint/pause before changing the application; `/detach`
+leaves background work running. Opening a paused project preserves that pause;
+`waywr resume` explicitly resumes dispatch. Automatic handover from a still-running
+service on another build remains unfinished. Active/uncertain work must retain
+its existing execution fences; this slice does not force-stop or replay it.
 
-```fish
-set waywr_project /absolute/path/to/project
-waywr --project "$waywr_project" session stop
-waywr --project "$waywr_project" session status
-```
-
-Wait until status reports `"phase": "paused"` and close any attached view.
-Using the build variables above, stop only that project's service and use the
-guarded binding upgrade:
-
-```fish
-waywr --project "$waywr_project" session upgrade --release "$waywr_release"
-```
-
-The upgrade command checks for a detached view, pending input and unsettled work,
-then stops only the selected quiescent service itself. Active or uncertain work
-refuses without interruption. Records, approval and intentional pause state stay
-intact. Launch normally with `waywr --project "$waywr_project"`; use `resume` only
-when you intend to resume paused dispatch. Selecting an installation default alone
-never upgrades project bindings.
+Installing a bundle does not convert every older storage format or authorize
+work. Explicit `session upgrade`/`rollback` commands remain advanced maintenance
+for their supported guarded migrations, including state8 provider import; see
+[provider upgrade](docs/provider-selection.md#upgrade-and-verification-boundary).
+These maintenance paths still validate their source/target records and installed
+artifacts; ordinary reopening does not depend on them.
 
 For a legacy `.wayward-wrangler` layout, invoke the new installed release's
 migration command instead of renaming directories or upgrading the binding first:

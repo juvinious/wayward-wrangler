@@ -273,7 +273,7 @@ pub fn change(root:&Path,_manifest:&Value,args:&[String],action:&str)->io::Resul
     Ok(())
 }
 
-fn require_recovery_contract(state:&Path,manifest:&Value)->io::Result<()>{
+pub(super) fn require_recovery_contract(state:&Path,manifest:&Value)->io::Result<()>{
     if state.join("coordinator-recovery-v1.json").exists()&&manifest["coordinator_recovery_contract"]!="recovery-v1"{return Err(err("Retained recovery/finding semantics require recovery-v1; choose a compatible release without discarding records"));}
     if state.join("ordinary-project-v1.json").exists()&&manifest["ordinary_project_contract"]!="ordinary-project-v1"{return Err(err("Saved baseline, candidate and retention semantics require an ordinary-project-v1 release"));}
     if state.join("development-convergence-v1.json").exists()&&manifest["development_convergence_contract"]!="convergence-v1"{return Err(err("Retained named task refs and coordinator retirement require convergence-v1; choose a compatible release"));}

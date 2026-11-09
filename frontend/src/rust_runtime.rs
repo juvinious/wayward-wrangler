@@ -1,6 +1,6 @@
 //! Rust-release startup and project routing. The service owns workflow state;
 //! this launcher owns only project setup, unit bootstrap and UI attachment.
-use super::{phase,request,route_bound_release,selected_project,session,session_resume,run_ui};
+use super::{phase,request,check_project_compatibility,selected_project,session,session_resume,run_ui};
 use serde_json::{Value,json};
 use sha2::{Digest,Sha256};
 use std::{env,fs,io::{self,Write},os::unix::ffi::OsStrExt,path::{Component,Path,PathBuf},
@@ -203,6 +203,7 @@ fn ensure_service(root:&Path,ready:&Ready)->io::Result<()> {
 }
 fn prepare(root:&Path,manifest:&Value,args:&[String],setup:bool)->io::Result<Option<Ready>> {
     let project=selected_project(args)?;
+    check_project_compatibility(root,manifest,&project,args)?;
     let configuration=project.join(".waywr/project.toml");
     if !configuration.exists(){
         if !setup{return Ok(None);}
@@ -245,18 +246,6 @@ fn prepare(root:&Path,manifest:&Value,args:&[String],setup:bool)->io::Result<Opt
     let socket=PathBuf::from(selected_socket);
     if !host && !socket.is_absolute(){return Err(err("Herdr socket must be absolute"));}
     if !host && !endpoint.exists(){write(&endpoint,&json!({"schema_version":1,"project_key":key,"socket":socket}),true).map_err(err)?;}
-    let binding_path=project.join(".waywr/release.json");
-    let manifest_hash=format!("{:x}",Sha256::digest(fs::read(root.join("manifest.json"))?));
-    if binding_path.exists(){
-        let binding=read(&binding_path).map_err(err)?;
-        if binding["project_key"]!=key || binding["release_id"]!=release || binding["manifest_sha256"]!=manifest_hash{
-            return Err(err("Project is bound to another or changed release; route explicitly"));
-        }
-    }else{
-        if !setup{return Err(err("Existing project has no release binding; use explicit project binding"));}
-        write(&binding_path,&json!({"schema_version":1,"project_key":key,"release_id":release,
-            "manifest_sha256":manifest_hash,"binding_generation":1}),true).map_err(err)?;
-    }
     let runtime=value(args,"--ipc-dir").map(PathBuf::from).or_else(||env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from))
         .unwrap_or_else(||PathBuf::from(format!("/run/user/{}",unsafe{libc::geteuid()})));
     if !runtime.is_absolute(){return Err(err("IPC directory must be absolute"));}
@@ -293,7 +282,7 @@ pub(super) fn existing_service_call(manifest:&Value,args:&[String],kind:&str,bod
 }
 pub fn initialize(root:&Path,manifest:&Value,args:&[String])->io::Result<()> {
     let project=init_selection(args)?;
-    route_bound_release(root,manifest,&project,args)?;
+    check_project_compatibility(root,manifest,&project,args)?;
     if !project.join(".waywr/project.toml").exists(){init_project(&project)?;}
     let config:toml::Value=toml::from_str(&fs::read_to_string(project.join(".waywr/project.toml"))?).map_err(err)?;
     let key=config["project_key"].as_str().ok_or_else(||err("Project key missing"))?;
@@ -335,8 +324,8 @@ pub fn initialize(root:&Path,manifest:&Value,args:&[String])->io::Result<()> {
     let release_path=project.join(".waywr/release.json");
     if release_path.exists(){
         let existing=read(&release_path).map_err(err)?;
-        if existing["project_key"]!=key || existing["release_id"]!=release || existing["manifest_sha256"]!=digest{
-            return Err(err("Existing release binding differs; initialization preserved it"));
+        if existing["schema_version"]!=1 || existing["project_key"]!=key{
+            return Err(err("Existing release record identity differs; initialization preserved it"));
         }
     }else{write(&release_path,&json!({"schema_version":1,"project_key":key,"release_id":release,
         "manifest_sha256":digest,"binding_generation":1}),true).map_err(err)?;}
@@ -397,7 +386,7 @@ fn ensure_herdr(ready:&Ready)->io::Result<()> {
 
 pub fn launch(root:&Path,manifest:&Value,args:&[String])->io::Result<()> {
     let project=selected_project(args)?;
-    route_bound_release(root,manifest,&project,args)?;
+    check_project_compatibility(root,manifest,&project,args)?;
     let ready=if let Some(ready)=prepare(root,manifest,args,false)?{ready}else{
         let approved=if args.iter().any(|arg|arg=="--yes"){true}else{
             eprint!("Initialize Wayward Wrangler for {}? [y/N] ",project.display());

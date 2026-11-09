@@ -12,12 +12,26 @@ commits. The user reviews and performs all remote delivery. Do not push, modify
 PRs, merge remote work, publish releases or change hosted settings; earlier remote
 permissions are superseded. Preserve unrelated edits and history.
 
-The current slice is reopening an idle compatible project after replacing the
-application and removing its old build, without manual rebinding. First reproduce
-that failure through the real launcher/TUI in isolation, preserving project state,
-settings and history. Provider changes, installers, active-job handover and broad
-storage migration are excluded from this slice. Record red/green evidence and
-what the user can actually do; the full daily-use loop remains incomplete.
+The first slice now opens compatible stopped projects after the old application
+installation is removed, without routing to it or rebinding project metadata.
+Startup validates the installed bundle, project identity, storage range and
+retained semantic markers. Repeated init and offline status use the current app;
+legacy release metadata stays unchanged. IPC release/owner and native execution
+fences remain enforced. Live service handover and provider version gates are not
+fixed by this slice.
+
+Acceptance evidence: `python3 scripts/test-project-reopen.py` initially failed with
+`No such file or directory` before the replacement TUI could open. After the fix,
+the same scenario opens the real TUI, restores its unsent draft, preserves settings
+and intentional pause, and requires no manual rebind. Negative controls reject
+foreign project metadata and unsupported storage without rewriting it. It uses
+two bundle identities of the supplied paired binaries and directly started
+isolated services; no systemd bootstrap or model call is involved. It cleans its
+temporary HOME/project/installations. The locked remapped release build passed.
+Both existing recovery/convergence release-contract guard tests passed. Source
+and remapped-binary privacy checks, changed workflow YAML parsing, documentation
+references and diff checks passed. The new acceptance check is wired into local
+workflow source for future CI/release runs; no hosted run was triggered.
 
 The earlier cleanup removed all 40 user-local releases, launchers, registry and
 identified temporary artifacts. Source and project work/history were preserved.
@@ -27,11 +41,14 @@ must be temporary, self-contained and cleaned up. The
 [prior checkpoint](archive/handoff/2026-11-09-usability-planning-and-cleanup.md)
 retains cleanup and repository-security context.
 
-Baseline source builds and starts its TUI/service; exact project build routing
-and provider version allowlists remain implemented limitations at this checkpoint.
+The source builds and starts its TUI/service. Exact project build routing is
+removed for compatible stopped-project opening; provider version allowlists and
+cross-build running-service attachment remain implemented limitations.
 Public release/download usability and reliable ordinary work are not established.
 The private historical repository remains read-only; no paid features were enabled.
 
-Next authorized action: observe the current slice's acceptance failure before
-changing application behavior, then implement only the smallest complete fix and
-reconcile the affected startup/distribution contracts. Local commits only.
+Next authorized action: define and observe the regression for opening with a
+still-running idle service from the previous build, then implement that bounded
+handover slice. Do not force-stop/replay active or uncertain work. Provider changes
+and the one-command local installer follow separately. Local commits only; no
+operator installation, preserved-project modification or authenticated model calls.

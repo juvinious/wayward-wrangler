@@ -2,8 +2,9 @@ use crossterm::{event::{self, EnableBracketedPaste, DisableBracketedPaste, Keybo
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 use serde_json::{Value, json};
+#[cfg(test)]
 use sha2::{Digest, Sha256};
-use std::{env, fs, io::{self, stdout, Write}, os::{unix::{fs::{OpenOptionsExt, PermissionsExt}, net::UnixStream, process::CommandExt}}, path::{Path, PathBuf}, sync::{Arc, atomic::{AtomicBool, AtomicU64, Ordering}, mpsc::{self}}, thread, time::{Duration, Instant, SystemTime, UNIX_EPOCH}};
+use std::{env, fs, io::{self, stdout, Write}, os::{unix::{fs::{OpenOptionsExt, PermissionsExt}, net::UnixStream}}, path::{Path, PathBuf}, sync::{Arc, atomic::{AtomicBool, AtomicU64, Ordering}, mpsc::{self}}, thread, time::{Duration, Instant, SystemTime, UNIX_EPOCH}};
 use waywr::{protocol::{self, Frame}, prototype::{editor::{Composer, Draft}, view::{App, LiveIntent, Modal}}};
 mod rust_runtime;
 mod rust_bundle;
@@ -824,38 +825,49 @@ fn selected_project(args: &[String]) -> io::Result<PathBuf> {
     waywr_backend::project_workflow::canonical_project(&value.unwrap_or(env::current_dir()?)).map_err(io::Error::other)
 }
 
-fn route_bound_release(root: &Path, manifest: &Value, project: &Path, args: &[String]) -> io::Result<()> {
+// Projects belong to a storage/semantic contract, not an application build.
+// A legacy release record is retained evidence; its old executable is not needed.
+fn check_project_compatibility(root: &Path, manifest: &Value, project: &Path, args: &[String]) -> io::Result<()> {
     waywr_backend::project_layout::check(project).map_err(io::Error::other)?;
+    rust_bundle::validate(root)?;
+    let configuration=project.join(".waywr/project.toml");
+    if !configuration.exists(){return Ok(());}
+    let config:toml::Value=toml::from_str(&fs::read_to_string(configuration)?).map_err(io::Error::other)?;
+    let key=config["project_key"].as_str().filter(|key|key.len()==32&&key.bytes().all(|b|b.is_ascii_hexdigit()))
+        .ok_or_else(||io::Error::other("Invalid project identity"))?;
     let descriptor=project.join(".waywr/release.json");
-    if !descriptor.exists() { return Ok(()); }
-    let binding:Value=serde_json::from_slice(&fs::read(&descriptor)?)?;
-    if binding["schema_version"]!=1 { return Err(io::Error::other("Unsupported project release binding")); }
-    let bound=binding["release_id"].as_str().ok_or_else(|| io::Error::other("Project release binding lacks ID"))?;
-    let matches_digest = |path: &Path| -> io::Result<bool> {
-        let Some(expected)=binding["manifest_sha256"].as_str() else { return Ok(true); };
-        let actual=format!("{:x}",Sha256::digest(fs::read(path)?));
-        Ok(actual==expected)
-    };
-    if Some(bound)==manifest["release_id"].as_str() {
-        if !matches_digest(&root.join("manifest.json"))? { return Err(io::Error::other("Project release manifest digest mismatch")); }
-        return Ok(());
+    if descriptor.exists(){
+        let record:Value=serde_json::from_slice(&fs::read(descriptor)?)?;
+        if record["schema_version"]!=1||record["project_key"]!=key{
+            return Err(io::Error::other("Legacy release record project identity mismatch"));
+        }
     }
-    if env::var_os("WAYWR_ROUTE_DEPTH").is_some() { return Err(io::Error::other("Project release routing loop")); }
-    let catalog=root.parent().filter(|p| p.file_name().is_some_and(|n| n=="releases"))
-        .ok_or_else(|| io::Error::other(format!("Project is bound to {bound}; use its installed compatible waywr release")))?;
-    if bound.contains('/') || bound.contains("..") || bound.is_empty() {
-        return Err(io::Error::other("Invalid bound release ID"));
+    let state=args.windows(2).find(|pair|pair[0]=="--state-dir")
+        .map(|pair|PathBuf::from(&pair[1])).unwrap_or_else(||project.join(".waywr/state"));
+    let state=if state.is_absolute(){state}else{project.join(state)};
+    let contract=state.join("state-contract.json");
+    if contract.exists(){
+        let record:Value=serde_json::from_slice(&fs::read(contract)?)?;
+        let schema=record["state_schema"].as_u64().ok_or_else(||io::Error::other("State schema missing"))?;
+        if record["schema_version"]!=1||record["project_key"]!=key||record["execution_host"]!="systemd-user-v1"{
+            return Err(io::Error::other("Project state identity or execution contract mismatch"));
+        }
+        if manifest["state_schema_min"].as_u64().unwrap_or(u64::MAX)>schema||
+            manifest["state_schema_max"].as_u64().unwrap_or(0)<schema{
+            return Err(io::Error::other("Installed application cannot read this project's storage schema; project data preserved"));
+        }
     }
-    let target=catalog.join(bound).join("bin/waywr");
-    let target_root=fs::canonicalize(target.parent().and_then(|p| p.parent()).ok_or_else(||io::Error::other("Invalid release layout"))?)?;
-    if target_root.parent()!=Some(catalog) || !target.is_file() {
-        return Err(io::Error::other(format!("Bound release {bound} is unavailable; install it before attaching")));
+    rust_maintenance::require_recovery_contract(&state,manifest)?;
+    for (marker,field,required) in [
+        ("ollama-transport-v1.json","provider_transport_contract","ollama-http-v1"),
+        ("context-delivery-v1.json","context_delivery_contract","evidence-v1"),
+        ("context-memory-v2.json","context_memory_contract","working-memory-v2"),
+    ]{
+        if state.join(marker).exists()&&manifest[field]!=required{
+            return Err(io::Error::other(format!("Retained project state requires {required}; project data preserved")));
+        }
     }
-    let target_manifest:Value=serde_json::from_slice(&fs::read(target_root.join("manifest.json"))?)?;
-    if target_manifest["release_id"]!=bound { return Err(io::Error::other("Bound release manifest identity mismatch")); }
-    if !matches_digest(&target_root.join("manifest.json"))? { return Err(io::Error::other("Bound release manifest digest mismatch")); }
-    let error=std::process::Command::new(target).args(args).env("WAYWR_ROUTE_DEPTH","1").exec();
-    Err(error)
+    Ok(())
 }
 
 fn command_name(args: &[String]) -> Option<&str> {
