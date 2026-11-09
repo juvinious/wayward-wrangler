@@ -1847,6 +1847,9 @@ impl Service {
                 "context_sha256":canonical_sha256(&context).map_err(|e|e.to_string())?,"selected_context":context});
                 packet
             };
+            if !self.session.development()&&fresh_packet["execution"]["mode"]=="native"{
+                fresh_packet["execution"]=crate::provider_selection::with_client(fresh_packet["execution"].clone());
+            }
             // Scope packet construction includes bounded development context before its final check.
             if fresh_packet["execution"]["profile"]=="development-profiles-v1"{if let Err(error)=crate::development_context::prepare(&self.session,&directory,&mut fresh_packet){self.session.conversation_block_queued(id,&error)?;return Ok(())}}
             let limit=if fresh_packet["execution"]["profile"]=="development-profiles-v1"{crate::development_context::MEMORY_LIMIT}else{crate::native_contract::PACKET_LIMIT};

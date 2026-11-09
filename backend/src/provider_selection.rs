@@ -116,13 +116,67 @@ pub fn valid_name(name: &str) -> bool {
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || b"_-".contains(&b))
 }
-pub fn supported_client_version(provider: &str, version: &str) -> bool {
-    let version = version.trim();
-    match provider {
-        "codex" => matches!(version, "codex-cli 0.162.1" | "codex-cli 0.163.0"),
-        "claude" => version.starts_with("2.1.296 ") || version.starts_with("2.1.301 ") || version.starts_with("2.1.302 "),
-        _ => false,
+/// Version strings are diagnostic only; actual required options define the interface.
+pub fn native_interface(provider:&str,binary:&Path)->Result<(),String>{
+    let root=metadata_help(binary,&[])?;
+    let require=|help:&str,options:&[&str]|->Result<(),String>{
+        for option in options{
+            if !help.split(|c:char|!(c.is_ascii_alphanumeric()||c=='-')).any(|token|token==*option){
+                return Err(format!("Selected {provider} client is missing required interface option {option}"));
+            }
+        }
+        Ok(())
+    };
+    match provider{
+        "codex"=>{
+            require(&root,&["--no-daemon","--ask-for-approval","--disable"])?;
+            let exec=metadata_help(binary,&["exec"])?;
+            require(&exec,&["--ignore-user-config","--ignore-rules","--ephemeral","--skip-git-repo-check",
+                "--json","--color","--model","--config","--sandbox","--output-schema","--output-last-message","--cd","--add-dir"])
+        },
+        "claude"=>require(&root,&["--print","--safe-mode","--restricted","--disable-slash-commands",
+            "--setting-sources","--strict-mcp-config","--mcp-config","--tools","--permission-mode","--permission-prompts",
+            "--settings","--model","--no-session-persistence","--output-format","--verbose",
+            "--include-partial-messages","--json-schema","--system-prompt","--effort"]),
+        _=>Err("No native adapter for selected provider".into()),
     }
+}
+fn metadata_help(binary:&Path,arguments:&[&str])->Result<String,String>{
+    let output=std::process::Command::new("timeout").arg("3s").arg(binary).args(arguments).arg("--help")
+        .env("DISABLE_AUTOUPDATER","1").env("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC","1")
+        .stdin(std::process::Stdio::null()).output().map_err(|e|format!("Cannot inspect client interface: {e}"))?;
+    if !output.status.success(){return Err("Client interface inspection failed or timed out; no model started".into());}
+    Ok(String::from_utf8_lossy(&output.stdout).chars().take(256*1024).collect())
+}
+pub fn client_version(binary:&Path)->Option<String>{
+    std::process::Command::new("timeout").arg("3s").arg(binary).arg("--version")
+        .env("DISABLE_AUTOUPDATER","1").env("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC","1")
+        .stdin(std::process::Stdio::null()).output().ok().filter(|o|o.status.success())
+        .map(|o|String::from_utf8_lossy(&o.stdout).trim().chars().take(300).collect())
+}
+/// The configured locator remains approval metadata. Freeze its current resolution
+/// separately for each new attempt; never refresh a runner's already-frozen client.
+pub fn with_client(mut execution:Value)->Value{
+    if execution["provider"]=="ollama"{return execution;}
+    let resolved=(||->Result<Value,String>{
+        let provider=execution["provider"].as_str().ok_or("Provider missing")?;
+        let locator=execution["binary"].as_str().ok_or("Provider binary locator missing")?;
+        let configured=PathBuf::from(locator);
+        let binary=if configured.is_file(){configured.canonicalize().map_err(|e|e.to_string())?}
+            else if configured.file_name().is_some_and(|name|name==provider){
+                find_client(provider).ok_or_else(||format!("Selected {provider} CLI is unavailable; install it on PATH or choose its binary in F3"))?
+                    .canonicalize().map_err(|e|e.to_string())?
+            }else{return Err(format!("Selected {provider} binary is unavailable; choose its current location in F3"));};
+        Ok(json!({"provider":provider,"locator":locator,"binary":binary,"sha256":crate::execution::hash_file(&binary)?}))
+    })();
+    execution.as_object_mut().unwrap().remove("client");
+    execution.as_object_mut().unwrap().remove("client_error");
+    match resolved{Ok(client)=>execution["client"]=client,Err(reason)=>execution["client_error"]=json!(reason)}
+    execution
+}
+pub fn native_binary(execution:&Value)->Result<&str,String>{
+    if let Some(reason)=execution["client_error"].as_str(){return Err(reason.into());}
+    execution["client"]["binary"].as_str().or_else(||execution["binary"].as_str()).ok_or_else(||"Provider binary missing".into())
 }
 pub fn efforts(provider: &str, model: &str) -> Vec<&'static str> {
     match (provider, model) {
@@ -366,7 +420,7 @@ pub fn find_client(name: &str) -> Option<PathBuf> {
                 .map(|p| p.join(name))
                 .find(|p| p.is_file())
         })
-        .and_then(|p| p.canonicalize().ok())
+        .map(|p|if p.is_absolute(){p}else{std::env::current_dir().unwrap_or_default().join(p)})
 }
 pub fn imported(legacy: &Value) -> Result<Value, String> {
     if legacy["schema_version"] == 2 {
@@ -492,7 +546,7 @@ pub fn effective(s: &Session) -> Result<Value, String> {
     value["main_policy"] = json!(prefs.main_policy);
     value["selection"] = json!({"profile_id":selected["profile_id"],"profile_sha256":selected["profile_sha256"],
         "preferences_revision":revision,"profile":selected["profile"],"role":"coordinator","source":selected["source"].as_str().unwrap_or("project coordinator binding"),"reason":"selected project binding"});
-    Ok(value)
+    Ok(with_client(value))
 }
 /// Reconcile durable file publication first; do not overwrite unexpected external edits.
 pub fn reconcile(s: &Session) -> Result<bool, String> {
@@ -1170,7 +1224,7 @@ pub fn execution(
     execution["mode"] = json!("native");
     execution["dependency_network"] = policy["dependency_network"].clone();
     execution["selection"] = selected.clone();
-    Ok((execution, selected))
+    Ok((with_client(execution), selected))
 }
 
 /// Local metadata only: no inference, login, server start, model download or shared edits.
@@ -1185,8 +1239,9 @@ fn discover_with(prefs:Option<&Preferences>)->Value{
         if let Some(paths)=std::env::var_os("PATH"){candidates.extend(std::env::split_paths(&paths).map(|p|p.join(provider)));}
         if let Some(home)=&home{for dir in [".local/bin",".npm-global/bin",".npm/bin",".opencode/bin"]{candidates.push(home.join(dir).join(provider));}}candidates.push(PathBuf::from("/usr/local/bin").join(provider));
         let mut seen=std::collections::BTreeSet::new();let executables=candidates.into_iter().filter_map(|p|p.canonicalize().ok()).filter(|p|p.is_file()&&seen.insert(p.clone())).map(|binary|{
-            let version=std::process::Command::new("timeout").args(["3s",binary.to_str().unwrap_or(""),"--version"]).env("DISABLE_AUTOUPDATER","1").env("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC","1").output().ok().filter(|o|o.status.success()).map(|o|String::from_utf8_lossy(&o.stdout).chars().take(300).collect::<String>());
-            json!({"binary":binary,"version":version,"interface_supported":provider=="ollama"||version.as_deref().is_some_and(|v|supported_client_version(provider,v)),"observed_at_ms":observed})
+            let version=client_version(&binary);
+            let interface=if provider=="ollama"{Ok(())}else{native_interface(provider,&binary)};
+            json!({"binary":binary,"version":version,"interface_supported":interface.is_ok(),"interface_reason":interface.err(),"observed_at_ms":observed})
         }).collect::<Vec<_>>();
         json!({"provider":provider,"binary":executables.first().map(|e|e["binary"].clone()),"version":executables.first().map(|e|e["version"].clone()),"executables":executables,"discovered":!executables.is_empty(),"adapter_available":matches!(provider,"codex"|"claude"|"ollama"),"roles":if provider=="ollama"{json!(["coordinator","review"])}else if matches!(provider,"codex"|"claude"){json!(ROLES)}else{json!([])},"execution_supported":provider=="ollama"||executables.iter().any(|e|e["interface_supported"]==true),"source":"saved explicit paths, PATH and known local installs; canonical executable deduplication","observed_at_ms":observed,"authentication":"unknown; credential presence is not inspected or copied","availability":"unknown until ordinary use","role_observed":"No new native role observation; see retained delivery evidence"})
     }).collect::<Vec<_>>();
@@ -2068,6 +2123,14 @@ pub fn packet_authorized(s: &Session, work: &Value, packet: &Value) -> Result<bo
             "transport",
         ] {
             if execution[field] != profile[field] {
+                return Ok(false);
+            }
+        }
+        if !execution["client"].is_null(){
+            let client=&execution["client"];
+            if client["provider"]!=profile["provider"] || client["locator"]!=profile["binary"] ||
+                client["binary"].as_str().is_none_or(|p|!Path::new(p).is_absolute()) ||
+                client["sha256"].as_str().is_none_or(|h|h.len()!=64||!h.bytes().all(|b|b.is_ascii_hexdigit())){
                 return Ok(false);
             }
         }

@@ -1,6 +1,6 @@
 # Linux worker sandbox setup
 
-Waywr currently launches Codex 0.162.1 with its workspace-write sandbox. The Linux
+Waywr launches the configured/discovered Codex client with its workspace-write sandbox. The Linux
 host must support that sandbox in addition to the systemd user manager. A working
 conversation does not prove worker command execution is available.
 
@@ -38,7 +38,7 @@ recipe or silently broaden it. Preserve it unless the operator authorizes change
 recommend the distribution-provided `bubblewrap` executable and, where needed, its
 AppArmor profile. Prefer that supported setup when preparing distribution.
 
-Waywr's current native preflight checks the CLI version, not sandbox usability.
+Waywr's native preflight checks required CLI options and executable identity, not sandbox usability.
 Before publication, detect unavailable worker execution before dispatch, explain
 the concrete cause in the TUI, and document supported distribution/CLI setup and
 upgrade behavior. Any required administrator step must be visible and explicit;

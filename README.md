@@ -10,8 +10,8 @@ The intended workflow supports existing projects and substantial user requests.
 The accepted [usability plan](docs/usability-plan.md) targets removing application build
 locks from projects, removing provider version allowlists and simplifying public
 installation/update/uninstall. Follow the [development approach](docs/development-approach.md).
-Compatible stopped projects now reopen without their former build; provider version
-gates and the new installer lifecycle remain unfinished. Idle service replacement
+Compatible stopped projects now reopen without their former build; native clients update without a version allowlist or F3 resave. The new installer
+lifecycle remains unfinished. Idle service replacement
 works automatically; attached views, pending input and uncertain work preserve
 the existing service and report why replacement must wait.
 
@@ -241,7 +241,7 @@ Prerequisites:
   (Rust 1.99.0). Preserve `Cargo.lock`; the build may download locked dependencies.
   Do not override `CARGO_HOME` or `RUSTUP_HOME`.
 - For project execution: a systemd user manager/session bus, `systemctl`,
-  `systemd-run` and an authenticated supported Codex client (0.162.1/0.163.0) with a usable sandbox. Claude roles additionally require Claude Code2.1.296/2.1.301/2.1.302 and its Bash sandbox dependencies (bubblewrap and socat).
+  `systemd-run` and an authenticated Codex client exposing the required interface with a usable sandbox. Claude roles additionally require a Claude Code client exposing its required interface and its Bash sandbox dependencies (bubblewrap and socat).
   [Linux setup](docs/linux-sandbox-setup.md) documents the temporary AppArmor
   workaround and distribution gaps. Installing Waywr does not authenticate Codex
   or change shared provider settings.

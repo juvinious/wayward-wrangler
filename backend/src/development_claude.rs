@@ -100,7 +100,7 @@ pub fn prepare(
     fs::create_dir_all(directory.join("client-scratch")).map_err(|e| e.to_string())?;
     let worker = packet["operation_kind"] == "development-worker";
     let mut args = vec![
-        string(p, "binary")?.into(),
+        crate::provider_selection::native_binary(p)?.into(),
         "--print".into(),
         "--safe-mode".into(),
         "--restricted".into(),

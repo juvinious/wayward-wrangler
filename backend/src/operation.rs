@@ -159,6 +159,9 @@ pub fn prepare_host(state:&Path,directory:&Path,packet:&Value,project_key:&str)-
         if size>limit{return Err("Frozen packet exceeds application memory bound; no host attempt prepared".into());}
     }
     let packet_hash=canonical_sha256(packet).map_err(|e|e.to_string())?;
+    if !packet["execution"]["client"].is_null(){
+        write(&state.join("native-client-identity-v1.json"),&json!({"version":1,"contract":"native-client-v1"}),true)?;
+    }
     write(&directory.join("packet.json"),packet,true)?;
     let op=json!({"schema_version":2,"execution_host":"systemd-user-v1",
         "operation_id":packet["operation_id"],"run_id":packet["run_id"],

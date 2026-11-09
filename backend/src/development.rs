@@ -230,7 +230,7 @@ pub fn find_codex() -> Option<PathBuf> {
                 .map(|p| p.join("codex"))
                 .find(|p| p.is_file())
         })
-        .and_then(|p| p.canonicalize().ok())
+        .map(|p|if p.is_absolute(){p}else{std::env::current_dir().unwrap_or_default().join(p)})
 }
 pub fn profile(s: &Session) -> Result<Value, String> {
     if crate::provider_selection::enabled(s){return crate::provider_selection::effective(s);}
@@ -251,15 +251,21 @@ pub fn profile(s: &Session) -> Result<Value, String> {
 }
 pub fn preflight(p:&Value)->Result<(),String>{
     if p["provider"]=="ollama"{return crate::ollama::preflight(p)}
-    let binary=Path::new(strv(p,"binary")?);
+    let binary=Path::new(crate::provider_selection::native_binary(p)?);
     if !binary.is_absolute()||!binary.is_file(){return Err("Selected provider binary is unavailable".into());}
-    if p["profile"]=="development-profiles-v1"&&p["binary_sha256"].as_str().is_none(){return Err("Provider binary identity is missing; re-enter the binary field and Save in F3 before launching".into());}
-    if let Some(expected)=p["binary_sha256"].as_str(){if execution::hash_file(binary)?!=expected{return Err("Provider binary changed; refresh and explicitly save the new binary identity before use".into());}}
-    let out=Command::new(binary).arg("--version").output().map_err(|e|e.to_string())?;
-    let version=String::from_utf8_lossy(&out.stdout).trim().to_owned();
-    let supported=if p["profile"]=="development-profiles-v1"{crate::provider_selection::supported_client_version(p["provider"].as_str().unwrap_or(""),&version)}else{p["provider"]=="codex"&&version=="codex-cli 0.162.1"};
-    if !out.status.success()||!supported{return Err(format!("Unsupported native client version: {version}; no substitution"));}
-    Ok(())
+    let frozen=&p["client"];
+    let expected=if !frozen.is_null(){
+        if frozen["provider"]!=p["provider"]||frozen["locator"]!=p["binary"]{
+            return Err("Frozen client identity differs from the selected provider".into());
+        }
+        frozen["sha256"].as_str().ok_or("Frozen provider binary identity is missing")?
+    }else{
+        // Old prepared packets retain their original identity. New reservations
+        // use with_client; never refresh executable bytes inside a frozen packet.
+        p["binary_sha256"].as_str().ok_or("Prepared provider operation has no executable identity; create a new attempt with the current client")?
+    };
+    if execution::hash_file(binary)?!=expected{return Err("Provider binary changed after this attempt was prepared; preserve it and create a new attempt".into());}
+    crate::provider_selection::native_interface(p["provider"].as_str().unwrap_or(""),binary)
 }
 pub fn policy(s: &Session) -> Result<Value, String> {
     let p = profile(s)?;
@@ -1111,7 +1117,7 @@ pub fn prepare_native(
     write_bytes(&directory.join("prompt.txt"), prompt.as_bytes(), true)?;
     fs::create_dir_all(directory.join("client-scratch")).map_err(|e| e.to_string())?;
     let mut args = vec![
-        strv(p, "binary")?.to_owned(),
+        crate::provider_selection::native_binary(p)?.to_owned(),
         "--no-daemon".into(),
         "-a".into(),
         "never".into(),

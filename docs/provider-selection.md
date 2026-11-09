@@ -32,7 +32,7 @@ observations are not authentication, capacity or role-usability proof.
 
 | Section | Controls and meaning |
 | --- | --- |
-| 1 Profiles | Tab selects model, absolute binary path, native effort token, optional working-set byte target or advanced HTTP transport options; Enter edits/accepts the field. `+` duplicates; V switches Codex/Claude in the draft; C cycles native catalog models and E their supported effort tokens. O cycles discovered compatible local Ollama models into named profiles for coordinator/review; choose role defaults explicitly in section2. Enter an exact native model ID when needed. Saving a changed binary captures its SHA256; changed binaries refuse launch until the binary field is re-entered and explicitly saved. |
+| 1 Profiles | Tab selects model, absolute binary path, native effort token, optional working-set byte target or advanced HTTP transport options; Enter edits/accepts the field. `+` duplicates; V switches Codex/Claude in the draft; C cycles native catalog models and E their supported effort tokens. O cycles discovered compatible local Ollama models into named profiles for coordinator/review; choose role defaults explicitly in section2. Enter an exact native model ID when needed. The binary field is a stable locator. New attempts resolve the current executable and freeze its SHA256; a normal CLI update needs no F3 edit. Saved fingerprints are diagnostic. |
 | 2 Roles | Space toggles the selected profile in that role's allowed set; Enter sets its default. W sets the project worker default; I makes implementation/review inherit it. The role default must belong to its allowed set. |
 | 3 Fallback | Space appends/removes a role's alternatives in order. Empty means capacity waiting. Alternatives must belong to the configured and approved role sets. |
 | 4 Switch | Enter requests an after-current-turn handover to the saved selected profile. I selects explicit interrupt-and-switch. G explicitly grants selected project context to a genuinely new destination, when needed. C cancels a handover; an interruption must first positively settle, and its evidence remains retained. The header shows a pending switch. |
@@ -69,7 +69,10 @@ provider amendment resumes a known policy block without clearing substantive que
 Closed request policies remain historical. Profiles use the existing user CLI login;
 per-profile account selection and remote endpoints are not offered.
 
-Supported launch interfaces are Codex 0.162.1/0.163.0 and Claude Code 2.1.296/2.1.301/2.1.302. The 2.1.302 public help exposes every current adapter flag in the focused local metadata check; native execution of this newly allowed version is not established by help.
+Native client versions are diagnostic, not allowlists. Bounded `--help` checks
+require the actual options used by the selected adapter. A missing option is
+reported specifically before inference; authentication, sandbox behavior and
+structured event/tool restrictions still require their normal runtime checks.
 The existing project's exact Codex binary is retained on import. Curated effort
 choices are provider/model-specific: `gpt-6.1-sol` accepts low, medium, high, xhigh,
 max; the retained Claude `claude-sonnet-5-5` choice supports medium in this adapter's
@@ -202,3 +205,34 @@ read-only context machinery. Metadata-only HTTP and decoder-only checks are reco
 separately. These fixtures make no inference and establish no model suitability.
 Cancellation fences action adoption; a settled client or closed connection never
 proves remote generation completion. Only the terminal protocol response does.
+
+## Updating native clients
+
+Saved provider/model/role choices remain approval metadata. New reservations add
+`execution.client` with the configured locator, resolved absolute executable and
+SHA256. Normal CLI upgrades and stable symlink changes do not rewrite preferences,
+coordinator bindings or approvals. New projects keep the stable PATH entry rather
+than permanently storing a version directory. A removed historical `codex`/`claude`
+locator can resolve that same provider on PATH; unavailable custom locators report
+the needed selection. No provider/model substitution is inferred.
+
+Runners use the frozen executable and verify its bytes; they never resolve again
+inside an existing attempt. Changed/missing bytes refuse that attempt and preserve
+its evidence. Older prepared packets retain their original hash checks. Native
+legacy conversation packets without an executable identity require a new attempt;
+new packets freeze identity before reservation. Fixture hashes remain strict and
+grant no native-call authority. Historical version/hash constants used by replay
+examples are evidence metadata, not runtime admission gates.
+
+Preparing an operation with frozen client identity records
+`native-client-identity-v1.json`. Current bundles declare `native-client-v1`;
+normal opening and guarded maintenance refuse an application lacking that semantic
+contract instead of silently ignoring the identity. Exact role/model/tool grants,
+structured results, sandbox requirements and active-job fences remain enforced.
+
+`cargo test --locked --release -p waywr-backend --test provider_updates` checks
+future version strings, client replacement, symlink relocation, unchanged profile
+choices, frozen-attempt refusal and missing-interface diagnostics using metadata-only
+clients. They cannot infer or authenticate. A separately requested ignored case
+checks the installed clients' real help interfaces with explicit binary paths;
+passing it is not proof of authentication, sandbox execution or a completed job.

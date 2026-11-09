@@ -78,9 +78,24 @@ systemd user manager. It creates and removes its own unique temporary unit,
 installation and project. CI's existing direct-service variant remains portable;
 the real-systemd variant is a local host check. No model call is made.
 
-Next slice: provider clients can update normally. Client version text is metadata;
-freeze the resolved executable identity per attempt and retain actual interface,
-role/tool and sandbox validation. No authenticated calls or operator setup changes.
+## Third slice — provider updates (implemented)
+
+The metadata-only regression first reproduced version allowlists, changed-binary
+F3 requirements and legacy version/hash gates. New attempts now freeze a resolved
+client separately from saved provider/model/role approval; ordinary CLI updates
+and stable symlink changes need no preference edit. Prepared attempts retain their
+old executable identity. Required help options, role/tool grants and runtime
+sandbox/structured-event checks remain enforced. The frozen-client semantic marker
+also prevents guarded downgrade to an application that ignores those identities.
+
+Provider lifecycle, policy/switch/fallback and exact builtin-capability regressions
+pass. The installed Codex and Claude CLIs also passed the explicit metadata-only
+interface check; no authentication or inference was performed. This does not
+establish a real development task.
+
+Next slice: one-command local build/install and `waywr --version`, tested in an
+isolated installation before the user installs/verifies it. Public download,
+update/uninstall commands and additional packages follow ordinary-use feedback.
 
 ## Required everyday use cases
 

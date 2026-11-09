@@ -4,6 +4,7 @@ use serde_json::{Value, json};
 use std::collections::BTreeSet;
 use std::{collections::BTreeMap, path::Path};
 
+// Historical proof metadata; admission uses capabilities, not these versions.
 pub const CLAUDE_VERSION: &str = "2.1.296";
 pub const CODEX_VERSION: &str = "0.162.1";
 pub const DISABLED: &[&str] = &[
@@ -46,11 +47,9 @@ pub fn verify_role(role: &Value, version_output: &str) -> Result<String, String>
     let provider = role["provider"]
         .as_str()
         .ok_or("Real worker requires provider, explicit model and reasoning")?;
-    let required = match provider {
-        "claude" => CLAUDE_VERSION,
-        "codex" => CODEX_VERSION,
-        _ => return Err("Real worker requires provider, explicit model and reasoning".into()),
-    };
+    if !matches!(provider,"claude"|"codex"){
+        return Err("Real worker requires provider, explicit model and reasoning".into());
+    }
     if role["model"].as_str().is_none_or(str::is_empty)
         || role["reasoning"].as_str().is_none_or(str::is_empty)
     {
@@ -61,9 +60,6 @@ pub fn verify_role(role: &Value, version_output: &str) -> Result<String, String>
         .ok_or("Worker binary must be an existing absolute path")?;
     if !Path::new(binary).is_absolute() || !Path::new(binary).is_file() {
         return Err("Worker binary must be an existing absolute path".into());
-    }
-    if !version_output.contains(required) {
-        return Err("CLI version changed or unsupported; inspect before dispatch".into());
     }
     Ok(version_output.trim().to_owned())
 }

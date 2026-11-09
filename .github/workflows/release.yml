@@ -32,6 +32,9 @@ jobs:
           cargo test --locked -p waywr-backend --lib ollama_http_
           cargo test --locked -p waywr-backend --test ollama_lifecycle
           cargo test --locked -p waywr --lib ordinary_
+          cargo test --locked -p waywr-backend --test provider_updates
+          cargo test --locked -p waywr-backend --lib only_exact_proven_builtin_pair_is_allowed_without_enabling_skills_or_tools
+          cargo test --locked -p waywr --bin waywr release_guard
           scripts/package-release.sh "$GITHUB_REF_NAME" /tmp/release
           python3 scripts/test-packaged-install.py "/tmp/release/waywr-$GITHUB_REF_NAME-linux-x86_64-gnu.tar.gz"
           python3 scripts/test-project-reopen.py

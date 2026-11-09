@@ -42,8 +42,7 @@ must be temporary, self-contained and cleaned up. The
 retains cleanup and repository-security context.
 
 The source builds and starts its TUI/service. Exact project build routing is
-removed for compatible stopped-project opening; provider version allowlists and
-cross-build attachment to a busy service remain implemented limitations.
+removed for compatible stopped-project opening; cross-build attachment to a busy service remain implemented limitations.
 Public release/download usability and reliable ordinary work are not established.
 The private historical repository remains read-only; no paid features were enabled.
 
@@ -56,7 +55,23 @@ removed and preserves the owner for live views, pending input and uncertain laun
 evidence. It uses only a temporary project, HOME and uniquely keyed unit; cleanup
 removes the unit and all fixture files. No model or operator operation is involved.
 
-Next authorized action: acceptance-first provider client updates, retaining
-per-attempt executable identity and actual interface/tool/sandbox checks. Then
-implement the one-command local build/install flow. Local commits only; no operator
-installation, preserved-project changes or authenticated model calls.
+Third slice: provider version and permanent native hash gates are removed. New
+reservations freeze `execution.client` separately from approved profile choices;
+old packets keep exact identity checks. CLI updates/symlink moves need no F3 save.
+Missing help options report the actual interface deficiency. Legacy fixture hashes
+remain strict; historical replay constants are diagnostic only. New native legacy
+conversation packets freeze before reservation; old native packets missing an
+identity refuse execution and require a new attempt. A persisted semantic marker
+and bundle capability prevent guarded downgrade that would ignore frozen clients.
+
+Observed red cases covered version rejection, stale saved fingerprints, legacy
+gates and missing downgrade guards. Metadata fixture regressions, installed CLI
+help-interface probes, all targeted provider policy/switch/fallback checks, exact
+builtin-capability validation and release semantic guards pass. None called a
+model. The remapped release build and source/binary privacy checks also passed.
+
+Next authorized action: implement/test one-command local build/install and version
+reporting. Then hand the candidate and commands to the user for ordinary-workflow
+verification. Do not install into the operator environment or call a model. Public
+curl/update/uninstall and package channels remain subsequent slices. Local commits
+only; remote delivery belongs to the user.

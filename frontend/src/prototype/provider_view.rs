@@ -391,7 +391,7 @@ impl App {
                     ));
                 }
                 let profile = &p["profiles"][name];
-                text.push_str(&format!("Supported effort tokens: {}\nExact ID required; unknown models accept provider_default only. Context: optional soft working target; application/model limits are checked separately in Inspect.\nBinary identity: {}\n",waywr_backend::provider_selection::efforts(profile["provider"].as_str().unwrap_or(""),profile["model"].as_str().unwrap_or("")).join(", "),profile["binary_sha256"]));
+                text.push_str(&format!("Supported effort tokens: {}\nExact ID required; unknown models accept provider_default only. Context: optional soft working target; application/model limits are checked separately in Inspect.\nLast saved binary fingerprint (diagnostic): {}\nNew attempts resolve the current client; prepared attempts retain their executable identity.\n",waywr_backend::provider_selection::efforts(profile["provider"].as_str().unwrap_or(""),profile["model"].as_str().unwrap_or("")).join(", "),profile["binary_sha256"]));
                 text.push_str(&format!("\nLocal discovery (not authentication or role proof):\n{}\nOllama: conversation/coordinator/review only. Model suitability remains unverified. Gemini/OpenCode execution and Ollama coding workers are unsupported.",serde_json::to_string_pretty(&saved["discovery"]).unwrap_or_default()));
             }
             1 | 2 => {

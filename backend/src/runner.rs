@@ -17,7 +17,7 @@ use std::{
     io::Write,
     os::unix::process::CommandExt,
     path::{Path,PathBuf},
-    process::{Command, Stdio},
+    process::Stdio,
     thread,
     time::{Duration, Instant},
 };
@@ -92,15 +92,8 @@ fn reserve_native(directory: &Path, op: &Value) -> Result<(), String> {
     )
 }
 
-fn version(binary: &str) -> Result<String, String> {
-    let output = Command::new(binary)
-        .arg("--version")
-        .output()
-        .map_err(|e| e.to_string())?;
-    if !output.status.success() {
-        return Err("Agent CLI version check failed; no execution".into());
-    }
-    String::from_utf8(output.stdout).map_err(|e| e.to_string())
+fn version(binary: &str) -> String {
+    crate::provider_selection::client_version(Path::new(binary)).unwrap_or_else(||"unknown".into())
 }
 fn prepare_native(
     directory: &Path,
@@ -117,7 +110,7 @@ fn prepare_native(
     }
     let role = &packet["execution"];
     let binary = required(role, "binary")?;
-    let version = adapters::verify_role(role, &version(binary)?)?;
+    let version = adapters::verify_role(role, &version(binary))?;
     let schema = adapters::schema(packet)?;
     evidence(directory, "output-schema.json", &schema)?;
     let prompt = adapters::prompt(packet)?;
