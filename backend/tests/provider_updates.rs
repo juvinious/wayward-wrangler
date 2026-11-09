@@ -13,7 +13,7 @@ fn client(path:&Path,provider:&str,revision:u32,complete:bool){
 }
 fn project(root:&Path,binary:&Path,provider:&str)->Session{
     let state=root.join(".waywr/state");fs::create_dir_all(&state).unwrap();
-    let key="0123456789abcdef0123456789abcdef";
+    let key="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
     let profile=json!({"provider":provider,"binary":binary,"model":if provider=="codex"{"gpt-6.1-sol"}else{"claude-sonnet-5-5"},"effort":"medium","binary_sha256":hash_file(binary).unwrap(),"context_bytes":98304});
     let coordinator=json!({"provider":"codex","binary":binary,"model":"gpt-6.1-sol","effort":"medium",
         "binary_sha256":hash_file(binary).unwrap(),"context_bytes":98304});
@@ -123,7 +123,7 @@ fn provider_updates_missing_historical_locator_is_ready_via_current_path(){
     const FIXTURE:&str="WAYWR_RELOCATION_METADATA_FIXTURE";
     if let Some(root)=std::env::var_os(FIXTURE){
         let root=std::path::PathBuf::from(root);
-        let s=Session::open(&root,&root.join(".waywr/state"),"0123456789abcdef0123456789abcdef","provider-updates").unwrap();
+        let s=Session::open(&root,&root.join(".waywr/state"),"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","provider-updates").unwrap();
         let readiness=s.development_readiness().unwrap();
         assert_eq!(readiness["status"],"available","A removed historical binary locator must not block the resolved client: {readiness}");
         development::preflight(&readiness["profile"]).unwrap();

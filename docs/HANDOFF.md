@@ -45,6 +45,10 @@ install/startup outside the source tree with Rust absent and zero source accesse
 Source/binary privacy, notice inventory, shell syntax, workflow YAML and reference
 checks pass. Ordinary native task delivery and subjective fluidity remain for the
 user to verify; no hosted CI run was triggered.
+The local history secret scan has one exact historical fingerprint exception for
+an unmistakably synthetic test project ID; current fixtures use a low-entropy
+repeated-character ID. No scanner rule or path is broadly excluded. See the
+[audit follow-up](security-audit-2026-11-08.md#local-iteration-follow-up).
 
 Run [the verification guide](verify-usability.md): install from this checkout,
 complete a useful local task, close/pause, rebuild and reopen the same project.

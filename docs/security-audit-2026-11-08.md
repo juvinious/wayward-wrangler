@@ -124,3 +124,13 @@ Raw reports and original copies remain in private temporary storage outside Git.
 No machine-specific audit storage location or real operator identifier is needed
 in the public source. See [SECURITY.md](../SECURITY.md) for reporting and ongoing
 privacy boundaries; [distribution](distribution.md) owns packaging requirements.
+
+## Local iteration follow-up
+
+The local usability work's history scan flagged the sequential synthetic project
+ID in `backend/tests/provider_updates.rs` as a generic API key. That value is a
+metadata-only fixture identifier and provides no service access. Current fixtures
+use an obvious repeated-character ID. `.gitleaksignore` records only the exact
+immutable historical fingerprint from `fc5bffd`; no rule, file or path wildcard
+is excluded. The pinned scanner remains active for current source and introduced
+history. Local history scanning passes with that documented false positive.
