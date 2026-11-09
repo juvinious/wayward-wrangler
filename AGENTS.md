@@ -39,7 +39,8 @@ coordination through a substantial real application. Follow the
   not core releases. New protocols/authentication can require integration code.
 - Deliver a shared multi-provider execution path with usable selection, activity
   and usage. A model list, generic fixture or another Codex/Claude wrapper alone
-  does not satisfy support. Pi is a reference, not a selected dependency.
+  does not satisfy support. Pi's app is a reference; its independent provider/agent
+  libraries are now the chosen implementation behind the shared process boundary.
 - The user waived compatibility with current hardcoded integrations/profiles.
   Replace them directly; do not maintain parallel legacy routes or shims as a
   migration goal. Preserve project work/history and actual execution ownership.

@@ -1,5 +1,14 @@
 version: 2
 updates:
+  - package-ecosystem: npm
+    directory: /model-runtime
+    open-pull-requests-limit: 2
+    groups:
+      model-runtime-maintenance:
+        applies-to: version-updates
+        patterns: ['*']
+    schedule:
+      interval: weekly
   - package-ecosystem: cargo
     directory: /
     open-pull-requests-limit: 2

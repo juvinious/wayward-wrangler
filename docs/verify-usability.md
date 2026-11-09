@@ -1,10 +1,11 @@
 # Verify the daily-use loop
 
-The local implementation is ready for user verification on Linux x86_64 with a
-systemd user manager and a working authenticated Codex CLI. Claude is an optional
-explicit profile choice. See [source prerequisites](../README.md#build-and-install-from-source)
-and [sandbox requirements](linux-sandbox-setup.md). Automated metadata checks do
-not establish authentication, sandbox usability or model reliability.
+The candidate uses the shared model runtime on Linux x86_64 with a systemd user
+manager, Node >=22.19 and `flock`. Configure a provider through the SDK's explicit
+login/environment setup, then choose a provider/model in F3. No native Codex/Claude
+CLI is required. Existing schema1/2 profiles need reconfiguration; use a fresh
+isolated project first and retain old work/history. See [provider setup](provider-selection.md).
+Automated fixtures do not establish account login or model reliability.
 
 The agent left the operator installation absent and made only local commits on
 `plan/usability-and-installation`. You review and perform remote delivery.
@@ -21,8 +22,9 @@ waywr --version
 
 Then enter the project you want to use and run `waywr`. A new project prompts for
 setup. Existing project work/settings/history are preserved; there is no
-per-project application version to select. Your existing CLI login remains in
-place; installation does not sign in or modify provider configuration.
+per-project application version to select. Installation does not sign in or import another agent application's credentials.
+Use `waywr models login PROVIDER --method oauth` (or `apiKey` when supported), then
+F3 →1 →F to select a model and S to save before requesting work.
 
 Discuss one small useful development request. Review its scope/policy card and
 authorize it only when correct. Local delivery keeps this first verification

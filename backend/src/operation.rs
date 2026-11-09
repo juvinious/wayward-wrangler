@@ -162,6 +162,9 @@ pub fn prepare_host(state:&Path,directory:&Path,packet:&Value,project_key:&str)-
     if !packet["execution"]["client"].is_null(){
         write(&state.join("native-client-identity-v1.json"),&json!({"version":1,"contract":"native-client-v1"}),true)?;
     }
+    if packet["execution"]["runtime"]["protocol"]==1{
+        write(&state.join("model-runtime-v1.json"),&json!({"version":1,"contract":"shared-models-v1"}),true)?;
+    }
     write(&directory.join("packet.json"),packet,true)?;
     let op=json!({"schema_version":2,"execution_host":"systemd-user-v1",
         "operation_id":packet["operation_id"],"run_id":packet["run_id"],

@@ -12,7 +12,10 @@ Two independent identical builds have not been demonstrated.
 
 Initial published target: Linux x86_64 GNU, Ubuntu24.04/glibc2.39. This is not a broad
 Linux portability claim. Systemd user execution, sandbox support and provider
-requirements still apply. Python and Rust are not binary-install runtime requirements.
+requirements still apply. Bundles now include a manifest-hashed shared JavaScript
+model runtime and its legal notices. Node >=22.19 and util-linux `flock` are binary
+runtime prerequisites; npm, Python and Rust are source-build tools only. Existing
+profiles need schema3 reconfiguration; retained project work is not deleted.
 
 For local development, run `sh scripts/dev-install.sh` from the source checkout.
 It wraps the existing locked remapped build, notice/privacy checks, paired bundle
@@ -79,10 +82,14 @@ sources, verifies `THIRD_PARTY_NOTICES.md` and scans the entire bundle for build
 paths. These tools are not installed application prerequisites.
 
 New bundles include root `LICENSE` and `THIRD_PARTY_NOTICES.md` as two additional
-manifest-hashed files (15 entries total), with explicit MIT/notice metadata. A new
+manifest-hashed files, with explicit MIT/notice metadata. A new
 declaration missing either text is refused; older manifests without notice
 metadata retain their existing compatibility. The notice inventory covers189
-normal/build dependencies for Linux x86_64 GNU. Upstream names and copyright
+normal/build Rust dependencies for Linux x86_64 GNU. The shared runtime separately
+includes npm dependency attributions and license texts under
+`resources/model-runtime/THIRD_PARTY_NOTICES.md`. Its lockfile and SDK versions are
+recorded in source; production npm audit, Dependabot and JavaScript CodeQL coverage
+are prepared in the local workflows. Upstream names and copyright
 notices are required attribution, not operator-specific application content.
 
 After dependency changes, run `python3 scripts/generate-notices.py`, review the

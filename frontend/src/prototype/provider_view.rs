@@ -92,9 +92,6 @@ impl App {
             return;
         }
         let name = names[self.provider_index % names.len()].clone();
-        let local=self.provider_edit.as_ref().unwrap()["preferences"]["profiles"][&name]["provider"]=="ollama";
-        let implementation_role=(matches!(self.provider_section,1|2)&&self.provider_row%3==1)||(self.provider_section==4&&self.provider_units().get(self.provider_row).is_some_and(|u|u["role"]!="review"));
-        if !self.provider_typing&&local&&((implementation_role&&matches!(key.code,KeyCode::Enter|KeyCode::Char(' '|'p'|'a')))||(self.provider_section==1&&key.code==KeyCode::Char('w'))){self.notice="Ollama coding workers are unsupported. Select Codex/Claude for implementation; Ollama is available for coordinator/review.".into();self.mark();return}
         if self.provider_typing {
             if key.code == KeyCode::Esc {
                 self.provider_typing = false;
@@ -102,10 +99,18 @@ impl App {
                 return;
             }
             if key.code == KeyCode::Enter {
-                let field = ["model", "binary", "effort", "context_bytes", "transport"][self.provider_field % 5];
+                if self.provider_field==6 {
+                    let query=self.scope_editor.text().to_lowercase();
+                    let choice=self.provider_state()["discovery"]["models"].as_array().into_iter().flatten()
+                        .find(|m|format!("{}/{} {}",m["provider"].as_str().unwrap_or(""),m["model"].as_str().unwrap_or(""),m["name"].as_str().unwrap_or("")).to_lowercase().contains(&query)).cloned();
+                    if let Some(m)=choice {let p=&mut self.provider_edit.as_mut().unwrap()["preferences"]["profiles"][&name];p["provider"]=m["provider"].clone();p["model"]=m["model"].clone();p["options"]=serde_json::json!({});self.provider_typing=false;self.provider_field=1;}
+                    else {self.notice="No matching model; edit provider/model fields to enter an exact custom ID".into();}
+                    self.mark();return;
+                }
+                let field = ["provider", "model", "options", "binary", "transport", "context_bytes"][self.provider_field % 6];
                 let text = self.scope_editor.text();
                 if let Some(edit) = &mut self.provider_edit {
-                    edit["preferences"]["profiles"][&name][field] = if field == "transport"{serde_json::from_str(&text).unwrap_or(Value::Null)}else if field == "context_bytes" {
+                    edit["preferences"]["profiles"][&name][field] = if matches!(field,"transport"|"options"){match serde_json::from_str(&text){Ok(v)=>v,Err(_)=>{self.notice="Enter valid JSON before accepting this field".into();return;}}}else if field == "context_bytes" {
                         text.parse::<u64>().map(Value::from).unwrap_or(Value::Null)
                     } else {
                         Value::from(text)
@@ -173,7 +178,7 @@ impl App {
                 self.provider_grant = false;
             }
             KeyCode::Tab => {
-                self.provider_field = (self.provider_field + 1) % 5;
+                self.provider_field = (self.provider_field + 1) % 6;
             }
             KeyCode::Char('+') if self.provider_section == 0 => {
                 let edit = self.provider_edit.as_mut().unwrap();
@@ -192,34 +197,15 @@ impl App {
             }
             KeyCode::Char('c') if self.provider_section==0=>{
                 let current=&self.provider_edit.as_ref().unwrap()["preferences"]["profiles"][&name];let provider=current["provider"].clone();let catalog=self.provider_state()["discovery"]["models"].as_array().cloned().unwrap_or_default().into_iter().filter(|m|m["provider"]==provider).collect::<Vec<_>>();
-                if catalog.is_empty(){self.notice="R refreshes safe model metadata; O selects local Ollama models".into();return}let i=catalog.iter().position(|m|m["model"]==current["model"]).map_or(0,|i|(i+1)%catalog.len());let p=&mut self.provider_edit.as_mut().unwrap()["preferences"]["profiles"][&name];p["model"]=catalog[i]["model"].clone();p["effort"]=serde_json::json!("provider_default");self.notice="Model selected in draft; choose native effort with E, then S Save. Existing attempts stay frozen.".into();
+                if catalog.is_empty(){self.notice="R refreshes runtime metadata; F searches all providers/models".into();return}let i=catalog.iter().position(|m|m["model"]==current["model"]).map_or(0,|i|(i+1)%catalog.len());let p=&mut self.provider_edit.as_mut().unwrap()["preferences"]["profiles"][&name];p["model"]=catalog[i]["model"].clone();p["effort"]=serde_json::json!("provider_default");self.notice="Model selected in draft; edit options JSON if needed, then S Save. Existing attempts stay frozen.".into();
             }
-            KeyCode::Char('e') if self.provider_section==0=>{let p=&mut self.provider_edit.as_mut().unwrap()["preferences"]["profiles"][&name];let values=waywr_backend::provider_selection::efforts(p["provider"].as_str().unwrap_or(""),p["model"].as_str().unwrap_or(""));let i=values.iter().position(|e|Some(*e)==p["effort"].as_str()).map_or(0,|i|(i+1)%values.len());p["effort"]=serde_json::json!(values[i]);}
-            KeyCode::Char('o') if self.provider_section==0=>{
-                let catalog=self.provider_state()["discovery"]["ollama"]["models"].as_array().cloned().unwrap_or_default().into_iter().filter(|m|m["selectable"]==true).collect::<Vec<_>>();
-                if catalog.is_empty(){self.notice="R refreshes read-only local Ollama metadata; start/install models independently if needed".into();return}
-                let current=self.provider_edit.as_ref().unwrap()["preferences"]["profiles"][&name]["model"].clone();let i=catalog.iter().position(|m|m["model"]==current).map_or(0,|i|(i+1)%catalog.len());let model=&catalog[i];let id=format!("ollama-{}",i+1);
-                let edit=self.provider_edit.as_mut().unwrap();edit["preferences"]["profiles"][&id]=serde_json::json!({"provider":"ollama","binary":"","binary_sha256":null,"model":model["model"],"effort":"provider_default","context_bytes":98304,"transport":model["transport"]});
-                for role in ["coordinator","review"]{if !edit["preferences"]["roles"][role].is_object(){let default=edit["preferences"]["worker_default"].clone();edit["preferences"]["roles"][role]=serde_json::json!({"default":default,"allowed":[default]});}let a=edit["preferences"]["roles"][role]["allowed"].as_array_mut().unwrap();if !a.contains(&serde_json::json!(id)){a.push(serde_json::json!(id));}}
-                self.provider_index=self.provider_names().iter().position(|n|n==&id).unwrap_or(0);self.notice="Local model added to draft for coordinator/review only; suitability unverified. S saves; choose role defaults explicitly in 2 Roles".into();
-            }
-            KeyCode::Char('v') if self.provider_section == 0 => {
-                let edit = self.provider_edit.as_mut().unwrap();
-                let p = &mut edit["preferences"]["profiles"][&name];
-                let provider = if p["provider"] == "codex" {
-                    "claude"
-                } else {
-                    "codex"
-                };
-                p["provider"] = serde_json::json!(provider);
-                p.as_object_mut().unwrap().remove("transport");
-                p["effort"] = serde_json::json!("provider_default");
-                if let Some(binary) = waywr_backend::provider_selection::find_client(provider) {
-                    p["binary"] = serde_json::json!(binary);
-                    p["binary_sha256"] = Value::Null;
-                }
-                self.notice =
-                    "Provider changed in draft; enter its exact model ID before Save".into();
+            KeyCode::Char('f') if self.provider_section==0=>{self.provider_field=6;self.provider_typing=true;self.scope_editor=Composer::default();self.notice="Search provider/model; Enter selects first match".into();}
+            KeyCode::Char('v') if self.provider_section==0=>{
+                let models=self.provider_state()["discovery"]["models"].as_array().cloned().unwrap_or_default();
+                let mut providers=models.iter().filter_map(|m|m["provider"].as_str()).collect::<Vec<_>>();providers.sort();providers.dedup();
+                let current=self.provider_edit.as_ref().unwrap()["preferences"]["profiles"][&name]["provider"].as_str().unwrap_or("").to_owned();
+                if !providers.is_empty(){let i=providers.iter().position(|p|*p==current).map_or(0,|i|(i+1)%providers.len());
+                    if let Some(m)=models.iter().find(|m|m["provider"]==providers[i]){let p=&mut self.provider_edit.as_mut().unwrap()["preferences"]["profiles"][&name];p["provider"]=m["provider"].clone();p["model"]=m["model"].clone();p["options"]=serde_json::json!({});}}
             }
             KeyCode::Char('i') if self.provider_section == 1 && self.provider_row > 0 => {
                 let role = waywr_backend::provider_selection::ROLES[self.provider_row % 3];
@@ -292,7 +278,7 @@ impl App {
             KeyCode::Enter => match self.provider_section {
                 0 => {
                     let field =
-                        ["model", "binary", "effort", "context_bytes", "transport"][self.provider_field % 5];
+                        ["provider", "model", "options", "binary", "transport", "context_bytes"][self.provider_field % 6];
                     let value = &self.provider_edit.as_ref().unwrap()["preferences"]["profiles"]
                         [&name][field];
                     self.scope_editor = Composer::default();
@@ -353,7 +339,7 @@ impl App {
         let name = names
             .get(self.provider_index % names.len().max(1))
             .map(String::as_str)
-            .unwrap_or("codex");
+            .unwrap_or("default");
         let mut text = format!(
             "[1 Profiles] [2 Roles] [3 Fallback] [4 Switch] [5 Tasks] [6 Policy] [7 Project]\nRevision {} · saved current coordinator {}\nSelected profile: {} · ←/→ changes profile\nS saves preference draft · L reloads · R refreshes local metadata · Esc returns\nPreference saves affect future attempts; Switch changes both coordinator lanes.\n\n",
             edit["revision"], saved["coordinator"]["profile_id"], name
@@ -371,8 +357,8 @@ impl App {
                         v["effort"].as_str().unwrap_or("?")
                     ));
                 }
-                text.push_str("\n↑/↓ profile · + duplicate · V Codex/Claude · C native catalog · E native effort · O local Ollama catalog · Tab field · Enter edits, Enter accepts field\n");
-                for (i, field) in ["model", "binary", "effort", "context_bytes", "transport"]
+                text.push_str("\n↑/↓ profile · + duplicate · V provider · C model · F search catalog · Tab field · Enter edits/accepts\n");
+                for (i, field) in ["provider", "model", "options", "binary", "transport", "context_bytes"]
                     .iter()
                     .enumerate()
                 {
@@ -390,9 +376,18 @@ impl App {
                         }
                     ));
                 }
-                let profile = &p["profiles"][name];
-                text.push_str(&format!("Supported effort tokens: {}\nExact ID required; unknown models accept provider_default only. Context: optional soft working target; application/model limits are checked separately in Inspect.\nLast saved binary fingerprint (diagnostic): {}\nNew attempts resolve the current client; prepared attempts retain their executable identity.\n",waywr_backend::provider_selection::efforts(profile["provider"].as_str().unwrap_or(""),profile["model"].as_str().unwrap_or("")).join(", "),profile["binary_sha256"]));
-                text.push_str(&format!("\nLocal discovery (not authentication or role proof):\n{}\nOllama: conversation/coordinator/review only. Model suitability remains unverified. Gemini/OpenCode execution and Ollama coding workers are unsupported.",serde_json::to_string_pretty(&saved["discovery"]).unwrap_or_default()));
+                let query=if self.provider_typing&&self.provider_field==6{self.scope_editor.text()}else{String::new()};
+                if self.provider_field==6{text.push_str(&format!("\nSearch: {query} (Enter selects first match)\n"));}
+                let state=self.provider_state();let models=state["discovery"]["models"].as_array().cloned().unwrap_or_default();
+                let mut providers=models.iter().filter_map(|m|m["provider"].as_str()).collect::<Vec<_>>();providers.sort();providers.dedup();
+                text.push_str(&format!("\n{} providers · {} catalog models · authentication not checked\n",providers.len(),models.len()));
+                if let Some(reason)=state["discovery"]["reason"].as_str(){text.push_str(&format!("Catalog unavailable: {reason}\n"));}
+                let selected=p["profiles"][name]["provider"].as_str().unwrap_or("");
+                for m in models.iter().filter(|m|if query.is_empty(){m["provider"]==selected}else{format!("{}/{} {}",m["provider"].as_str().unwrap_or(""),m["model"].as_str().unwrap_or(""),m["name"].as_str().unwrap_or("")).to_lowercase().contains(&query.to_lowercase())}).take(16){
+                    text.push_str(&format!("  {}/{} · context {}\n",m["provider"].as_str().unwrap_or(""),m["model"].as_str().unwrap_or(""),m["context_window"]));
+                }
+                text.push_str("Exact provider/model IDs and runtime JSON options are editable. Catalogs are suggestions, not core allowlists. Configure endpoints/models in the runtime configuration; credentials stay outside project state.\n");
+
             }
             1 | 2 => {
                 text.push_str(if self.provider_section==1{"↑/↓ role · Space toggle selected profile in allowed set · Enter set role default · I inherit project worker default · W set project worker default\n"}else{"↑/↓ role · Space append/remove selected alternative. Listed order is fallback order. Empty = wait, never substitute.\n"});
@@ -460,13 +455,21 @@ mod provider_ui_tests {
     #[test]
     fn provider_forms_edit_save_roles_and_switch_without_sending_a_request() {
         let mut app = App::new_live("project".into(), Draft::default());
-        let prefs = serde_json::json!({"schema_version":2,"profile":"development-profiles-v1","profiles":{"codex":{"provider":"codex","binary":"/missing/codex","model":"gpt-6.1-sol","effort":"medium","binary_sha256":null,"context_bytes":98304},"claude":{"provider":"claude","binary":"/missing/claude","model":"claude-sonnet-5-5","effort":"medium","binary_sha256":null,"context_bytes":98304}},"coordinator":"codex","worker_default":"codex","roles":{"coordinator":{"default":"codex","allowed":["codex"]},"review":{"default":"codex","allowed":["codex"]},"implementation":{"default":"codex","allowed":["codex"]}},"fallback":{"coordinator":[],"implementation":[],"review":[]},"concurrency":2,"dependency_network":true,"main_policy":"checked-fast-forward","quality_preference":""});
+        let prefs = serde_json::json!({"schema_version":3,"profile":"development-profiles-v1","profiles":{"codex":{"provider":"codex","binary":"/missing/node","options":{},"transport":{"entry":"/unused/runtime.mjs"},"model":"gpt-6.1-sol","effort":"medium","binary_sha256":null,"context_bytes":98304},"claude":{"provider":"claude","binary":"/missing/node","options":{},"transport":{"entry":"/unused/runtime.mjs"},"model":"claude-sonnet-5-5","effort":"medium","binary_sha256":null,"context_bytes":98304}},"coordinator":"codex","worker_default":"codex","roles":{"coordinator":{"default":"codex","allowed":["codex"]},"review":{"default":"codex","allowed":["codex"]},"implementation":{"default":"codex","allowed":["codex"]}},"fallback":{"coordinator":[],"implementation":[],"review":[]},"concurrency":2,"dependency_network":true,"main_policy":"checked-fast-forward","quality_preference":""});
         app.live.as_mut().unwrap().conversation = Some(
             serde_json::json!({"binding":{"generation":1},"development":{"providers":{"schema_version":1,"revision":1,"preferences":prefs,"coordinator":{"profile_id":"codex"},"switch":null},"units":[],"workflows":[],"requests":[]}}),
         );
         app.open(Modal::Settings);
         assert!(app.provider_settings());
         assert!(app.take_intent().is_none());
+        app.live.as_mut().unwrap().conversation.as_mut().unwrap()["development"]["providers"]["discovery"]=serde_json::json!({"models":[
+            {"provider":"brand-outside-core","model":"custom-model","name":"Searchable model","context_window":32768}]});
+        app.handle_modal(KeyEvent::new(KeyCode::Char('f'),KeyModifiers::NONE));
+        app.scope_editor.input(Event::Paste("Searchable".into()));
+        app.handle_modal(KeyEvent::new(KeyCode::Enter,KeyModifiers::NONE));
+        let selected=app.provider_names()[app.provider_index].clone();
+        assert_eq!(app.provider_edit.as_ref().unwrap()["preferences"]["profiles"][&selected]["provider"],"brand-outside-core");
+        assert!(app.provider_body().1.contains("custom-model"));
         let key = |c| KeyEvent::new(c, KeyModifiers::NONE);
         app.handle_modal(key(KeyCode::Down));
         assert_eq!(app.provider_index, 1); // arrow reaches form, not generic scroll

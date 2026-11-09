@@ -22,15 +22,10 @@ fn selected(input:Option<String>,project:&Path,default:&Path)->io::Result<PathBu
 }
 fn init_project(project:&Path)->io::Result<()> {
     waywr_backend::project_layout::check(project).map_err(err)?;
+    let preferences=waywr_backend::model_runtime::initial_preferences().map_err(err)?;
     let root=project.join(".waywr");fs::create_dir_all(&root)?;
     let key=random_token().map_err(err)?;
     write_bytes(&root.join("project.toml"),format!("schema_version = 2\nproject_key = \"{key}\"\n[execution]\nhost = \"systemd-user-v1\"\n[conversation]\nschema_version = 6\n").as_bytes(),true).map_err(err)?;
-    let auth_home=std::env::var("HOME").unwrap_or_default();
-    let binary=waywr_backend::development::find_codex().unwrap_or_else(||PathBuf::from(&auth_home).join(".local/bin/codex"));
-    let legacy=json!({"schema_version":1,"profile":"codex-development-v1","mode":"native",
-        "provider":"codex","model":"gpt-6.1-sol","effort":"medium","binary":binary,
-        "concurrency":2,"fallback":[],"main_policy":"checked-fast-forward","dependency_network":true});
-    let preferences=waywr_backend::provider_selection::imported(&legacy).map_err(err)?;
     write(&root.join("coordinator.json"),&preferences,true).map_err(err)?;
 
     waywr_backend::project_workflow::initialize(project).map_err(err)?;
@@ -240,14 +235,11 @@ fn ensure_service(root:&Path,ready:&Ready)->io::Result<()> {
         Command::new("systemd-run").args(["--user","--collect",&format!("--unit={}",ready.unit),
             "--property=Restart=on-failure","--property=RestartSec=1s",
             "--property=StartLimitBurst=3","--property=StartLimitIntervalSec=30"])
-            // Preserve the caller's normal CLI/config locations instead of a
-            // stale user-manager PATH/HOME. Never forward arbitrary token vars.
-            .args(waywr_backend::adapters::ENV_KEYS.iter().copied().chain([
-                "XDG_CONFIG_HOME","XDG_DATA_HOME","XDG_STATE_HOME","XDG_CACHE_HOME"
-            ]).filter_map(|key|env::var_os(key).map(|value|{
-                let mut argument=std::ffi::OsString::from(format!("--setenv={key}="));
-                argument.push(value);argument
-            })))
+            // Forward the caller's runtime locations and SDK credential variables;
+            // values remain in the process environment, never project evidence.
+            .args(env::vars_os().filter(|(key,_)|{
+                let key=key.to_string_lossy();waywr_backend::adapters::ENV_KEYS.contains(&key.as_ref())||key.starts_with("XDG_")||key.ends_with("_API_KEY")||key.ends_with("_AUTH_TOKEN")||key=="GOOGLE_APPLICATION_CREDENTIALS"
+            }).map(|(key,value)|{let mut arg=std::ffi::OsString::from("--setenv=");arg.push(key);arg.push("=");arg.push(value);arg}))
             .args(&command).output()?
     }else{return Err(err("Could not determine project unit load state"));};
     if !started.status.success(){return Err(err(format!("Project service failed to start: {}",String::from_utf8_lossy(&started.stderr))));}

@@ -16,6 +16,7 @@ See [cleanup outcome](closeout-2026-10-15/cleanup.md). No allowance is reopened.
 
 | Group | Historical subject |
 | --- | --- |
+| [Retired native provider contract](provider-selection/2026-11-09-retired-native-provider-contract.md) | Prior direct Codex/Claude/Ollama selection, sandbox and discovery semantics; replaced by the shared model runtime, with no legacy compatibility requirement |
 | [Superseded native-first adapter decision](provider-selection/2026-11-09-superseded-native-first-adapter.md) | Rejected narrow starting point: current integrations need not remain usable; broad multi-provider support, rather than a Codex wrapper or Pi adoption, is the target |
 | [Local iteration before execution direction](handoff/2026-11-09-local-iteration-before-execution-direction.md) | Four implemented usability slices and verification limits before the user prioritized extensible execution, lifecycle fluidity and a substantial reference application |
 | [Core usability slices](handoff/2026-11-09-usability-core-slices.md) | Stopped-project reopening, real-systemd idle replacement and provider-update red/green evidence before one-command iteration and user verification |

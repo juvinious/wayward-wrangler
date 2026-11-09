@@ -25,6 +25,8 @@ def main():
             (root/p).mkdir(mode=0o700)
         assets=root/'assets'; shutil.copy2(ARCHIVE,assets/ARCHIVE.name)
         sums=assets/'SHA256SUMS'; sums.write_text(digest(ARCHIVE)+'  '+ARCHIVE.name+'\n')
+        node=shutil.which('node'); assert node, 'Node runtime prerequisite missing'
+        (root/'transport/node').symlink_to(node)
         gh=root/'transport/gh'
         gh.write_text('''#!/bin/sh
 set -eu

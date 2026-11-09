@@ -3,7 +3,6 @@ fn main() {
     let mut args = std::env::args().skip(1);
     let action = args.next().unwrap_or_default();
     let result = match action.as_str() {
-        "ollama-child" => waywr_backend::ollama::child(&PathBuf::from(args.next().unwrap_or_default())),
         "development-check-child" => waywr_backend::development::check_child(&PathBuf::from(args.next().unwrap_or_default())),
         "fake-child" => {
             let packet = PathBuf::from(args.next().unwrap_or_default());

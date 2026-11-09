@@ -15,14 +15,16 @@
 sets the narrowed order: extensible model/execution support, lifecycle fluidity,
 then coordination through a substantial web application. The corrected
 [shared model-layer direction](execution-adapter-decision.md) targets broad support;
-Pi is an architectural reference, not a selected dependency. Existing hardcoded
-integrations need not remain usable. A Codex-only wrapper is insufficient.
+The standalone pi-ai/pi-agent-core libraries now implement that shared boundary;
+Pi's terminal application is not used. Existing native profiles are retired.
+A Codex-only wrapper remains insufficient for the product requirement.
 [Acceptance-driven development](development-approach.md) defines the implementation
 loop; AGENTS.md owns the policy. Work stays on `plan/usability-and-installation`
 with local commits only; the user performs remote delivery. Stopped-project
 reopening, real-systemd idle handover, provider updates and one-command local
-build/install now have focused acceptance evidence. The next action is behavioral
-red and the complete first extensibility slice. [User verification](verify-usability.md)
+build/install have focused acceptance evidence. The shared-runtime slice now has
+two-protocol SDK/tool/runner checks and searchable persistent selection. The next
+phase is lifecycle fluidity informed by ordinary use. [User verification](verify-usability.md)
 remains available; native task delivery and fluidity remain to be observed.
 Public download, update/uninstall and additional package channels remain incomplete.
 

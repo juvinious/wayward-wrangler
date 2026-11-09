@@ -4,10 +4,10 @@ This maps the current implementation. The [product direction](execution-adapter-
 replaces provider/model-specific core integrations with one shared multi-provider
 layer. Current native paths below are not a compatibility requirement for the
 rewrite. Preserve project work and execution ownership; do not treat historical
-provider restrictions as the target architecture. No replacement runtime is selected.
+provider restrictions as the target architecture. The runtime uses the independent pi-ai/pi-agent-core libraries; Pi's terminal app is not used.
 
 The current Rust TUI/service/runner supports project-scoped conversation, authorized
-development and supervised native workers. Workflow/provider/conversation/context
+development and supervised model/tool workers. Workflow/provider/conversation/context
 work is merged through `799841c` (PR #9). Recovery/convergence and the ordinary-project
 increment were squash-merged as `4218347` (PR #10); original ancestry remains under
 `refs/archive/pr-10/`. The
@@ -27,10 +27,10 @@ candidates, checkout ownership, retention and completion; HANDOFF records verifi
 | `continuous.rs`, `task_scope.rs`, `conversation_store.rs` | Saved discussion, exact proposal/decision authority and causal queue |
 | `output.rs` | Typed result validation; ordinary citation provenance separate from action dependencies |
 | `request_routing.rs` | Human source-bound request role pins, policy projection, exact-review gates and explicit retained-source reconciliation |
-| `provider_selection.rs`, `development_claude.rs`, `prototype/provider_view.rs` | Revisioned project preferences, policy-constrained routing, handover/fallback, Claude transport and F3 forms |
+| `provider_selection.rs`, `model_runtime.rs`, `model-runtime/`, `prototype/provider_view.rs` | Schema3 preferences, shared provider/tool runtime, normalized events, handover/fallback and searchable F3 forms |
 | `project_workflow.rs`, `project_knowledge.rs`, `prototype/project_view.rs` | Saved baseline/target/completion preferences, explicit initial source, canonical identity, incremental path/instruction map and scoped recipes |
 | `development.rs`, `candidate.rs`, `project_resources.rs`, `project_publication.rs` | Approved parent, exact governing candidate, checkout handoff, child retirement, serialized local/PR completion |
-| `ollama.rs`, `provider_selection.rs` | Frozen supported roles, non-generating discovery and supervised loopback HTTP conversation/coordination/review |
+| `model-runtime/main.mjs`, `tools.mjs` | SDK provider registry, custom protocol configuration, agent loop, task tools and private authentication store |
 | `rust_bundle.rs`, `rust_maintenance.rs`, `scripts/`, `.github/workflows/` | Versioned staged installation, guarded quiescent updates and normalized release packaging |
 | `development_context.rs` | Compact working context, exact read-only evidence grants/pages, continued retrieval and capacity diagnostics |
 | `development_recovery.rs` | Typed derived recovery causes, source proof, authority-bound wake conditions; existing scheduler owns continuation |
@@ -51,9 +51,11 @@ records real taskings and assistance, not general complex-project readiness.
 
 ## Connected development
 
-New projects use state9 / conversation config6 / IPC1.10, with version2
-`development-profiles-v1`. Codex gpt-6.1-sol/medium remains the initial default.
-Claude is explicitly selectable for coordinator/implementation/review. The
+New projects use state9 / conversation config6 / IPC1.10, with schema3
+`development-profiles-v1` preferences. Models/providers/options are data; the shared
+runtime owns protocol clients, catalogs and the tool loop. Defaults come from
+runtime configuration/catalogs. Retired native schema1/2 profiles are unsupported
+without explicit reconfiguration; files/history are preserved. The
 [selection contract](provider-selection.md) owns supported client/effort capabilities,
 per-attempt freezing, preference/policy separation, exact-commit review, binding
 handover and opt-in settled-capacity fallback. No shared provider settings or
@@ -152,12 +154,15 @@ Codex coordination/implementation with Claude review, including a source-retriev
 continuation; fixtures do not establish other native role combinations. New requests
 and approvals remain human-originated. Discovery establishes neither authentication
 nor role usability.
-Discovery covers Codex/Claude/Gemini/Ollama/OpenCode clients and loopback Ollama
-metadata catalogs without inference, server startup or model downloads. Codex/Claude
-retain their frozen role semantics. `ollama.rs` adds supervised HTTP conversation,
-coordination/review and evidence continuations with exact endpoint/model identity.
-Ollama coding workers and Gemini/OpenCode execution remain unsupported. Adapter
-availability never establishes model suitability.
+The shared runtime supplies its SDK catalog and custom provider/model overlays
+without inference during metadata inspection. F3 searches provider/model IDs and
+edits options. All coding roles use the same runtime rather than brand allowlists.
+The current SDK catalog has42 providers/1592 models; two protocol fixtures establish
+request/tool/result plumbing, not every model's authentication or suitability.
+Standalone native-Claude and Ollama transports and their superseded integration
+harnesses were removed. Earlier fixed workflow readers remain historical code,
+not alternative state9 execution routes. See the provider contract for same-UID
+execution and account/ordinary-use verification limits.
 
 ## Distribution boundary
 

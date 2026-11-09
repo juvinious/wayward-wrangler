@@ -15,10 +15,13 @@ trial or evaluation installation is a prerequisite. The [handoff](../HANDOFF.md)
 records actual verification and the first retained application delivery.
 
 State9 [provider roles](../provider-selection.md) reuse these supervised operations.
-Claude has separate coordinator/review and implementation capability boundaries.
+All current providers use the shared runtime; coordinator/review versus worker
+tool capabilities depend on the operation, not a provider name. The old native
+profile routes are retired; work/history and frozen evidence are preserved.
 Native permit and once-only spawn guards validate frozen grants, with additive
 provider amendments preserving older attempts. Preparation refusals carry positive
-nonlaunch proof. Provider fallback and interruption require positive settlement; uncertain execution
+nonlaunch proof. Shared-runtime configuration failures distinguish a settled local
+process from a positively unsent model request; post-send ambiguity remains uncertain. Provider fallback and interruption require positive settlement; uncertain execution
 never authorizes a replacement. Review results contain exact commits/findings, not
 fabricated commits. Scope and checked integration authority remain application-owned.
 

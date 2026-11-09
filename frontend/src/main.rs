@@ -860,6 +860,7 @@ fn check_project_compatibility(root: &Path, manifest: &Value, project: &Path, ar
     rust_maintenance::require_recovery_contract(&state,manifest)?;
     for (marker,field,required) in [
         ("ollama-transport-v1.json","provider_transport_contract","ollama-http-v1"),
+        ("model-runtime-v1.json","model_runtime_contract","shared-models-v1"),
         ("context-delivery-v1.json","context_delivery_contract","evidence-v1"),
         ("context-memory-v2.json","context_memory_contract","working-memory-v2"),
     ]{
@@ -947,6 +948,28 @@ fn print_version()->io::Result<()> {
     Ok(())
 }
 
+fn models_command(args:&[String])->std::io::Result<()> {
+    let err=|e:String|std::io::Error::other(e);
+    let binary=waywr_backend::model_runtime::node().map_err(err)?;
+    if args.iter().any(|a|a=="login"){
+        let i=args.iter().position(|a|a=="login").unwrap();
+        let provider=args.get(i+1).ok_or_else(||std::io::Error::other("Provider missing"))?;
+        let method=args.windows(2).find(|a|a[0]=="--method").map(|a|a[1].as_str()).unwrap_or("oauth");
+        let status=std::process::Command::new(binary).arg(waywr_backend::model_runtime::entry().map_err(err)?)
+            .args(["login",provider,method]).status()?;
+        if !status.success(){return Err(std::io::Error::other("Provider login did not complete"))}return Ok(());
+    }
+    let mut transport=waywr_backend::model_runtime::default_transport().map_err(err)?;
+    if let Some(config)=args.windows(2).find(|a|a[0]=="--config"){transport["config"]=serde_json::json!(config[1]);}
+    let data=waywr_backend::model_runtime::describe(&binary,&transport).map_err(err)?;
+    let query=args.windows(2).find(|a|a[0]=="--search").map(|a|a[1].to_lowercase()).unwrap_or_default();
+    for m in data["models"].as_array().into_iter().flatten(){
+        let label=format!("{}/{}",m["provider"].as_str().unwrap_or(""),m["model"].as_str().unwrap_or(""));
+        if label.to_lowercase().contains(&query){println!("{} · context {} · authentication not checked",label,m["context_window"]);}
+    }
+    Ok(())
+}
+
 fn main() {
     let args: Vec<String> = env::args().flat_map(|arg| { if arg.starts_with("--") { if let Some((k,v))=arg.split_once('=') {return vec![k.to_owned(),v.to_owned()]} } vec![arg] }).collect();
     match cli_schema::validate(&args[1..]) {
@@ -957,6 +980,7 @@ fn main() {
     let result = if command_name(&args[1..]).is_none()&&args.iter().any(|x|matches!(x.as_str(),"--version"|"-V")){print_version()}
         else if args.iter().any(|x| x == "--backend-info") { backend_info() }
         else if args.iter().any(|x|x=="--view-output") { rust_views::viewer(&args[1..]) }
+        else if command_name(&args[1..])==Some("models") { models_command(&args[1..]) }
         else if command_name(&args[1..])==Some("bundle-build") { rust_bundle::build(&args[1..]) }
         else if command_name(&args[1..])==Some("bundle-install") { rust_bundle::install(&args[1..]) }
         else {

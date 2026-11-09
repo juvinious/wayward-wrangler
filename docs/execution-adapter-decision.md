@@ -2,9 +2,21 @@
 
 Current direction, 2026-11-09. The user corrected the earlier native-first
 recommendation: broad, seamless model support is the requirement. Pi is an
-architectural reference, not a selected application/runtime dependency. This
+architectural reference; its terminal app is not the application/runtime dependency. This
 supersedes the [native-first decision](archive/provider-selection/2026-11-09-superseded-native-first-adapter.md).
-Application behavior has not changed at this checkpoint.
+Implementation is now in progress. The runtime choice below supersedes the
+earlier unselected-dependency status; no Pi CLI is installed or invoked.
+
+## Selected implementation
+
+Use the independent `@earendil-works/pi-ai` and `pi-agent-core` libraries at
+1.5.0, packaged as a Waywr-owned Node process behind the Rust service/runner.
+The former supplies provider/catalog/protocol/auth support; the latter supplies
+the tool loop. Waywr supplies task tools and normalized events/results. This
+reuses the inspected maintained layers without adopting Pi's terminal app.
+Node >=22.19 is a runtime prerequisite for this first implementation. Cargo.lock
+and the Rust toolchain remain unchanged. npm dependencies are locally locked;
+bundle resources include the compiled runtime and its notices, not node_modules.
 
 ## Product precept
 
@@ -54,9 +66,9 @@ would not supply transport, authentication or tool execution.
 
 Prefer a maintained multi-provider library/runtime behind a small process boundary
 to rebuilding every vendor protocol in Waywr. Evaluate the provider/model layer
-independently of a terminal application or full agent harness. No Pi package or
-other dependency has been selected. Its source demonstrates the separation we
-need; it does not authorize installing that application by assumption.
+independently of a terminal application or full agent harness. The selected
+implementation uses the independent provider and agent-loop libraries above.
+The source informed that choice; no Pi CLI is installed or invoked.
 
 The existing Rust TUI/service retains project coordination, durable tasks and
 execution ownership. The shared layer supplies provider/model registration,
@@ -101,8 +113,9 @@ behavior, but not inference, login, provider reliability or model quality. Real
 model use remains separately authorized. Catalog breadth must correspond to an
 implemented request path; a long list alone is not support.
 
-Choose the smallest maintained provider/tool runtime that satisfies this slice;
-record that concrete dependency/transport choice before introducing it. Do not
+The independent provider/tool libraries selected above now implement this slice.
+The [provider contract](provider-selection.md) records the actual interfaces and
+verification limits; ordinary account/model usefulness remains unverified. Do not
 restart a broad utility survey or make another native-wrapper milestone. No
 parallel legacy integration maintenance, compatibility shims, plugin marketplace
 or model-specific coordinator branches. Lifecycle fluidity follows, then the

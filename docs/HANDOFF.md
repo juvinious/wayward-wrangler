@@ -1,83 +1,87 @@
-# Waywr handoff — broad model support, no legacy integration requirement
+# Waywr handoff — shared provider/model execution implemented locally
 
-Work remains on `plan/usability-and-installation`, with local commits only.
-Follow [AGENTS.md](../AGENTS.md), the [development approach](development-approach.md)
-and the [narrowed product direction](usability-plan.md#narrowed-product-direction).
-The user sets this order: extensible model/execution support, lifecycle fluidity,
-then coordination honed through a substantial web application.
+Branch: `plan/usability-and-installation`. Follow [AGENTS.md](../AGENTS.md) and the
+[product plan](usability-plan.md). Broad model support remains a project precept;
+next phases are lifecycle fluidity and coordination through a substantial web app.
+Local commits only. The user performs every remote delivery; no push/PR/merge,
+publication or hosted settings change is authorized.
 
-## Current decision and next action
+## Implemented
 
-The user corrected the prior decision twice: existing hardcoded integrations need
-not remain usable, and Pi is a reference for breadth/seamlessness, not an adoption
-target. Do not return to a Codex-first wrapper or parallel legacy-route maintenance.
-The [shared model-layer direction](execution-adapter-decision.md) supersedes that
-recommendation; its original rationale is selectively archived there.
+The Rust TUI/service/scheduler/runner now uses one shared process interface backed
+by locked standalone pi-ai/pi-agent-core 1.5.0 libraries. This uses provider and
+agent-loop libraries, not Pi's terminal application. The runtime supplies42 provider
+catalogs/1592 models, custom protocol/model configuration, SDK authentication,
+normalized activity/text/usage and typed `submit_result` completion. Core routing
+has no provider/model allowlist. SDK catalog coverage is not all-model verification.
 
-Pi's public source separates provider authentication/catalogs, shared API protocol
-implementations, refreshable metadata, normalized events and an independent agent
-loop. This is the relevant pattern. Prefer a maintained multi-provider/tool runtime
-behind one small boundary beneath the Rust TUI/service. No third-party library or
-harness has been selected or installed. Source inspection made no authenticated
-call and read no credentials. Do not mistake a model list or provider SDK alone for
-complete coding/tool execution.
+F3 searches providers/models and edits IDs/options; normal profile save/selection
+persists across reopen. `waywr models list --search QUERY` works outside a project;
+`waywr models login PROVIDER --method oauth|apiKey` explicitly invokes SDK setup.
+Private credentials use an atomic mode0600 store and a cross-process lock, outside
+project packets. Caller SDK credential variables are forwarded as process
+configuration, never logged into packets. No real login/inference was performed.
 
-Next action: select the concrete maintained provider/tool runtime from this bounded
-requirement, record the dependency/transport choice, and implement the
-[first slice](execution-adapter-decision.md#first-implementation-slice). Start with
-behavioral red for provider/model/option data absent from core through ordinary
-save/select/dispatch. Deliver the same path across at least two provider identities,
-including a tool-capable worker, visible activity/usage and persisted selection.
-No further open-ended comparison, generic SDK or native-only wrapper milestone.
+Preferences are schema3. Old schema1/2 native profiles are deliberately unsupported;
+the user waived compatibility. Files/work/history remain. The standalone native
+Claude/Ollama modules and their obsolete integration harnesses were removed.
+Remaining older workflow readers are historical, not parallel state9 execution.
 
-Existing integration/profile compatibility is explicitly waived. Unsupported old
-configuration may require reconfiguration; keep project work/history and uncertain
-execution evidence intact. Do not auto-redirect or replay old work. Normal execution
-ownership and result validation remain app responsibilities. A protocol fixture
-proves its boundary, not authentication/inference/model quality. Lifecycle fluidity
-and the substantial web app follow; no model-specific coordinator branches. This
-product precept now lives in AGENTS so subsequent tasks must retain the breadth.
+The saved `bundled` runtime locator avoids pinning projects to a release directory.
+Each attempt freezes actual Node/runtime/config identity. Config bytes are copied
+into its private operation before dispatch; custom destination metadata belongs to
+the saved grant. Changes to endpoint/protocol/auth locator require a new saved
+profile rather than silently redirecting approved work. Worker checkout identity,
+owned process groups, positive settlement, exact result/review and receipts remain.
+The generic tool runtime is trusted same-UID code, not an OS filesystem/network
+sandbox; former native CLI sandbox flags are not claimed for it.
 
-## Implemented baseline and limits
+Bundles contain the compiled JavaScript runtime and npm notices, without
+node_modules. Source builds install locked npm dependencies with lifecycle scripts
+disabled, then bundle them; Cargo.lock/compiler/dependencies are unchanged. Node
+>=22.19 and util-linux `flock` are runtime prerequisites. npm/Python/Rust are build
+or verification tools. Public installer/update/uninstall remain incomplete.
+Local workflow changes add pinned Node, npm advisory/Dependabot coverage and
+JavaScript CodeQL; they have not run on GitHub or enabled any paid features.
 
-At `7f68ee8`, compatible stopped projects reopen without their old application;
-an exactly owned, positively idle service can hand over; native versions are
-diagnostic and new attempts freeze the resolved client; one-command local
-build/install and `--version` work. These have focused isolated acceptance evidence.
-The [prior checkpoint](archive/handoff/2026-11-09-local-iteration-before-execution-direction.md)
-retains verification details, including package/source isolation and the exact
-synthetic-ID secret-scan exception. No broad rerun is needed for this planning work.
+## Evidence and limits
 
-Current source still couples provider names, role eligibility, model-specific
-efforts and curated defaults to Rust. Unknown native model IDs already work in
-some paths with provider-default effort; this is not a general extension boundary.
-The [provider contract](provider-selection.md) records actual restrictions. Native
-Codex/Claude execute coding workers; Ollama is conversation/coordination/review;
-other discovered clients are not implemented coding adapters.
+The first behavioral red rejected new runtime options/provider selection in normal
+project opening. Selection/save/reopen now passes. Real SDK/agent-loop fixtures
+exercise OpenAI Completions and Anthropic Messages, custom provider/model IDs,
+a worker writing a file through a tool, structured results and usage/progress.
+Real runner checks use linked Git worktrees and fixture host permits; these are
+not model-quality, human-approval or systemd proofs. Dummy API-key setup preserves
+two concurrent provider entries in a temporary private store; missing credentials
+refuse before HTTP. Actual provider login/token refresh remains unverified.
 
-Ordinary unassisted task delivery and subjective fluidity remain unestablished
-for this candidate. Active/uncertain work cannot be force-replaced; native-client
-help probes do not establish inference or sandbox reliability. Public download,
-update/uninstall, artifact collection and Debian packaging are incomplete. The
-user's new execution direction precedes more installer implementation. This
-checkpoint changes design/planning/policy docs only, not application behavior.
-Local reference and diff checks are appropriate; no application test rerun is
-needed until implementing the slice.
+Existing ordinary candidate/checkout/retirement and conversation checks were
+reconciled with current profile fixtures. F3 search/save and CLI/build checks pass.
+The installed TUI/reopen check preserves draft/settings/pause with the old bundle
+removed and no rebind. Source and rebuilt artifact privacy checks pass after
+removing a source-path fallback from the binaries. Production npm audit reports
+zero known vulnerabilities at this checkpoint. The real archive installer/service/TUI check passes outside the source checkout
+with Rust absent, zero source-file accesses and damaged-resource refusal. Its
+GitHub transport is a fixture; it performs no model calls or systemd bootstrap.
+The final shared-models marker/legacy-dispatch cleanup also passes its release
+guards and the real installer/TUI check on the final review bundle. Its archive
+SHA256 is `f24e4621877c1f150e4cac4f1a8a41cb82c0747659fda0f933202b7685b249b1`.
+All operator/remote boundaries remain.
 
-## Authority
+No operator installation, preserved project, provider credentials/settings or
+shared infrastructure was changed. Runtime tests use temporary projects/HOME;
+fixtures never authorize native calls. The earlier installation cleanup remains
+in effect. No hosted binary release exists and no ordinary unassisted useful task
+has been verified with this model runtime.
 
-Routine Git inspection is read-only; owned local commits are permitted. The user
-performs all remote delivery: no pushes, PR changes/merges, publication or hosted
-settings changes. Preserve unrelated work/history. No paid feature was enabled.
+## Next authorized action
 
-Operator installation, preserved-project changes, credentials/provider settings
-and authenticated model calls require explicit task authorization. Prior cleanup
-removed operator installations; none was reinstalled. Use isolated projects for
-authorized runtime checks and clean their owned services/artifacts. Development
-rules must not become arbitrary product-agent restrictions; preserve justified
-project/data/execution boundaries while reducing repeated interaction.
+After the local checkpoint, obtain ordinary-use feedback when the user authorizes installation/account/model use.
+Fix a concrete interruption within the lifecycle journey (detach/reattach/update
+without losing work) rather than adding provider-specific branches or another
+planning/test campaign. Keep future model IDs/options in the shared layer.
 
-Contracts: [distribution](distribution.md), [providers](provider-selection.md),
-[layout](project-layout.md), [IPC](contracts/session-protocol.md),
-[workflow](ordinary-project-workflow.md). [User verification](verify-usability.md)
-remains available for the implemented baseline; it does not authorize a new run.
+Owners: [providers](provider-selection.md), [runtime choice](execution-adapter-decision.md),
+[distribution](distribution.md), [architecture](architecture.md),
+[verification guide](verify-usability.md). Earlier native evidence remains in the
+[archive](archive/README.md); it is not current runtime acceptance or authority.

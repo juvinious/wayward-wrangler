@@ -69,6 +69,7 @@ pub fn narrow_routing(prefs:&Preferences,role:&str,name:&str)->Result<Value,Stri
 pub fn digest(v: &Value) -> Result<String, String> {
     canonical_sha256(v).map_err(|e| e.to_string())
 }
+fn empty_options()->Value { json!({}) }
 fn default_context() -> usize {
     96 * 1024
 }
@@ -82,6 +83,8 @@ pub struct Profile {
     pub transport: Option<Value>,
     pub model: String,
     pub effort: String,
+    #[serde(default = "empty_options")]
+    pub options: Value,
     #[serde(default)]
     pub binary_sha256: Option<String>,
     #[serde(default = "default_context")]
@@ -157,41 +160,20 @@ pub fn client_version(binary:&Path)->Option<String>{
 /// The configured locator remains approval metadata. Freeze its current resolution
 /// separately for each new attempt; never refresh a runner's already-frozen client.
 pub fn with_client(mut execution:Value)->Value{
-    if execution["provider"]=="ollama"{return execution;}
-    let resolved=(||->Result<Value,String>{
-        let provider=execution["provider"].as_str().ok_or("Provider missing")?;
-        let locator=execution["binary"].as_str().ok_or("Provider binary locator missing")?;
-        let configured=PathBuf::from(locator);
-        let binary=if configured.is_file(){configured.canonicalize().map_err(|e|e.to_string())?}
-            else if configured.file_name().is_some_and(|name|name==provider){
-                find_client(provider).ok_or_else(||format!("Selected {provider} CLI is unavailable; install it on PATH or choose its binary in F3"))?
-                    .canonicalize().map_err(|e|e.to_string())?
-            }else{return Err(format!("Selected {provider} binary is unavailable; choose its current location in F3"));};
-        Ok(json!({"provider":provider,"locator":locator,"binary":binary,"sha256":crate::execution::hash_file(&binary)?}))
-    })();
     execution.as_object_mut().unwrap().remove("client");
     execution.as_object_mut().unwrap().remove("client_error");
-    match resolved{Ok(client)=>execution["client"]=client,Err(reason)=>execution["client_error"]=json!(reason)}
-    execution
+    match crate::model_runtime::freeze(execution.clone()) {Ok(value)=>value,Err(reason)=>{execution["client_error"]=json!(reason);execution}}
 }
 pub fn native_binary(execution:&Value)->Result<&str,String>{
     if let Some(reason)=execution["client_error"].as_str(){return Err(reason.into());}
     execution["client"]["binary"].as_str().or_else(||execution["binary"].as_str()).ok_or_else(||"Provider binary missing".into())
 }
-pub fn efforts(provider: &str, model: &str) -> Vec<&'static str> {
-    match (provider, model) {
-        // Native tokens, not a common cross-provider scale. Sources in provider-selection.md.
-        ("codex", "gpt-6.1-sol") => {
-            vec!["low", "medium", "high", "xhigh", "max", "provider_default"]
-        }
-        ("claude", "claude-sonnet-5-5") => vec!["medium", "provider_default"],
-        _ => vec!["provider_default"],
-    }
-}
+pub fn efforts(_provider: &str, _model: &str) -> Vec<&'static str> { vec!["provider_default"] }
 impl Preferences {
     pub fn parse(value: &Value) -> Result<Self, String> {
+        if value["schema_version"]!=3{return Err("Native provider profiles are retired; configure shared model-runtime profiles (schema 3). Project files/history are preserved".into())}
         let p: Self = serde_json::from_value(value.clone()).map_err(|e| e.to_string())?;
-        if p.schema_version != 2
+        if p.schema_version != 3
             || p.profile != "development-profiles-v1"
             || p.profiles.is_empty()
             || p.profiles.len() > 32
@@ -203,12 +185,13 @@ impl Preferences {
         }
         for (name, profile) in &p.profiles {
             if !valid_name(name)
-                || !matches!(profile.provider.as_str(), "codex" | "claude" | "ollama")
-                || (profile.provider!="ollama"&&!Path::new(&profile.binary).is_absolute())
+                || profile.provider.trim().is_empty() || profile.provider.len()>4096 || profile.provider.chars().any(char::is_control)
+                || !Path::new(&profile.binary).is_absolute()
                 || profile.model.trim().is_empty()
-                || profile.model.len() > 200
-                || profile.model.chars().any(char::is_whitespace)
-                || !efforts(&profile.provider, &profile.model).contains(&profile.effort.as_str())
+                || profile.model.len() > 4096
+                || profile.model.chars().any(char::is_control)
+                || !profile.options.is_object()
+                || profile.transport.as_ref().and_then(|v|v["entry"].as_str()).is_none_or(|v|v!="bundled"&&!Path::new(v).is_absolute())
                 || !(16 * 1024..=crate::development_context::MEMORY_LIMIT).contains(&profile.context_bytes)
                 || profile
                     .binary_sha256
@@ -216,11 +199,10 @@ impl Preferences {
                     .is_some_and(|s| s.len() != 64 || !s.bytes().all(|b| b.is_ascii_hexdigit()))
             {
                 return Err(format!(
-                    "Unsupported profile {name}: choose an explicit supported client/model/effort (unknown models require provider_default effort)"
+                    "Invalid shared-runtime profile {name}: choose provider/model, runtime entry and JSON options"
                 ));
             }
         }
-        for profile in p.profiles.values(){if profile.provider=="ollama"{crate::ollama::validate_profile(&serde_json::to_value(profile).map_err(|e|e.to_string())?)?}else if profile.transport.is_some(){return Err("Native profiles cannot acquire HTTP transport authority".into())}}
         let exists = |name: &str| p.profiles.contains_key(name);
         if !exists(&p.coordinator) || !exists(&p.worker_default) {
             return Err("Default profile does not exist".into());
@@ -259,7 +241,6 @@ impl Preferences {
                 ));
             }
         }
-        if p.role_allowed("implementation").iter().any(|n|p.profiles[n].provider=="ollama"){return Err("Ollama coding workers are unsupported; use Codex/Claude for implementation".into())}
         Ok(p)
     }
     pub fn value(&self) -> Value {
@@ -407,11 +388,8 @@ pub fn policy_allows(policy: &Value, role: &str, hash: &str, profile: &Value) ->
     {
         return true;
     }
-    // Imported state8 authority remains exactly Codex-only; never infer Claude permission.
-    policy["routing"].is_null()
-        && profile["provider"] == "codex"
-        && profile["model"] == policy["coordinator"]["model"]
-        && profile["effort"] == policy["coordinator"]["effort"]
+    false // Routing authority must identify the selected shared-runtime profile.
+
 }
 pub fn find_client(name: &str) -> Option<PathBuf> {
     let mut candidates=std::env::var_os("PATH").map(|paths|std::env::split_paths(&paths)
@@ -424,35 +402,8 @@ pub fn find_client(name: &str) -> Option<PathBuf> {
     candidates.into_iter().find(|p|p.is_file())
         .map(|p|if p.is_absolute(){p}else{std::env::current_dir().unwrap_or_default().join(p)})
 }
-pub fn imported(legacy: &Value) -> Result<Value, String> {
-    if legacy["schema_version"] == 2 {
-        Preferences::parse(legacy)?;
-        return Ok(legacy.clone());
-    }
-    if legacy["profile"] != "codex-development-v1" || legacy["provider"] != "codex" {
-        return Err("Only the working state8 Codex profile can be imported automatically".into());
-    }
-    let mut profile = json!({"provider":"codex","binary":legacy["binary"],"model":legacy["model"],"effort":legacy["effort"],"context_bytes":96*1024});
-    if let Some(path) = legacy["binary"]
-        .as_str()
-        .map(Path::new)
-        .filter(|p| p.is_file())
-    {
-        profile["binary_sha256"] = json!(crate::execution::hash_file(path)?);
-    }
-    let mut profiles = json!({"codex":profile});
-    if let Some(binary) = find_client("claude") {
-        profiles["claude"] = json!({"provider":"claude","binary":binary,"binary_sha256":crate::execution::hash_file(&binary)?,
-            "model":"claude-sonnet-5-5","effort":"medium","context_bytes":96*1024});
-    }
-    let value = json!({"schema_version":2,"profile":"development-profiles-v1","profiles":profiles,
-        "coordinator":"codex","worker_default":"codex","roles":{
-            "coordinator":{"default":"codex","allowed":["codex"]},
-            "implementation":{"default":"codex","allowed":["codex"]},"review":{"default":"codex","allowed":["codex"]}},
-        "fallback":{"coordinator":[],"implementation":[],"review":[]},"concurrency":legacy["concurrency"],
-        "dependency_network":legacy["dependency_network"],"main_policy":legacy["main_policy"],"quality_preference":""});
-    Preferences::parse(&value)?;
-    Ok(value)
+pub fn imported(value:&Value)->Result<Value,String>{
+    Preferences::parse(value)?;Ok(value.clone())
 }
 fn metadata(s: &Session, key: &str) -> Result<Option<Value>, String> {
     let raw: Option<String> = s
@@ -481,12 +432,6 @@ pub fn schema(s: &Session) -> Result<(), String> {
         let hash = digest(&value)?;
         let p = Preferences::parse(&value)?;
         let profile = p.profile_value(&p.coordinator)?;
-        if profile["provider"] != "codex"
-            || profile["model"] != "gpt-6.1-sol"
-            || profile["effort"] != "medium"
-        {
-            return Err("Initial coordinator must preserve Codex gpt-6.1-sol/medium; choose another explicitly in Settings".into());
-        }
         let mut c = s.workflow.connection()?;
         let tx = c
             .transaction_with_behavior(TransactionBehavior::Immediate)
@@ -510,6 +455,13 @@ pub fn schema(s: &Session) -> Result<(), String> {
         )
         .map_err(|e| e.to_string())?;
         tx.commit().map_err(|e| e.to_string())?;
+    }
+    if metadata(s,"provider_discovery")?.is_none(){
+        let value=read(&s.project.join(".waywr/coordinator.json"))?;
+        let p=Preferences::parse(&value)?;
+        let discovery=discover_with(Some(&p));
+        s.workflow.connection()?.execute("INSERT INTO session_metadata VALUES('provider_discovery',?1)",
+            [encode(&discovery)?]).map_err(|e|e.to_string())?;
     }
     Ok(())
 }
@@ -626,9 +578,9 @@ pub fn save(s: &Session, body: &Value) -> Result<Value, String> {
     let p = &body["payload"];
     let mut value = p["preferences"].clone();
     Preferences::parse(&value)?;
-    if value["profiles"].as_object().is_some_and(|p|p.values().any(|p|p["provider"]=="ollama")){write(&s.workflow.state.join("ollama-transport-v1.json"),&json!({"version":1}),false)?;}
     for (_, profile) in value["profiles"].as_object_mut().unwrap() {
-        if profile["provider"]!="ollama"&&profile["binary_sha256"].is_null() {
+        profile["transport"]["destination"]=crate::model_runtime::destination(profile["provider"].as_str().ok_or("Provider missing")?,&profile["transport"])?;
+        if profile["binary_sha256"].is_null() {
             if let Some(binary) = profile["binary"]
                 .as_str()
                 .map(Path::new)
@@ -692,11 +644,7 @@ pub fn snapshot(s: &Session) -> Result<Value, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    fn config() -> Preferences {
-        Preferences::parse(&imported(&json!({"schema_version":1,"profile":"codex-development-v1","provider":"codex",
-            "binary":"/missing/codex","model":"gpt-6.1-sol","effort":"medium","fallback":[],"concurrency":2,
-            "dependency_network":true,"main_policy":"checked-fast-forward"})).unwrap()).unwrap()
-    }
+    fn config() -> Preferences { Preferences::parse(&recovery_tests::prefs()).unwrap() }
     #[test]
     fn precedence_and_permission_are_independent() {
         let mut p = config();
@@ -1229,29 +1177,15 @@ pub fn execution(
     Ok((with_client(execution), selected))
 }
 
-/// Local metadata only: no inference, login, server start, model download or shared edits.
-fn cached_models(cache:&Value)->Vec<Value>{
-    cache["models"].as_array().into_iter().flatten().filter_map(|m|{let id=m["slug"].as_str().or(m["id"].as_str())?;if id.len()>200||id.chars().any(char::is_whitespace){return None}Some(json!({"provider":"codex","model":id,"display_name":m["display_name"].as_str().unwrap_or(id),"advertised_efforts":m["supported_reasoning_levels"].as_array().into_iter().flatten().filter_map(|v|v["effort"].as_str()).collect::<Vec<_>>(),"supported_efforts":efforts("codex",id),"source":"user-local models_cache.json; cached metadata, not role/auth proof","suitability":"unverified"}))}).collect()
-}
+/// Public catalogs only. No login, inference or model-server start.
 pub fn discover()->Value{discover_with(None)}
 fn discover_with(prefs:Option<&Preferences>)->Value{
-    let home=std::env::var_os("HOME").map(PathBuf::from);let observed=(crate::execution::now()*1000.0) as u64;
-    let clients=["codex","claude","gemini","ollama","opencode"].into_iter().map(|provider|{
-        let mut candidates=Vec::new();if let Some(prefs)=prefs{candidates.extend(prefs.profiles.values().filter(|p|p.provider==provider&&!p.binary.is_empty()).map(|p|PathBuf::from(&p.binary)));}
-        if let Some(paths)=std::env::var_os("PATH"){candidates.extend(std::env::split_paths(&paths).map(|p|p.join(provider)));}
-        if let Some(home)=&home{for dir in [".local/bin",".npm-global/bin",".npm/bin",".opencode/bin"]{candidates.push(home.join(dir).join(provider));}}candidates.push(PathBuf::from("/usr/local/bin").join(provider));
-        let mut seen=std::collections::BTreeSet::new();let executables=candidates.into_iter().filter_map(|p|p.canonicalize().ok()).filter(|p|p.is_file()&&seen.insert(p.clone())).map(|binary|{
-            let version=client_version(&binary);
-            let interface=if provider=="ollama"{Ok(())}else{native_interface(provider,&binary)};
-            json!({"binary":binary,"version":version,"interface_supported":interface.is_ok(),"interface_reason":interface.err(),"observed_at_ms":observed})
-        }).collect::<Vec<_>>();
-        json!({"provider":provider,"binary":executables.first().map(|e|e["binary"].clone()),"version":executables.first().map(|e|e["version"].clone()),"executables":executables,"discovered":!executables.is_empty(),"adapter_available":matches!(provider,"codex"|"claude"|"ollama"),"roles":if provider=="ollama"{json!(["coordinator","review"])}else if matches!(provider,"codex"|"claude"){json!(ROLES)}else{json!([])},"execution_supported":provider=="ollama"||executables.iter().any(|e|e["interface_supported"]==true),"source":"saved explicit paths, PATH and known local installs; canonical executable deduplication","observed_at_ms":observed,"authentication":"unknown; credential presence is not inspected or copied","availability":"unknown until ordinary use","role_observed":"No new native role observation; see retained delivery evidence"})
-    }).collect::<Vec<_>>();
-    let mut models=vec![json!({"provider":"codex","model":"gpt-6.1-sol","supported_efforts":efforts("codex","gpt-6.1-sol"),"source":"existing working default; preserved even when absent from cache"}),json!({"provider":"claude","model":"claude-sonnet-5-5","supported_efforts":efforts("claude","claude-sonnet-5-5"),"source":"existing structured adapter contract"})];
-    let cache=std::env::var_os("CODEX_HOME").map(PathBuf::from).or_else(||home.as_ref().map(|h|h.join(".codex"))).map(|p|p.join("models_cache.json"));
-    if let Some(path)=cache{if std::fs::metadata(&path).is_ok_and(|m|m.is_file()&&m.len()<=4*1024*1024){if let Ok(bytes)=std::fs::read(path){if let Ok(value)=serde_json::from_slice::<Value>(&bytes){for model in cached_models(&value){if !models.iter().any(|m|m["provider"]==model["provider"]&&m["model"]==model["model"]){models.push(model)}}}}}}
-    let origin=std::env::var("OLLAMA_HOST").unwrap_or_else(|_|"http://127.0.0.1:11434".into());let ollama=crate::ollama::inventory(&origin).unwrap_or_else(|reason|json!({"available":false,"reason":reason,"inference":false}));
-    json!({"schema_version":2,"clients":clients,"ollama":ollama,"models":models,"observed_at_ms":observed,"inference":false,"shared_configuration_modified":false})
+    let selected=prefs.and_then(|p|p.profiles.get(&p.coordinator));
+    let binary=selected.map(|p|PathBuf::from(&p.binary)).map(Ok).unwrap_or_else(crate::model_runtime::node);
+    let transport=selected.and_then(|p|p.transport.clone()).map(Ok).unwrap_or_else(crate::model_runtime::default_transport);
+    match binary.and_then(|b|transport.and_then(|t|crate::model_runtime::describe(&b,&t))){
+        Ok(mut v)=>{v["inference"]=json!(false);v},Err(reason)=>json!({"models":[],"providers":[],"reason":reason,"inference":false})
+    }
 }
 /// Quiescent release maintenance only. Journal original bytes; never rewrite approvals or old packets.
 pub fn migrate_project(project: &Path, state: &Path, key: &str) -> Result<bool, String> {
@@ -1469,10 +1403,10 @@ pub fn requeue_capacity(s: &Session, turn: &str, proof: &Value) -> Result<(), St
 #[cfg(test)]
 pub(crate) mod recovery_tests {
     use super::*;
-    fn prefs() -> Value {
-        json!({"schema_version":2,"profile":"development-profiles-v1","profiles":{
-        "codex":{"provider":"codex","binary":"/bin/true","model":"gpt-6.1-sol","effort":"medium","binary_sha256":crate::execution::hash_file(Path::new("/bin/true")).unwrap(),"context_bytes":98304},
-        "claude":{"provider":"claude","binary":"/missing/claude","model":"claude-sonnet-5-5","effort":"medium","binary_sha256":null,"context_bytes":98304}},
+    pub(crate) fn prefs() -> Value {
+        json!({"schema_version":3,"profile":"development-profiles-v1","profiles":{
+        "codex":{"provider":"codex","binary":"/bin/true","options":{},"transport":{"entry":"/bin/true","destination":{"provider":"codex","kind":"runtime_builtin"}},"model":"gpt-6.1-sol","effort":"medium","binary_sha256":crate::execution::hash_file(Path::new("/bin/true")).unwrap(),"context_bytes":98304},
+        "claude":{"provider":"claude","binary":"/missing/claude","options":{},"transport":{"entry":"/bin/true","destination":{"provider":"claude","kind":"runtime_builtin"}},"model":"claude-sonnet-5-5","effort":"medium","binary_sha256":null,"context_bytes":98304}},
         "coordinator":"codex","worker_default":"codex","roles":{"coordinator":{"default":"codex","allowed":["codex"]},"implementation":{"default":"codex","allowed":["codex"]},"review":{"default":"codex","allowed":["codex"]}},"fallback":{"coordinator":[],"implementation":[],"review":[]},"concurrency":2,"dependency_network":true,"main_policy":"checked-fast-forward","quality_preference":""})
     }
     pub(crate) fn fixture() -> (tempfile::TempDir, Session) {
@@ -2123,6 +2057,7 @@ pub fn packet_authorized(s: &Session, work: &Value, packet: &Value) -> Result<bo
             "binary_sha256",
             "context_bytes",
             "transport",
+            "options",
         ] {
             if execution[field] != profile[field] {
                 return Ok(false);
@@ -2151,10 +2086,4 @@ pub fn packet_authorized(s: &Session, work: &Value, packet: &Value) -> Result<bo
         && packet["provider"] == profile["provider"]
         && packet["model"] == profile["model"]
         && policy_allows(&frozen, role, &digest(&profile)?, &profile))
-}
-#[cfg(test)]mod ordinary_discovery_tests{
- use super::*;
- #[test]fn ordinary_cached_model_projection_excludes_secrets_and_does_not_invent_effort(){
- let cache=json!({"token":"NEVER COPY","models":[{"slug":"new-model","display_name":"Model","supported_reasoning_levels":[{"effort":"ultra-future"}],"secret":"NEVER COPY"}]});let models=cached_models(&cache);assert_eq!(models.len(),1);assert_eq!(models[0]["supported_efforts"],json!(["provider_default"]));assert!(!serde_json::to_string(&models).unwrap().contains("NEVER COPY"));assert_eq!(models[0]["advertised_efforts"],json!(["ultra-future"]));assert!(cached_models(&json!({})).is_empty());
- }
 }

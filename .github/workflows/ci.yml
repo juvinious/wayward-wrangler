@@ -18,6 +18,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24.22.2'
+      - name: Locked model runtime
+        run: npm ci --prefix model-runtime --ignore-scripts --no-audit --no-fund && npm run build --prefix model-runtime
       - name: Trust the owned Actions checkout for container build steps
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Permanent pinned Rust toolchain
@@ -31,11 +36,9 @@ jobs:
           python3 tests/session_schema_consistency.py
           python3 scripts/test-release-installer.py
           cargo test --locked -p waywr-backend --lib ordinary_
-          cargo test --locked -p waywr-backend --lib ollama::tests
-          cargo test --locked -p waywr-backend --lib ollama_http_
-          cargo test --locked -p waywr-backend --test ollama_lifecycle
+          npm test --prefix model-runtime
+          cargo test --locked -p waywr-backend --test shared_models
           cargo test --locked -p waywr --lib ordinary_
-          cargo test --locked -p waywr-backend --test provider_updates
           cargo test --locked -p waywr-backend --lib only_exact_proven_builtin_pair_is_allowed_without_enabling_skills_or_tools
           cargo test --locked -p waywr --bin waywr release_guard
       - name: Build installable bundle

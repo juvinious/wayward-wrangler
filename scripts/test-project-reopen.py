@@ -43,8 +43,11 @@ def main():
         root = Path(temporary)
         for name in ['home', 'project', 'config', 'data', 'state', 'cache', 'run']:
             (root / name).mkdir(mode=0o700)
+        (root / 'bin').mkdir()
+        node=shutil.which('node'); assert node, 'Node runtime prerequisite missing'
+        (root / 'bin/node').symlink_to(node)
         project = root / 'project'
-        env = {'HOME': str(root / 'home'), 'PATH': '/usr/bin:/bin',
+        env = {'HOME': str(root / 'home'), 'PATH': str(root / 'bin') + ':/usr/bin:/bin',
                'TERM': 'xterm-256color', 'LANG': 'C.UTF-8',
                'DBUS_SESSION_BUS_ADDRESS': 'unix:path=' + str(root / 'no-user-bus')}
         if args.systemd_handover:

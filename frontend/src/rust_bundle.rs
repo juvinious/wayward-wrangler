@@ -62,6 +62,10 @@ pub fn build(args:&[String])->io::Result<()> {
             &output.join("resources/fake-workflow.toml"),&mut files,"resources/fake-workflow.toml")?;
         regular_resources(&source.join("backend/resources"),&output.join("resources/backend"),
             &mut files,"resources/backend")?;
+        for name in ["bridge.mjs","bridge.mjs.LEGAL.txt","THIRD_PARTY_NOTICES.md"]{
+            copy(&source.join("model-runtime/dist").join(name),&output.join("resources/model-runtime").join(name),
+                &mut files,&format!("resources/model-runtime/{name}"))?;
+        }
         for skill in ["draft.md","critique.md","revise.md"]{
             copy(&source.join("frontend/resources/skills").join(skill),
                 &output.join("resources/skills").join(skill),&mut files,&format!("resources/skills/{skill}"))?;
@@ -70,7 +74,7 @@ pub fn build(args:&[String])->io::Result<()> {
         let build=json!({"source_commit":output_text("git",&["rev-parse","HEAD"]),"source_dirty":output_text("git",&["status","--porcelain"]).map(|v|!v.is_empty()),"cargo_lock_sha256":digest(&source.join("Cargo.lock"))?,"toolchain_file_sha256":digest(&source.join("rust-toolchain.toml"))?,"rustc":output_text("rustc",&["--version","--verbose"]),"libc":output_text("getconf",&["GNU_LIBC_VERSION"]),"builder_image":env::var("WAYWR_BUILDER_IMAGE").ok(),"binary_reproducibility":"not claimed; normalized packaging is separate from bit-identical builds","published_binary_baseline":"Linux x86_64 GNU / Ubuntu 24.04 / glibc 2.39"});
         let manifest=json!({"build":build,"license":"MIT","notices":"THIRD_PARTY_NOTICES.md","schema_version":1,"release_id":id,"frontend":env!("CARGO_PKG_VERSION"),
             "backend":"0.1.0","backend_kind":"rust","protocol_major":1,
-            "state_schema_min":3,"state_schema_max":9,"project_layout":"waywr-v1","interaction_contract":"conversation-v1","request_routing_contract":"pinned-roles-v1","context_delivery_contract":"evidence-v1","context_memory_contract":"working-memory-v2","coordinator_recovery_contract":"recovery-v1","development_convergence_contract":"convergence-v1","ordinary_project_contract":"ordinary-project-v1","provider_transport_contract":"ollama-http-v1","native_client_identity_contract":"native-client-v1",
+            "state_schema_min":3,"state_schema_max":9,"project_layout":"waywr-v1","interaction_contract":"conversation-v1","request_routing_contract":"pinned-roles-v1","context_delivery_contract":"evidence-v1","context_memory_contract":"working-memory-v2","coordinator_recovery_contract":"recovery-v1","development_convergence_contract":"convergence-v1","ordinary_project_contract":"ordinary-project-v1","model_runtime_contract":"shared-models-v1","native_client_identity_contract":"native-client-v1",
             "platform":{"system":env::consts::OS,"machine":env::consts::ARCH},"files":files});
         fs::write(output.join("manifest.json"),serde_json::to_vec_pretty(&manifest)?
             .into_iter().chain([b'\n']).collect::<Vec<_>>())?;
@@ -101,7 +105,7 @@ pub(crate) fn validate(bundle:&Path)->io::Result<Value>{
         }
     }
     for required in ["bin/waywr","bin/waywr-service","bin/waywr-runner",
-        "resources/fake-workflow.toml",
+        "resources/fake-workflow.toml","resources/model-runtime/bridge.mjs","resources/model-runtime/THIRD_PARTY_NOTICES.md",
         "resources/backend/prompt-contract-v1/context-findings-v2.txt",
         "resources/backend/prompt-contract-v1/context.txt",
         "resources/backend/prompt-contract-v1/legacy.txt",

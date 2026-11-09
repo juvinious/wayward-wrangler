@@ -67,7 +67,7 @@ pub(crate) fn stop_tx(
             Ok(reject("outcome_conflict", "Outcome evidence changed"))
         };
     }
-    let configuration=kind=="configuration"&&proof["provider_selection_v1"]==true&&proof["no_provider_process_spawned"]==true;
+    let configuration=kind=="configuration"&&proof["provider_selection_v1"]==true&&(proof["no_provider_process_spawned"]==true||proof["no_model_request_sent"]==true);
     let recovery = (matches!(kind, "format" | "interrupted")||configuration)
         && proof["settled"] == true
         && proof["capabilities_valid"] == true

@@ -2435,6 +2435,12 @@ impl App {
             let title = Self::safe(title).split_whitespace().collect::<Vec<_>>().join(" ").chars().take(120).collect::<String>();
             lines.push(Line::styled(format!("{prefix}{title}"), Style::default().fg(tone.text)));
             lines.push(Line::styled(format!("      {}", Self::safe(activity)), Style::default().fg(tone.muted)));
+            if fresh {if let Some(usage)=operation.map(|op|&op["activity"]["usage"]).filter(|u|u.is_object()){
+                let remaining=match (usage["context_window"].as_u64(),usage["context_tokens"].as_u64()){
+                    (Some(window),Some(used))=>format!("{} context tokens remaining (estimate)",window.saturating_sub(used)),_=>"context remaining unknown".into()};
+                let cost=usage["cost"].as_f64().map(|c|format!("${c:.4} (estimated/reported)")).unwrap_or_else(||"unknown".into());
+                lines.push(Line::styled(format!("      tokens in {} · out {} · cost {} · {}",usage["input"],usage["output"],cost,remaining),Style::default().fg(tone.muted)));
+            }}
         }
         lines
     }

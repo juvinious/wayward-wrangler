@@ -230,23 +230,17 @@ mod conversation_tests {
         malformed=reply.clone();malformed["evidence_refs"]=json!([{"not":"a string"}]);assert!(validate(&malformed,&packet).is_err());
     }
     #[test]
-    fn ordinary_reply_finishes_through_both_native_adapters_without_calls() {
+    fn ordinary_reply_finishes_through_shared_runtime_without_calls() {
         let root=tempfile::tempdir().unwrap();
         let reply=json!({"schema_version":3,"assistant_text":"Atomic replacement prevents partial file replacement; it is not a claim of power-loss durability.","evidence_refs":["workflow"],"action":null});
-        for provider in ["codex","claude"] {
+        for provider in ["provider-a","provider-b"] {
             let directory=root.path().join(provider);std::fs::create_dir_all(&directory).unwrap();
             let packet=json!({"development":true,"operation_kind":"conversation","provider":provider,"model":"fixture-model","execution":{"profile":"development-profiles-v1"},"selected_context":{"interaction":{"version":1},"evidence_allowlist":["message:human"]}});
-            let raw=reply.to_string();
-            let events=if provider=="codex" {
-                std::fs::write(directory.join("native-final.json"),&raw).unwrap();
-                vec![json!({"type":"item.completed","item":{"type":"agent_message","text":raw}}),json!({"type":"turn.completed","usage":{"input_tokens":1,"output_tokens":1}})]
-            } else {
-                vec![json!({"type":"system","subtype":"init","model":"fixture-model","permissionMode":"dontAsk","tools":["StructuredOutput"]}),json!({"type":"result","subtype":"success","is_error":false,"structured_output":reply})]
-            };
+            let events=vec![json!({"type":"runtime.completed","outcome":"completed","provider":provider,"model":"fixture-model","result":reply,"runtime":{"usage":null}})];
             let (completed,_)=crate::development::finish_native(&events,&directory,&packet,Some(0)).unwrap();
             assert_eq!(completed,reply); // Retain the exact native result, never rewrite it.
             assert_eq!(crate::development::result_schema(&packet)["properties"]["evidence_refs"]["items"]["enum"],json!(["message:human"]));
-            if provider=="codex"{
+            {
                 let mut execution=events.clone();execution.push(json!({"type":"item.completed","item":{"type":"command_execution"}}));
                 assert!(crate::development::inspect_native(execution.last().unwrap(),&packet).is_err());
             }

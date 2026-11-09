@@ -22,7 +22,8 @@ dependency. A third-party execution utility remains an option to evaluate.
 
 The target is one shared multi-provider model/execution layer beneath the existing
 Rust TUI/service. The [corrected direction](execution-adapter-decision.md) uses Pi's
-registry/protocol/catalog separation as a reference; no Pi integration is selected.
+registry/protocol/catalog separation as a reference. The standalone pi-ai/agent-core
+libraries now implement the shared boundary; Pi's terminal app is not used.
 A process adapter can separate dependencies from Rust, but wrapping one native
 client is insufficient. The user waived compatibility with existing hardcoded
 integrations/profiles: replace them without parallel legacy-route maintenance.
@@ -55,8 +56,8 @@ plugin SDK, marketplace or another agent loop as an incidental workstream.
 **Correction before application changes:** inspect the provider/model library
 separately from a full harness. Pi source composes provider authentication/catalogs
 with shared protocol implementations, normalized events and refreshable metadata.
-Prefer a maintained multi-provider/tool runtime; choose its concrete dependency
-before introducing it. The [direction](execution-adapter-decision.md) records source
+Use the selected standalone provider/agent-loop libraries, with catalogs and
+protocol configuration outside the coordinator. The [direction](execution-adapter-decision.md) records source
 evidence and the first slice. The native-first recommendation is superseded.
 
 Then establish behavioral red for the ordinary save/select/dispatch journey with
@@ -219,8 +220,10 @@ installation is not changed. The user can now install and assess the complete
 ordinary-use/rebuild/reopen loop using the [verification guide](verify-usability.md).
 The agent has not made authenticated model calls or established useful task delivery.
 
-Next checkpoint: the behavioral red and complete first extensible-execution slice
-in the [adapter decision](execution-adapter-decision.md#first-implementation-slice).
+The shared-runtime slice is implemented locally; its [provider contract](provider-selection.md)
+records protocol/tool/runner and selection evidence. Real accounts/model quality
+and ordinary unassisted delivery remain unverified. Next checkpoint: user review
+and authorized ordinary use before further lifecycle changes.
 Public curl, update/uninstall commands, artifact collection and additional
 package channels are not complete. Earlier checks remain available for the
 subsequent lifecycle phase; do not rerun them as a substitute for useful work.
@@ -335,7 +338,8 @@ package channels until one installation/update/uninstall route works end to end.
    broad model selection and the multi-provider journey above. Compatibility with
    existing hardcoded profiles is not required; preserve their work/history.
    Fixtures prove their stated boundaries only; ordinary model use is separately
-   authorized. No third-party harness or provider library is selected yet.
+   authorized. The implementation uses the standalone pi-ai/pi-agent-core libraries
+   behind one process boundary; Pi's terminal app is not used.
 2. **Lifecycle fluidity.** Demonstrate detach/reattach and safe update while work
    exists, then complete public installation and owned-file uninstall. Fix actual
    interruptions without expanding orchestration. The four implemented slices

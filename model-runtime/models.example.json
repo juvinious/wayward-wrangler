@@ -1,0 +1,11 @@
+{
+  "defaults": {"provider": "example-provider", "model": "example-model"},
+  "providers": [{
+    "id": "example-provider",
+    "name": "Custom compatible endpoint",
+    "api": "openai-completions",
+    "base_url": "https://api.example.invalid/v1",
+    "auth_env": "EXAMPLE_API_KEY",
+    "models": [{"id": "example-model", "context_window": 32768, "max_tokens": 4096}]
+  }]
+}

@@ -52,3 +52,8 @@ jobs:
           cargo-audit audit --deny warnings --file frontend/Cargo.lock
       - name: Python dependency advisories
         run: python3 scripts/check-python-advisories.py
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24.22.2'
+      - name: Model runtime dependency advisories
+        run: npm audit --prefix model-runtime --omit=dev

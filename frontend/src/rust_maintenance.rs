@@ -275,6 +275,7 @@ pub fn change(root:&Path,_manifest:&Value,args:&[String],action:&str)->io::Resul
 
 pub(super) fn require_recovery_contract(state:&Path,manifest:&Value)->io::Result<()>{
     if state.join("native-client-identity-v1.json").exists()&&manifest["native_client_identity_contract"]!="native-client-v1"{return Err(err("Frozen native client identities require native-client-v1; preserve attempts and use a compatible application"));}
+    if state.join("model-runtime-v1.json").exists()&&manifest["model_runtime_contract"]!="shared-models-v1"{return Err(err("Frozen shared-runtime attempts require shared-models-v1; preserve them and use a compatible application"));}
     if state.join("coordinator-recovery-v1.json").exists()&&manifest["coordinator_recovery_contract"]!="recovery-v1"{return Err(err("Retained recovery/finding semantics require recovery-v1; choose a compatible release without discarding records"));}
     if state.join("ordinary-project-v1.json").exists()&&manifest["ordinary_project_contract"]!="ordinary-project-v1"{return Err(err("Saved baseline, candidate and retention semantics require an ordinary-project-v1 release"));}
     if state.join("development-convergence-v1.json").exists()&&manifest["development_convergence_contract"]!="convergence-v1"{return Err(err("Retained named task refs and coordinator retirement require convergence-v1; choose a compatible release"));}
@@ -283,6 +284,12 @@ pub(super) fn require_recovery_contract(state:&Path,manifest:&Value)->io::Result
 
 #[cfg(test)] mod tests {
     use super::*;
+    #[test] fn model_runtime_release_guard_preserves_shared_execution_semantics(){
+        let root=tempfile::tempdir().unwrap();
+        fs::write(root.path().join("model-runtime-v1.json"),b"{\"version\":1}").unwrap();
+        assert!(require_recovery_contract(root.path(),&json!({})).is_err());
+        require_recovery_contract(root.path(),&json!({"model_runtime_contract":"shared-models-v1"})).unwrap();
+    }
     #[test] fn native_client_release_guard_rejects_an_app_that_ignores_frozen_clients(){
         let root=tempfile::tempdir().unwrap();
         fs::write(root.path().join("native-client-identity-v1.json"),b"{\"version\":1}").unwrap();

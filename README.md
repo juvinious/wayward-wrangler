@@ -1,30 +1,27 @@
 # Wayward Wrangler
 
 Waywr is a project-scoped development orchestrator. Initialize a project, discuss
-and approve scope and operating policy, delegate to native workers, review exact
+and approve scope and operating policy, delegate to tool-capable workers, review exact
 results, run checks and maintain project knowledge through its Rust terminal UI.
 The intended workflow supports existing projects and substantial user requests.
 
 ## Current readiness
 
-The accepted [usability plan](docs/usability-plan.md) targets removing application build
-locks from projects, removing provider version allowlists and simplifying public
-installation/update/uninstall. Follow the [development approach](docs/development-approach.md).
-Compatible stopped projects now reopen without their former build; native clients update without a version allowlist or F3 resave. One-command local build/install is implemented; the public download/update/uninstall
-lifecycle remains a subsequent increment. Idle service replacement
-works automatically; attached views, pending input and uncertain work preserve
-the existing service and report why replacement must wait.
+The current increment replaces hardcoded native clients with one shared provider/model
+runtime beneath the Rust UI/service. Its bundled catalog exposes42 providers and1592
+models, searchable in F3; custom model IDs, endpoints and SDK options are data.
+The independent `pi-ai`/`pi-agent-core` libraries supply APIs and the tool loop;
+Pi's terminal application is not used. See [provider setup](docs/provider-selection.md).
 
-Waywr remains experimental. This increment implements existing-project setup,
-exact candidates/checkout handoff, conservative resource retirement, project-aware
-completion, Ollama coordinator/review and versioned distribution code. Focused
-fixtures support these mechanisms; a full ordinary-project workflow, native Ollama
-quality, ordinary project PR delivery, release publication and broad Linux
-portability remain unverified. The PR/build workflow and real isolated packaged
-installation passed; see [verification](docs/ordinary-project-verification.md). Small prior
-deliveries do not establish complex-project readiness. See the
-[workflow contract](docs/ordinary-project-workflow.md), [handoff](docs/HANDOFF.md) and
-[retained evidence](docs/archive/conversational-coordination/2026-10-17-verified-checkpoint.md).
+Waywr remains experimental. Local HTTP fixtures exercise two provider protocols
+through the actual runner/tool loop, including worker edits, structured results and
+usage. Installed TUI/reopening checks use isolated projects. These establish those
+boundaries, not account login, all-model reliability or unassisted useful delivery.
+Existing native profiles require reconfiguration; project files/history are retained.
+Stopped compatible projects reopen without their old build. Public download,
+update/uninstall and active-work update fluidity remain later increments. Follow the
+[product plan](docs/usability-plan.md), [development approach](docs/development-approach.md)
+and [handoff](docs/HANDOFF.md). No binary release has been published by this work.
 
 The [public-source audit and remediation](docs/security-audit-2026-11-08.md) cover
 credential scans, patched dependencies, generalized public documentation, build-path
@@ -50,10 +47,10 @@ a paused dispatch state; `waywr resume` explicitly resumes execution. Repeated
 `/exit` also closes an already paused view. Explicit selection uses `waywr --project DIR`;
 both `--project DIR` and `--project=DIR` are routed.
 
-Linux with a systemd user manager and a usable Codex sandbox is the current execution
-prerequisite. See [Linux sandbox setup](docs/linux-sandbox-setup.md) for the temporary
-AppArmor testing workaround and distribution gaps. Herdr is
-optional explicit read-only inspection. Both closing commands preserve your work:
+Linux with a systemd user manager, Node >=22.19, Git and util-linux `flock` is the
+current execution platform. Configure the selected provider's SDK authentication;
+no Codex/Claude executable is required. The model runtime is trusted same-UID code,
+not an OS sandbox. Herdr remains optional explicit read-only inspection. Both closing commands preserve your work:
 
 - `/detach` closes the TUI while authorized work continues in the background.
 - `/exit` checkpoints and pauses the session, then closes the TUI. Active permitted
@@ -69,9 +66,18 @@ baseline. Non-Git/unborn source needs explicit initialization selection and appr
 See the [ordinary-project contract](docs/ordinary-project-workflow.md) for current
 implementation boundaries.
 
-New projects preserve Codex gpt-6.1-sol / medium as the coordinator and worker default.
-The project-local profile is `.waywr/coordinator.json`. F3 edits project provider profiles, role defaults, fallback and task overrides;
-`/plan` reviews the current conversation topic’s saved scope and operating policy.
+New projects select a default from runtime configuration/catalog data, not a model
+constant in Rust. Configure authentication explicitly, then choose a provider/model
+in F3 before requesting work:
+
+```fish
+waywr models list --search MODEL_OR_PROVIDER
+waywr models login PROVIDER --method oauth # or --method apiKey when supported
+```
+
+F3 →1 Profiles supports F search, V provider, C model, manual IDs and options JSON.
+S saves; R refreshes local catalog/configuration metadata. The project profile is
+`.waywr/coordinator.json` (preferences schema3). `/plan` reviews saved scope/policy.
 A saved proposal and operating-policy card appears in chat. Reply `approve` or choose
 its inline Approve action to authorize that exact presented revision, with no second
 confirmation. `/plan` keeps the detailed review/editor available. Discussion grants
@@ -113,17 +119,14 @@ installation and ordinary-use verification limits.
 
 There is no mandatory call, repair or task-time ceiling. Capacity refusals wait by
 default. Explicitly configured and approved alternatives permit settled-capacity
-fallback. Claude is an explicit coordinator, implementation or review profile;
-existing Codex-only approvals remain Codex-only after upgrade. F3 → Switch defaults
+fallback. All configured providers use the shared execution path. F3 → Switch defaults
 to after the current turn, with explicit interruption available. Preference edits
 apply to future attempts; reserved profiles and useful work remain intact.
 
 See [provider/role controls](docs/provider-selection.md) for complete F3 controls,
-capability provenance, policy amendments and upgrade semantics. Native clients are
-trusted within the documented same-UID boundary. The human-led label-management-example request
-used Codex coordination/implementation and Claude review through checked delivery.
-Each new request and scope/policy approval still belongs to you. This assisted run
-does not verify every provider role, handover or fallback combination.
+capabilities, configuration and policy amendments. The earlier human-led Codex/Claude
+delivery is historical evidence for the retired integrations, not verification of
+this runtime. Each new request and approval belongs to you.
 
 ## TUI controls and activity
 
@@ -225,7 +228,7 @@ waywr --project /absolute/path/to/project
 ```
 
 Binary prerequisites: Linux x86_64/glibc2.39+, GitHub CLI, Git, GNU tar, gzip,
-sha256sum and normal systemd/provider execution prerequisites below. Rust is only
+sha256sum, Node >=22.19 and normal systemd/provider execution prerequisites below. Rust is only
 needed for source builds. The installer validates GitHub asset/checksum identity
 and archive safety before the existing staged bundle install. It selects a new
 user-local default while preserving project data. Compatible projects reopen
@@ -242,11 +245,11 @@ Prerequisites:
 - Permanent rustup in `~/.cargo/bin` and the checked-in `rust-toolchain.toml`
   (Rust 1.99.0). Preserve `Cargo.lock`; the build may download locked dependencies.
   Do not override `CARGO_HOME` or `RUSTUP_HOME`.
+- Node >=22.19 and npm for building the locked model runtime. Built bundles need
+  Node and `flock`, but not npm, Rust or Python.
 - For project execution: a systemd user manager/session bus, `systemctl`,
-  `systemd-run` and an authenticated Codex client exposing the required interface with a usable sandbox. Claude roles additionally require a Claude Code client exposing its required interface and its Bash sandbox dependencies (bubblewrap and socat).
-  [Linux setup](docs/linux-sandbox-setup.md) documents the temporary AppArmor
-  workaround and distribution gaps. Installing Waywr does not authenticate Codex
-  or change shared provider settings.
+  `systemd-run`, Git and the selected SDK provider's credentials/endpoint. Installing
+  Waywr does not sign in or change another agent application's provider settings.
 
 From the Waywr checkout, build and select the paired application with one command:
 

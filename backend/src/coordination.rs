@@ -938,7 +938,7 @@ fn pump_answers(s: &Session) -> Result<(), String> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     pub(super) fn fixture() -> (tempfile::TempDir, Session) {
         crate::provider_selection::recovery_tests::fixture()
@@ -946,7 +946,7 @@ mod tests {
     pub(super) fn input(s: &Session, id: &str, text: &str, card_id: Value) -> Value {
         command(s,&json!({"command_id":id,"action":"coordination.submit","payload":{"subject_id":"discussion","text":text,"interaction":{"version":1,"subject_id":"discussion","card_id":card_id,"provenance":{"deliberate_submission":true,"kind":"deliberately submitted paste or recall"}}}})).unwrap()
     }
-    pub(super) fn seed(s: &Session) -> String {
+    pub(crate) fn seed(s: &Session) -> String {
         let sent=s.conversation_submit(&json!({"command_id":"fixture-request","action":"submit_message","payload":{"text":"Fixture request, no native execution","subject_id":"discussion"}})).unwrap();
         let mut c = s.workflow.connection().unwrap();
         let tx = c.transaction().unwrap();
@@ -989,7 +989,7 @@ mod tests {
             .unwrap()
             .into()
     }
-    pub(super) fn present(s: &Session, id: &str) {
+    pub(crate) fn present(s: &Session, id: &str) {
         assert_eq!(command(s,&json!({"command_id":format!("show-{id}"),"action":"coordination.present","payload":{"subject_id":"discussion","card_id":id}})).unwrap()["status"],"accepted");
     }
     #[test]

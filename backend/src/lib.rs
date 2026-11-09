@@ -46,7 +46,7 @@ pub mod project_layout;
 mod worker_activity;
 
 pub mod provider_selection;
-pub mod development_claude;
+pub mod model_runtime;
 pub mod coordination;
 
 pub mod request_routing;
@@ -60,5 +60,3 @@ pub mod candidate;
 pub mod project_resources;
 
 pub mod project_publication;
-
-pub mod ollama;

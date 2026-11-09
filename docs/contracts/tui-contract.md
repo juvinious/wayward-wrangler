@@ -18,6 +18,11 @@ provider failures name the unavailable reply and preserve the user's message, wi
 marking a delivered development request failed. The human-verified recap and its
 limits are recorded in the [checkpoint](../archive/conversational-coordination/2026-10-17-verified-checkpoint.md).
 
+F3 provider selection now uses the [shared model catalog](../provider-selection.md):
+F searches provider/model names, V/C cycle providers/models, and IDs/options JSON
+remain editable. Activity/usage reflect SDK reports; context remaining is estimated
+when known, cost can be estimated or unknown, and account quota is not inferred.
+
 ## Presentation
 
 Conversation is primary. A compact header identifies Wayward Wrangler, project,
