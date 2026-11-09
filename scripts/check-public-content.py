@@ -77,7 +77,7 @@ def main():
     if args.revisions:
         commits = subprocess.check_output(["git", "rev-list", "--end-of-options", args.revisions], cwd=root).decode().splitlines()
         for commit in commits:
-            changed = subprocess.check_output(["git", "diff-tree", "--root", "--no-commit-id", "--no-renames", "--diff-filter=AM", "--name-only", "-r", "-z", commit], cwd=root).decode().split("\0")
+            changed = subprocess.check_output(["git", "diff-tree", "--root", "--no-commit-id", "--no-renames", "--diff-filter=AMT", "--name-only", "-r", "-m", "-z", commit], cwd=root).decode().split("\0")
             for name in set(changed) - {""}:
                 data = subprocess.check_output(["git", "show", f"{commit}:{name}"], cwd=root)
                 errors.extend((f"{commit[:12]}:{label}", issue) for label, issue in inspect(name, data))

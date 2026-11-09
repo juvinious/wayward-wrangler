@@ -82,6 +82,29 @@ class PublicContent(unittest.TestCase):
             allowed = subprocess.run(["python3", str(root / "scripts" / SCRIPT.name)], capture_output=True)
             self.assertEqual(allowed.returncode, 0, allowed.stderr)
 
+    def test_merge_only_private_content_is_checked_after_removal(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp); (root / "scripts").mkdir()
+            shutil.copy2(SCRIPT, root / "scripts" / SCRIPT.name)
+            env = dict(os.environ, GIT_AUTHOR_NAME="Fixture", GIT_COMMITTER_NAME="Fixture", GIT_AUTHOR_EMAIL="source@example.invalid", GIT_COMMITTER_EMAIL="source@example.invalid")
+            def git(*args):
+                return subprocess.check_output(["git", "-C", str(root), "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null", *args], env=env, stderr=subprocess.PIPE)
+            git("init", "--initial-branch=main", "--template="); git("add", "."); git("commit", "-m", "Fixture baseline")
+            baseline = git("rev-parse", "HEAD").decode().strip()
+            git("checkout", "-b", "feature"); (root / "feature.txt").write_text("Feature\n")
+            git("add", "."); git("commit", "-m", "Feature")
+            git("checkout", "main"); (root / "main.txt").write_text("Main\n")
+            git("add", "."); git("commit", "-m", "Main")
+            git("merge", "--no-ff", "--no-commit", "feature")
+            contact = b"synthetic-person" + b"@" + b"corporate" + b".com"
+            (root / "removed.txt").write_bytes(contact)
+            git("add", "."); git("commit", "-m", "Merge fixture")
+            git("rm", "removed.txt"); git("commit", "-m", "Remove fixture")
+            run = subprocess.run(["python3", str(root / "scripts" / SCRIPT.name), "--revisions", baseline + "..HEAD"], capture_output=True, env=env)
+            self.assertNotEqual(run.returncode, 0)
+            self.assertIn(b"non-example contact address", run.stderr)
+            self.assertNotIn(contact, run.stdout + run.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()
