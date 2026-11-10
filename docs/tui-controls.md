@@ -35,7 +35,8 @@ with zero catalog models; a zero-result model list explains manual entry.
 
 The Thinking field opens levels supplied by the selected model's runtime
 metadata, using the same picker controls. F3 pins draft and active model/level
-labels; the main header shows the active pair. Choosing or saving a different
+labels; the main header shows the saved coordinator choice first and any different
+active binding with its readiness state. Choosing or saving a different
 level does not switch the active coordinator or expand its context grant.
 
 The full filtered catalog is navigable; only the visible viewport is rendered.

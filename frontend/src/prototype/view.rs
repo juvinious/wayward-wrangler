@@ -2637,8 +2637,8 @@ impl App {
         let base = Style::default().fg(fg).bg(bg);
         frame.render_widget(Block::default().style(base), screen);
         let wide = screen.width >= 110;
-        let active_model=self.active_model_label();
-        let selection_h=active_model.as_ref().map(|s|Paragraph::new(s.as_str()).wrap(Wrap{trim:false}).line_count(screen.width).min(2) as u16).unwrap_or(0);
+        let active_model=self.model_header_label();
+        let selection_h=active_model.as_ref().map(|s|Paragraph::new(s.as_str()).wrap(Wrap{trim:false}).line_count(screen.width).min(3) as u16).unwrap_or(0);
         let header_h = 1+selection_h;
         let empty_session = self.live.as_ref().map_or(
             self.journal.first == First::Empty && self.journal.second == Second::None,

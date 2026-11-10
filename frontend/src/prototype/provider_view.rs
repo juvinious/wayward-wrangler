@@ -13,7 +13,22 @@ impl App {
     }
     fn active_model_label(&self)->Option<String> {
         let profile=self.chat().map(|c|c["profile"].clone()).unwrap_or_else(||self.provider_state()["coordinator"]["profile"].clone());
-        profile["model"].as_str().map(|model|format!("Model: {model} · thinking {} · {}",self.thinking_label(&profile),profile["provider"].as_str().unwrap_or("unconfigured")))
+        self.profile_model_label(&profile)
+    }
+    fn profile_model_label(&self,profile:&Value)->Option<String>{
+        profile["model"].as_str().map(|model|format!("Model: {model} · thinking {} · {}",self.thinking_label(profile),profile["provider"].as_str().unwrap_or("unconfigured")))
+    }
+    fn model_header_label(&self)->Option<String>{
+        let saved=self.live.as_ref().and_then(|live|live.conversation.as_ref()).and_then(|c|{
+            let prefs=&c["development"]["providers"]["preferences"];
+            prefs["coordinator"].as_str().and_then(|name|prefs["profiles"].get(name))
+        }).and_then(|profile|self.profile_model_label(profile));
+        let active=self.active_model_label();
+        match (saved,active){
+            (Some(saved),Some(active)) if saved!=active=>Some(format!("Saved {saved}\nActive ({}): {active}",self.chat().and_then(|chat|chat["status"].as_str()).unwrap_or("unavailable"))),
+            (Some(saved),_)=>Some(format!("Saved {saved}")),
+            (None,active)=>active,
+        }
     }
     fn provider_state(&self) -> Value {
         self.development_view()["providers"].clone()
@@ -501,6 +516,29 @@ mod provider_ui_tests {
             "discovery":{"providers":[{"id":"provider-a"},{"id":"provider-b"},{"id":"provider-empty"}],"models":models}}}}));
         app.input(Event::Key(KeyEvent::new(KeyCode::F(3),KeyModifiers::NONE)));
         app
+    }
+    #[test]
+    fn main_header_reflects_saved_model_level_and_labels_a_different_blocked_binding(){
+        let mut app=navigation_app();app.modal=Modal::None;
+        let c=app.live.as_mut().unwrap().conversation.as_mut().unwrap();
+        c["development"]["providers"]["preferences"]["profiles"]["default"]["options"]["reasoning"]=serde_json::json!("high");
+        c["development"]["providers"]["discovery"]["models"][0]["thinking_levels"]=serde_json::json!(["off","high"]);
+        c["chat"]=serde_json::json!({"status":"blocked","profile":{"provider":"retired-provider","model":"old-model","effort":"medium"}});
+        let screen=capture(&mut app,100,28,"saved-versus-active-header");
+        let rows=screen.lines().collect::<Vec<_>>();
+        assert!(rows[1].contains("Saved Model: model-00")&&rows[1].contains("thinking high"),"The primary model header must reflect the saved selection");
+        assert!(screen.contains("Active (blocked): Model: old-model"));
+        assert!(screen.contains("legacy medium"));
+        assert!(app.take_intent().is_none());
+        // A subsequent authoritative save revision updates the primary label.
+        let mut c=app.live.as_ref().unwrap().conversation.clone().unwrap();
+        c["development"]["providers"]["revision"]=serde_json::json!(2);
+        c["development"]["providers"]["preferences"]["profiles"]["default"]["options"]["reasoning"]=serde_json::json!("off");
+        app.apply_snapshot(&serde_json::json!({"conversation":c,"session":{"phase":"paused"},"tasks":[],"recent_events":[]}));
+        let screen=capture(&mut app,100,28,"saved-header-refresh");
+        assert!(screen.lines().nth(1).unwrap().contains("thinking off"));
+        assert!(screen.contains("legacy medium"));
+        assert!(app.take_intent().is_none());
     }
     #[test]
     fn thinking_selection_uses_runtime_choices_and_shows_draft_and_active_levels() {

@@ -1,70 +1,64 @@
-# Waywr handoff — populated-project snapshot delivery
+# Waywr handoff — saved model header versus active binding
 
-Branch: `plan/usability-and-installation`. Base: `d49ccee` (portable handover).
-Follow [AGENTS.md](../AGENTS.md), [IPC contract](contracts/session-protocol.md) and
-[distribution contract](distribution.md). Local commits only; the user handles
-remote delivery. No operator service restart, preserved-project edit, global
-installation or account/model call was performed by the agent.
+Branch: `plan/usability-and-installation`. Base: `6956061` (populated snapshots).
+Follow [AGENTS.md](../AGENTS.md), [controls](tui-controls.md) and
+[provider contract](provider-selection.md). Local commits only; the user handles
+remote delivery. No operator service/state/settings or account was changed.
 
-## Observed failure and fix
+## Current outcome
 
-The operator's handover succeeded, but normal opening twice returned connection
-closed. Read-only status/journal/socket diagnosis established that the new service
-was active, accepted hello and answered status, then closed on snapshot. Read-only
-SQLite size aggregates showed the complete catalog alone uses560KB alongside
-substantial retained work. No operator history/prose was copied into fixtures.
-An isolated populated-project TUI reproduced the exact EOF before the composer.
+The user's screenshot showed a saved shared-runtime profile with thinking high,
+while the purple main header displayed the old blocked native binding's legacy
+medium. The save had succeeded; the header described a different state without
+making that distinction clear enough.
 
-IPC now separates requests from replies through shared `ipc_limits.rs` constants:
-incoming frames stay1MiB, mutation commands stay64KiB, and complete replies may be
-8MiB. No model entries or retained history are removed to fit. Replies above8MiB
-return a correlated response_too_large error with kind/bytes/budget; the connection
-remains usable. No partial snapshot is applied and the error grants no replay.
-The whole-snapshot architecture remains bounded; larger projects will need scoped/
-paged views. This slice does not claim arbitrary-size history delivery.
-
-Handover uses the old service's bounded session.status reply to prove its project
-instead of requiring a full snapshot that the old service cannot serialize.
-Exact process/executable/command, socket peer PID, project key, ownership and
-execution/quiescence checks remain. An unrelated, attached, pending or uncertain
-owner is still preserved. The new service can then deliver the complete snapshot.
-
-The Thinking selector, runtime-advertised levels, draft/active model-level labels,
-complete model picker and broad shared SDK execution path are unchanged. No provider
-or model allowlist was introduced. Saved profile/context/policy grants and all
-retained evidence remain intact. Real account login, model quality/useful delivery
-and public download/update/package channels remain unverified or incomplete.
+The primary model header now says Saved Model and reads the authoritative saved
+coordinator preference, including provider/model and thinking level. A different
+current binding appears on a separate Active (STATUS) line. Matching values need
+no duplicate line; older modes without shared preferences keep their prior view.
+A saved preference revision updates the primary line through normal snapshots.
+Unsaved F3 edits remain Draft; neither display nor preference save changes the
+active coordinator, grants context or authorizes model execution. The header
+allows a bounded extra wrapped row so both labels can be read at normal widths.
 
 ## Verification
 
-Frontend socket checks deliver a reply above1MiB while still rejecting expanded
-request/command inputs and enforcing the reply ceiling. The service overflow check
-receives the correlated error and successfully reads the next reply on the same
-socket. Both use isolated socket pairs. The populated paired-binary/TUI fixture
-opens, chooses/saves model and thinking settings, removes the old build and reopens
-with the full history, settings, draft and pause preserved; no model call occurs.
+The input/render regression first failed because the primary line retained the
+old binding. It now shows saved high and separately labels blocked legacy medium;
+a later authoritative snapshot changes the saved level while preserving the active
+binding and emitting no action. Existing provider/Thinking/control checks pass.
+The locked remapped release build and actual paired-binary TUI save/reopen fixture
+pass with populated history, model/thinking persistence, saved draft/pause and no
+model calls. Only display/labels changed; backend execution and IPC are unchanged.
+Public-content checks cover source/binaries and the review bundle. Local CI/release
+workflow edits include the focused provider/header UI checks. Dependencies
+and locks are unchanged. Hosted workflows have not been run by the agent.
 
-A real-systemd portable upgrade fixture copies the previous1MiB binary into its
-own temporary bundle/project. It first proves that service accepts hello/status
-but closes its populated snapshot. The new launcher preserves busy UI/pending/
-uncertain ownership, then hands over after detach and opens the complete project.
-The old bundle is removed, PID/generation advance and retained settings/draft stay
-unchanged. Test units self-clean; this is not an operator-project trial.
+The prior snapshot fix still delivers whole replies up to8MiB while retaining
+1MiB incoming and64KiB command budgets. Oversized replies are correlated errors.
+Bounded-status handover supports old services that cannot deliver their snapshot;
+process/socket/project/idle ownership checks remain. No catalog/history truncation
+or provider/model allowlist was added. Real account login/model quality/useful
+delivery and public download/update/package channels remain unverified/incomplete.
 
-The remapped locked release build and source/binary/bundle public-content checks
-pass. CI/release arguments include populated history plus focused IPC budget/error
-checks; those workflow edits are local, not hosted CI evidence. Dependencies and
-Cargo/npm locks remain unchanged. No remote operations were performed.
+## Pending cleanup decision
+
+The user proposed discarding old development-era state. Read-only inspection found
+36 managed worktrees, one with a tracked edit and seven untracked entries, and nine
+with commits absent from the primary checkout. The primary checkout is clean and
+current provider configuration is schema3. The requested cleanup-scope question
+has not been answered. No worktree, branch, history or state has been deleted.
+Do not interpret the later header screenshot as authorization to discard code.
 
 ## Next authorized action
 
-The ignored `target/local-bin/waywr` entry points to `v0.4.0-local.snapshots`,
-manifest SHA256 `aad6e9c89aaefcf0087a2605559af9fb6cb4b02dfbc9f42bfe652f78105a561c`.
-The user retries the same local command. The agent has left the operator's
-running service/state unchanged; the user's launcher performs any verified idle
-handover. Do not force-stop or infer settlement if a concrete ownership refusal
-remains. Continue from ordinary-use feedback without another broad test campaign.
+The ignored `target/local-bin/waywr` entry uses `v0.4.0-local.header`, manifest
+SHA256 `0045e341166fc674504766dbc5bdc1ea627333857471ec6485d210721f581ae7`. The
+user detaches the open TUI and relaunches to see Saved versus Active explicitly.
+Switch/context/policy changes remain explicit, not a consequence of rendering.
+Resolve cleanup scope before any destructive work; otherwise continue from the
+next concrete ordinary-use issue rather than broad testing or legacy migration.
 
-Owners: [IPC](contracts/session-protocol.md), [distribution](distribution.md),
-[verification](verify-usability.md), [providers](provider-selection.md),
-[controls](tui-controls.md), [architecture](architecture.md).
+Owners: [providers](provider-selection.md), [controls](tui-controls.md),
+[distribution](distribution.md), [IPC](contracts/session-protocol.md),
+[verification](verify-usability.md).

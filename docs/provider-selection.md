@@ -47,7 +47,8 @@ F3, section1 Profiles:
   The choice is saved as `options.reasoning`. Selecting another model keeps a
   compatible explicit level or selects that model's advertised default. Other
   model-specific options reset when changing models. F3 labels the draft and
-  active model/level separately; the main view shows the active coordinator pair.
+  active model/level separately. The main view puts the saved coordinator choice
+  first; any different active binding is separately labelled with its status.
   S saves preferences without silently changing the active binding.
 - S saves a profile revision; L reloads. R refreshes local runtime/catalog/config
   metadata. It performs no inference, login, download or authenticated catalog call.

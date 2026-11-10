@@ -29,7 +29,8 @@ Use `waywr models login PROVIDER --method oauth` (or `apiKey` when supported), t
 F3 →1 →F to select a model and S to save before requesting work.
 Choose Thinking in the profile form to select one of that model's advertised
 levels before saving. F3 labels draft and active selections; the main header
-shows the active coordinator's model and level.
+shows the saved coordinator model/level first and any different active binding
+with its readiness state.
 For an existing project, use section4 Switch after saving a different coordinator;
 saving preferences alone does not change the active binding.
 

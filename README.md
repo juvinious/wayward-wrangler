@@ -162,7 +162,8 @@ form. E permits exact IDs absent from the catalog. Fixed footer hints follow the
 [TUI keyboard contract](docs/tui-controls.md).
 The Thinking field lists the selected model's supported levels and saves the
 choice with its profile. F3 shows draft and active model/level separately; the
-main view shows the active coordinator pair.
+main view shows the saved coordinator selection first and explicitly labels any
+different active binding and its readiness state.
 
 Development activity labels follow saved event status and review disposition, so
 prose about failed-save tests cannot mark a passing review as failed. A completed
