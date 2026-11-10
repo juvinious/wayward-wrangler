@@ -211,7 +211,7 @@ impl App {
             return "Editing · arrows/Home/End cursor · Enter accept · Esc cancel\nTab/Shift-Tab accept and move focus · S saves after leaving the editor".into();
         }
         let local = match self.provider_section {
-            0 => "↑/↓ or Tab/Shift-Tab field · Enter choose/edit · E manual ID · F or / all models",
+            0 => "↑/↓ or Tab/Shift-Tab field · Enter choose/edit · F models · A activate saved",
             1 => "↑/↓ role · ←/→ profile · Space allowed · Enter default · I inherit · W worker",
             2 => "↑/↓ role · ←/→ profile · Space append/remove fallback",
             3 => "←/→ profile · G context grant · I interrupt mode · Enter switch · C cancel",
@@ -243,7 +243,7 @@ impl App {
             rect.height,
         );
         frame.render_widget(Clear, rect);
-        let title = if let Some(picker) = &self.provider_picker {
+        let title = if self.provider_activation.is_some(){"Activate saved model".into()}else if let Some(picker) = &self.provider_picker {
             match &picker.scope {
                 CatalogScope::Providers => "Choose provider".to_owned(),
                 CatalogScope::Models(Some(p)) => format!("Choose model · {p}"),
@@ -270,6 +270,7 @@ impl App {
         if inner.width == 0 || inner.height == 0 {
             return;
         }
+        if self.provider_activation.is_some(){self.render_activation_review(frame,inner,base,accent);return;}
         let footer = self.provider_footer();
         let footer = Paragraph::new(footer)
             .wrap(Wrap { trim: false })

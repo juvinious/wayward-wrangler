@@ -31,6 +31,36 @@ def wait_for(check, message, seconds=15):
         time.sleep(.05)
 
 
+def terminal_text(data, rows, columns):
+    """Reconstruct Ratatui's positioned text instead of concatenating diff writes."""
+    grid = [[' '] * columns for _ in range(rows)]
+    x = y = 0
+    for match in re.finditer(r'\x1b\[([0-?]*)([ -/]*)([@-~])|([^\x1b])', data.decode(errors='replace'), re.S):
+        params, _, command, char = match.groups()
+        if command:
+            if command not in 'HfABCDJK' or re.fullmatch(r'[0-9;]*', params) is None:
+                continue
+            values = [int(p) if p else 0 for p in params.split(';')]
+            count = values[0] or 1
+            if command in ('H', 'f'):
+                y = min(rows - 1, max(0, count - 1))
+                x = min(columns - 1, max(0, (values[1] if len(values) > 1 else 1) - 1))
+            elif command == 'A': y = max(0, y - count)
+            elif command == 'B': y = min(rows - 1, y + count)
+            elif command == 'C': x = min(columns - 1, x + count)
+            elif command == 'D': x = max(0, x - count)
+            elif command == 'J' and values[0] in (2, 3): grid = [[' '] * columns for _ in range(rows)]
+            elif command == 'K':
+                start, end = (0, columns) if values[0] == 2 else (0, x + 1) if values[0] == 1 else (x, columns)
+                grid[y][start:end] = [' '] * (end - start)
+        elif char == '\r': x = 0
+        elif char == '\n': y = min(rows - 1, y + 1)
+        elif char and char.isprintable():
+            grid[y][x] = char
+            x = min(columns - 1, x + 1)
+    return '\n'.join(''.join(row) for row in grid)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--binaries', type=Path, default=Path('target/release'))
@@ -38,6 +68,8 @@ def main():
                         help='Open schema-2 native settings for F3 replacement without executing or rewriting them')
     parser.add_argument('--provider-navigation', action='store_true',
                         help='Use real F3 terminal input to select a model at the end of the catalog and save it in the fixture')
+    parser.add_argument('--activate-profile', action='store_true',
+                        help='Explicitly activate the saved model through its F3 review while the fixture session is paused')
     parser.add_argument('--systemd-handover', action='store_true',
                         help='Use real uniquely keyed user units; replace a still-running idle service')
     parser.add_argument('--portable', action='store_true',
@@ -51,6 +83,8 @@ def main():
         parser.error('--portable requires --systemd-handover to exercise ordinary service replacement')
     if args.previous_binaries and not (args.systemd_handover and args.populated_history):
         parser.error('--previous-binaries requires --systemd-handover and --populated-history')
+    if args.activate_profile and (not args.provider_navigation or args.systemd_handover):
+        parser.error('--activate-profile requires --provider-navigation with the direct isolated service')
     binaries = args.binaries.resolve()
     source = Path(__file__).resolve().parent.parent
     for name in ['waywr', 'waywr-service', 'waywr-runner']:
@@ -286,10 +320,11 @@ def main():
                         text = re.sub(rb'\x1b\[[0-?]*[ -/]*[@-~]', b' ', screen)
                         return re.search(rb'Provider\s+setup\s+required', text) is not None
                     deadline = time.monotonic() + 10
-                    while not setup_visible() and time.monotonic() < deadline:
+                    while not setup_visible() and time.monotonic() < deadline and not (args.activate_profile and expected_draft is not None):
                         if select.select([master], [], [], .1)[0]:
                             screen.extend(os.read(master, 65536))
-                    assert setup_visible(), ('F3 setup was not reachable: ' + screen.decode(errors='replace')[-1500:])
+                    if not (args.activate_profile and expected_draft is not None):
+                        assert setup_visible(), ('F3 setup was not reachable: ' + screen.decode(errors='replace')[-1500:])
                 if args.provider_navigation and expected_draft is None:
                     if not args.retired_profiles:
                         os.write(master, b'\x1b[13~')
@@ -309,6 +344,28 @@ def main():
                                 and profile.get('options', {}).get('reasoning') == selected_thinking)
                     wait_for(profile_saved, 'The explicit picker selection/save did not reach project preferences')
                     before[profile_path] = profile_path.read_bytes()
+                    if args.activate_profile:
+                        def wait_for_text(pattern, message):
+                            deadline = time.monotonic() + 10
+                            while time.monotonic() < deadline:
+                                text = terminal_text(screen, rows, columns).encode()
+                                if re.search(pattern, text):
+                                    return
+                                if select.select([master], [], [], .1)[0]:
+                                    screen.extend(os.read(master, 65536))
+                            raise AssertionError(message + ': ' + screen.decode(errors='replace')[-1200:])
+                        wait_for_text(rb'Preferences\s+saved', 'The form did not acknowledge its durable save')
+                        os.write(master, b'a')
+                        wait_for_text(rb'Activate\s+saved\s+model', 'Profiles did not open its activation review')
+                        os.write(master, b'\x1b[C\r')
+                        def activation_applied():
+                            with sqlite3.connect(state / 'state.sqlite') as database:
+                                row = database.execute("SELECT value FROM session_metadata WHERE name='provider_coordinator'").fetchone()
+                                profile = json.loads(row[0])['profile']
+                                return (profile['provider'] == selected_provider and profile['model'] == selected_model
+                                        and profile.get('options', {}).get('reasoning') == selected_thinking)
+                        wait_for(activation_applied, 'The explicit activation review did not change the coordinator binding')
+                        assert json.loads(run([launcher, 'session', 'status']))['session']['phase'] == 'paused', 'Activation resumed a paused session'
                 if args.provider_navigation and expected_draft is not None:
                     profile = json.loads((project / '.waywr/coordinator.json').read_text())['profiles']['default']
                     assert profile['options']['reasoning'] == selected_thinking, 'Thinking choice did not survive reopening'
@@ -391,6 +448,14 @@ def main():
                 stop_service()
                 seed_history()
                 start_service(releases[0])
+            if args.activate_profile:
+                run([launcher, 'session', 'stop'])
+                wait_for(lambda: json.loads(run([launcher, 'session', 'status']))['session']['phase'] == 'paused',
+                         'Activation fixture did not reach its explicit pause')
+                # Exit drains/stops this fixture service. Bring the same saved
+                # pause back with the direct host before testing UI activation.
+                stop_service()
+                start_service(releases[0])
             open_and_detach()
             run([launcher, 'session', 'stop'])
             wait_for(lambda: json.loads(run([launcher, 'session', 'status']))['session']['phase'] == 'paused',
@@ -403,6 +468,12 @@ def main():
             refuses_invalid_metadata()
             start_service(releases[1])
             open_and_detach(draft)
+            if args.activate_profile:
+                with sqlite3.connect(state / 'state.sqlite') as database:
+                    row = database.execute("SELECT value FROM session_metadata WHERE name='provider_coordinator'").fetchone()
+                    profile = json.loads(row[0])['profile']
+                    assert (profile['provider'], profile['model'], profile['options']['reasoning']) == (
+                        selected_provider, selected_model, selected_thinking), 'Activated binding did not survive reopening'
             if args.populated_history:
                 inspect_populated_snapshot(releases[1])
             status = json.loads(run([launcher, 'session', 'status']))
@@ -414,6 +485,7 @@ def main():
             print(json.dumps({'reopened_with_old_build_removed': True,
                               'catalog_navigation_saved_and_reopened': args.provider_navigation,
                               'thinking_level_saved_and_reopened': args.provider_navigation,
+                              'model_activated_without_resuming': args.activate_profile,
                               'populated_history_snapshot_delivered': args.populated_history,
                               'draft_settings_and_pause_preserved': True,
                               'manual_rebinds': 0, 'model_calls': 0,

@@ -41,8 +41,14 @@ level does not switch the active coordinator or expand its context grant.
 
 The full filtered catalog is navigable; only the visible viewport is rendered.
 Counters distinguish total matches from the highlighted position. Selecting a
-model changes the draft only. S persists it; coordinator switching and exact
-context/policy grants remain explicit in their existing sections. Node/runtime
+model changes the draft only. S persists it; A in Profiles reviews activation of
+the selected saved profile. The review pins the target model/level and defaults
+to Keep current. Left/Right, Up/Down or Tab/Shift-Tab selects the action;
+Enter confirms on key press only. Activate and share project context requests
+an after-turn switch with an explicit context grant. Esc returns to the form;
+PgUp/PgDn and Home/End scroll the details while actions remain visible. A changed
+saved revision or binding invalidates the review. Section4 retains advanced
+switch/status/cancellation controls; section6 retains policy amendments. Node/runtime
 and JSON option fields remain available without provider-specific key bindings.
 
 F1 and popup footers provide contextual help. This contract standardizes the

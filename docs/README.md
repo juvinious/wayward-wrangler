@@ -36,7 +36,9 @@ and [distribution](distribution.md) own the connected increment. The
 [TUI keyboard contract](tui-controls.md) owns focused navigation, fixed control
 hints and the complete searchable provider/model picker. The
 Thinking selector uses per-model runtime metadata; F3 and the main header show
-the model/level, with draft and active bindings distinguished. The
+the model/level, with draft and active bindings distinguished. Profiles now offers
+A to review and explicitly activate a saved selection after the current turn,
+preserving pause and existing work policies. The
 idle-service handover also supports a direct temporary paired-bundle symlink,
 with exact process/socket/project checks and preserved busy-owner refusals. The
 complete snapshot reply budget now accommodates the catalog plus retained work;

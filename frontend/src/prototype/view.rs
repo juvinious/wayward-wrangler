@@ -280,6 +280,7 @@ pub struct App {
     question_confirmation:Option<Value>,
     project_edit:Option<Value>,provider_edit:Option<Value>,provider_section:usize,provider_index:usize,provider_row:usize,provider_field:usize,provider_typing:bool,provider_grant:bool,provider_interrupt:bool,
     provider_picker:Option<CatalogPicker>,provider_follow:bool,
+    provider_activation:Option<ActivationReview>,
 }
 
 impl App {
@@ -348,7 +349,7 @@ impl App {
             live,
             pending_primary_task: None,
             submission_draft: None,
-            scope_edit:None,scope_editor:Composer::default(),scope_field:1,scope_ack:None,scope_step:0,conversation_subject:"discussion".into(),queue_index:0,conversation_revision_request:false,question_confirmation:None,project_edit:None,provider_edit:None,provider_section:0,provider_index:0,provider_row:0,provider_field:0,provider_typing:false,provider_grant:false,provider_interrupt:false,provider_picker:None,provider_follow:true,
+            scope_edit:None,scope_editor:Composer::default(),scope_field:1,scope_ack:None,scope_step:0,conversation_subject:"discussion".into(),queue_index:0,conversation_revision_request:false,question_confirmation:None,project_edit:None,provider_edit:None,provider_section:0,provider_index:0,provider_row:0,provider_field:0,provider_typing:false,provider_grant:false,provider_interrupt:false,provider_picker:None,provider_follow:true,provider_activation:None,
         };
         if app.live.is_none() { app.schedule(); }
         if app.journal.effects == "subtle" {
@@ -923,7 +924,7 @@ impl App {
                 }
             }
         }
-        if modal==Modal::Settings&&self.provider_state()["schema_version"]==1{self.provider_edit=Some(self.provider_draft());self.provider_typing=false;self.provider_grant=false;self.provider_interrupt=false;self.provider_picker=None;self.provider_follow=true;}
+        if modal==Modal::Settings&&self.provider_state()["schema_version"]==1{self.provider_edit=Some(self.provider_draft());self.provider_typing=false;self.provider_grant=false;self.provider_interrupt=false;self.provider_picker=None;self.provider_follow=true;self.provider_activation=None;}
         self.modal = modal;
         self.modal_action = 0;
         self.modal_scroll = 0;
@@ -5263,6 +5264,7 @@ mod tests {
 
 include!("provider_view.rs");
 include!("provider_picker.rs");
+include!("provider_activation.rs");
 
 include!("coordination_view.rs");
 

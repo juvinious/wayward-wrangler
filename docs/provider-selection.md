@@ -10,8 +10,8 @@ breadth requirement; no native compatibility route is maintained for this rewrit
 Schema2 settings can be read to open the project and inspect its history. They
 cannot execute. F3 offers a fresh, unsaved schema3 draft from the shared catalog;
 it does not translate old native choices or invoke their executables. Choose the
-provider/model, S save, then section4 Switch: G explicitly grants that exact
-destination selected project context and Enter requests the switch. Saving alone
+provider/model and thinking level, S save, then A reviews activation in Profiles.
+Choose Activate and share project context and Enter to request the switch. Saving alone
 does not replace the active binding. Existing request policies may require a
 separate amendment in section6 Policy. Old preference revisions and bindings stay
 as evidence; no prior approval grants a newly selected destination authority.
@@ -52,6 +52,16 @@ F3, section1 Profiles:
   S saves preferences without silently changing the active binding.
 - S saves a profile revision; L reloads. R refreshes local runtime/catalog/config
   metadata. It performs no inference, login, download or authenticated catalog call.
+- A opens an activation review for the selected saved coordinator-allowed profile.
+  Unsaved edits must be saved first. The review shows the exact model, thinking
+  level, destination and options, and defaults to Keep current. Left/Right or
+  Tab/Shift-Tab chooses the action; Enter confirms, Esc returns to Profiles.
+  Activate and share project context explicitly grants the selected project context
+  and requests the existing switch after the current turn. Changed preferences or
+  binding generation invalidate the review. Activation preserves pause, worker
+  assignments, existing request policies and uncertain-call fences. It does not
+  sign in or amend an existing request's policy. Section4 retains switch status,
+  cancellation and explicit interruption controls.
 - `+` duplicates a profile. Sections2–6 retain role defaults/allowed profiles,
   fallback, coordinator switching, unreserved task overrides and policy amendments.
   A new provider/destination needs the normal saved scope/policy/context grant;

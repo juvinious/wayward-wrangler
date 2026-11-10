@@ -5,7 +5,8 @@ manager, Node >=22.19 and `flock`. Configure a provider through the SDK's explic
 login/environment setup, then choose a provider/model in F3. No native Codex/Claude
 CLI is required. Retired profiles need reconfiguration. Schema2 projects can open
 for inspection and F3 setup while execution stays blocked. Choose a shared
-provider/model, S save, then section4: G grants selected context and Enter switches.
+provider/model, S save, then A reviews activation. Choose Activate and share project
+context and Enter to request the switch after the current turn.
 Existing request policy amendments remain explicit. See [provider setup](provider-selection.md).
 Automated fixtures do not establish account login or model reliability.
 
@@ -31,8 +32,12 @@ Choose Thinking in the profile form to select one of that model's advertised
 levels before saving. F3 labels draft and active selections; the main header
 shows the saved coordinator model/level first and any different active binding
 with its readiness state.
-For an existing project, use section4 Switch after saving a different coordinator;
-saving preferences alone does not change the active binding.
+For an existing project, use A in Profiles after saving a different coordinator.
+Review the model, thinking level and destination, select Activate and share project
+context, then Enter. The default Keep current and Esc leave the binding alone.
+Saving alone does not activate it; activation does not resume a paused session.
+Section4 shows switch status and advanced controls. A policy exclusion still needs
+an explicit amendment in section6.
 
 Discuss one small useful development request. Review its scope/policy card and
 authorize it only when correct. Local delivery keeps this first verification

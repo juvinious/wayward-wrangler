@@ -102,6 +102,7 @@ impl App {
             if saved["revision"].as_u64().is_some_and(|r| r >= revision) {
                 self.provider_edit = Some(saved);
                 self.provider_typing = false;
+                self.notice="Preferences saved. Profiles → A reviews activation of the selected saved profile.".into();
             }
         }
     }
@@ -109,6 +110,7 @@ impl App {
         if key.kind == KeyEventKind::Release {
             return;
         }
+        if self.provider_activation.is_some(){self.activation_key(key);return;}
         if self.provider_picker.is_some(){self.catalog_key(key);return;}
         if key.kind==KeyEventKind::Repeat&&(key.code==KeyCode::Enter||!self.provider_typing&&!matches!(key.code,KeyCode::Up|KeyCode::Down|KeyCode::Left|KeyCode::Right|KeyCode::Tab|KeyCode::BackTab|KeyCode::PageUp|KeyCode::PageDown|KeyCode::Home|KeyCode::End)){return;}
         if !self.provider_typing {
@@ -179,6 +181,7 @@ impl App {
             return;
         }
         match key.code {
+            KeyCode::Char('a') if self.provider_section==0=>self.review_profile_activation(),
             KeyCode::Char('l') => {
                 self.provider_edit = Some(self.provider_draft());
                 self.notice = "Reloaded saved preferences; unsaved edits discarded".into();
@@ -516,6 +519,46 @@ mod provider_ui_tests {
             "discovery":{"providers":[{"id":"provider-a"},{"id":"provider-b"},{"id":"provider-empty"}],"models":models}}}}));
         app.input(Event::Key(KeyEvent::new(KeyCode::F(3),KeyModifiers::NONE)));
         app
+    }
+    #[test]
+    fn profile_activation_reviews_exact_saved_selection_before_granting_context(){
+        let mut app=navigation_app();
+        let c=app.live.as_mut().unwrap().conversation.as_mut().unwrap();
+        c["binding"]=serde_json::json!({"generation":7});
+        c["development"]["providers"]["coordinator"]["profile"]=serde_json::json!({"provider":"retired","model":"old-model"});
+        let key=|code|Event::Key(KeyEvent::new(code,KeyModifiers::NONE));
+        app.input(key(KeyCode::Char('a')));
+        let screen=capture(&mut app,80,24,"activation-review");
+        assert!(screen.contains("Activate saved model"),"Profiles must expose an activation review directly");
+        assert!(screen.contains("model-00")&&screen.contains("provider-a"));
+        assert!(screen.contains("share project context"));
+        assert!(app.take_intent().is_none(),"Opening the review does not grant or switch");
+        app.input(key(KeyCode::Enter));
+        assert!(app.take_intent().is_none(),"Default action keeps the current binding");
+        app.input(key(KeyCode::Char('a')));app.input(key(KeyCode::Right));
+        let mut repeated=KeyEvent::new(KeyCode::Enter,KeyModifiers::NONE);repeated.kind=KeyEventKind::Repeat;
+        app.input(Event::Key(repeated));assert!(app.take_intent().is_none());
+        app.input(key(KeyCode::Enter));
+        assert!(matches!(app.take_intent(),Some(LiveIntent::Dialogue(v)) if v["action"]=="providers.switch"&&v["payload"]["profile_id"]=="default"&&v["payload"]["expected_revision"]==1&&v["payload"]["expected_generation"]==7&&v["payload"]["grant_context"]==true&&v["payload"]["mode"]=="after_current_turn"));
+    }
+    #[test]
+    fn activation_cannot_apply_unsaved_edits_or_a_changed_review_target(){
+        let mut app=navigation_app();
+        app.live.as_mut().unwrap().conversation.as_mut().unwrap()["binding"]=serde_json::json!({"generation":1});
+        let key=|code|Event::Key(KeyEvent::new(code,KeyModifiers::NONE));
+        app.provider_edit.as_mut().unwrap()["preferences"]["profiles"]["default"]["options"]["reasoning"]=serde_json::json!("high");
+        app.input(key(KeyCode::Char('a')));
+        assert!(app.notice.contains("Save"));assert!(app.take_intent().is_none());
+        app.input(key(KeyCode::Char('l')));app.input(key(KeyCode::Char('a')));
+        app.live.as_mut().unwrap().conversation.as_mut().unwrap()["development"]["providers"]["revision"]=serde_json::json!(2);
+        app.input(key(KeyCode::Right));app.input(key(KeyCode::Enter));
+        assert!(app.take_intent().is_none(),"A reviewed profile must not redirect after its saved revision changes");
+        assert!(app.notice.contains("changed"));
+        app.input(key(KeyCode::Esc));assert_eq!(app.modal,Modal::Settings);
+        app.input(key(KeyCode::Char('l')));app.input(key(KeyCode::Char('a')));
+        app.live.as_mut().unwrap().conversation.as_mut().unwrap()["binding"]["generation"]=serde_json::json!(2);
+        app.input(key(KeyCode::Right));app.input(key(KeyCode::Enter));
+        assert!(app.take_intent().is_none(),"A changed binding generation invalidates the review too");
     }
     #[test]
     fn main_header_reflects_saved_model_level_and_labels_a_different_blocked_binding(){

@@ -119,8 +119,9 @@ installation and ordinary-use verification limits.
 
 There is no mandatory call, repair or task-time ceiling. Capacity refusals wait by
 default. Explicitly configured and approved alternatives permit settled-capacity
-fallback. All configured providers use the shared execution path. F3 → Switch defaults
-to after the current turn, with explicit interruption available. Preference edits
+fallback. All configured providers use the shared execution path. F3 Profiles → A
+reviews activation of a saved model after the current turn. Section4 Switch retains
+status, cancellation and explicit interruption controls. Preference edits
 apply to future attempts; reserved profiles and useful work remain intact.
 
 See [provider/role controls](docs/provider-selection.md) for complete F3 controls,
@@ -158,7 +159,10 @@ context and preserves an intentional pause.
 
 F3 → F opens the complete searchable model catalog. Type to filter, Up/Down to
 select and Enter to place a model in the draft; S saves after returning to the
-form. E permits exact IDs absent from the catalog. Fixed footer hints follow the
+form. A reviews activation of that saved profile; choose Activate and share project
+context and Enter to request the after-turn switch. The default Keep current or Esc
+returns without switching. Activation preserves an intentional pause and existing
+work policies. E permits exact IDs absent from the catalog. Fixed footer hints follow the
 [TUI keyboard contract](docs/tui-controls.md).
 The Thinking field lists the selected model's supported levels and saves the
 choice with its profile. F3 shows draft and active model/level separately; the
