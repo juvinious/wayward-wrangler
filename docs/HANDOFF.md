@@ -1,83 +1,70 @@
-# Waywr handoff — recover live updates without replay
+# Waywr handoff — mouse-wheel scrolling
 
-Branch: `plan/usability-and-installation`. Base: `1e09f59` (in-app sign-in).
+Branch: `plan/usability-and-installation`. Base: `5ebbb15` (live-update recovery).
 Follow [AGENTS.md](../AGENTS.md). Local commits only; the user handles remote
-writes. Operator inspection in this slice was read-only: process/unit status,
-SQLite event/turn metadata and sanitized attempt receipts. No operator process,
-service, binding, configuration, credential or source was changed; no request
-was restarted or resent. Tests use isolated projects/Unix sockets/local HTTP.
+writes. No operator project/service/binding/provider configuration/credentials,
+global installation or remote Git state was changed. No account/model call.
 
-## Observed problem and implemented outcome
+## Implemented outcome
 
-The user reports successful sign-in and responsiveness, followed by “Last observed
-coordinator call” with unknown usage and an elapsed “Coordinator working” display.
-Read-only live records confirmed completed shared-runtime calls, completed host
-receipts and usage events, with no reserved conversation turn at inspection.
-The UI's event worker had ended while its command worker remained. The display
-was cached; these observations do not establish completion of useful development
-work or explain the first transport interruption.
+Mouse wheel over the conversation scrolls three lines per notch using the existing
+anchor/follow-latest behavior. New output preserves the reading position; scrolling
+to the bottom resumes following latest. The draft, editor cursor, keyboard focus,
+history and execution actions remain unchanged. Wheel input over controls/editor
+or outside a popup is ignored rather than scrolling its background conversation.
 
-A source regression reproduces a concrete cause: a valid temporary busy/error
-reply was treated as a fatal event-sequence gap, permanently stopping updates.
-Exhausting a snapshot recovery batch also ended the worker permanently. Both
-paths left the UI usable but unable to receive later completions.
+Over a popup, wheel input scrolls its bounded content. The provider/model/thinking
+picker moves its highlighted entry through the existing list navigation without
+applying/saving it or changing its search query. F3 form scrolling disables focus
+following until keyboard navigation resumes. Popup titles/footers remain fixed.
 
-The existing subscriber now lives in frontend/src/event_subscription.rs. Busy/error
-responses, malformed/noncontiguous pages, failed reads and interrupted snapshots
-fence mutations and request verified snapshot recovery. The existing exact owner,
-project/release identity and monotonic cursor checks remain. Exhausting one bounded
-retry batch schedules another background attempt with backoff; it never starts
-another model call, resubmits a command or trusts an unverified owner. Dropping the
-UI update receiver ends the worker. Recovered snapshots restore current state,
-then normal event polling resumes. No backend/wire/dependency change was needed.
+Production and scripted terminal guards enable Crossterm mouse capture and disable
+it on leave/startup failure alongside raw mode, paste and alternate-screen cleanup.
+Only vertical wheel events have actions; click/motion events do not select, change
+focus or request redraw. Hit regions are the last rendered conversation/popup
+rectangles, refreshed each render and cleared for a too-small display. No backend/protocol/dependency
+change or new UI architecture was added. Terminal selection may require Shift.
 
-Disconnected cached work no longer has an active elapsed/spinning indicator.
-Last-observed telemetry remains explicitly labelled; tokens/cost/context can be
-unknown until a provider response supplies usage. Account quota remains unavailable.
+## Evidence and limits
 
-## Verification and limits
+Behavioral red preceded implementation: wheel events left both conversation and
+popup content stationary. Focused regressions now cover chat scroll/anchors/new
+output/follow-latest, draft/focus retention, ignored outside regions, popup bounds
+and model-list movement without applying. The real isolated PTY/scripted-TUI check
+sends SGR wheel bytes through Crossterm, verifies persisted scroll up/down and
+retained unsent draft, and checks mouse-capture disable plus exact terminal-mode
+restoration on exit. It starts no service or account operation. This is the actual
+terminal/input/view path, not proof of desktop trackpad behavior in every emulator.
 
-Behavioral red preceded the fixes: a busy socket reply permanently ended the
-subscriber, and a disconnected cached reservation kept its working timer. Both
-regressions now pass. The actual Unix-socket subscriber test supplies a busy page,
-six failed snapshot reads, then a verified completed-state snapshot. It observes
-mutation fencing, the recovered cursor/revision and only snapshot/events requests.
-The existing lost-snapshot/handshake recovery regression also passes. UI checks
-retain the connected active timer and suppress only the disconnected claim.
-
-The remapped paired release passes the existing real isolated --controls journey:
-actual TUI/systemd/service/runner/SDK, one held local HTTP stream, interrupt,
-draft retention, prompt leave while stopping, same-owner reattachment, held
-unconsumed steering/follow-ups without replay, separate pause and disconnected
-leave. Only fixture units are stopped; no account is contacted. Source/binary/bundle
-public-content, schema/reference and diff checks pass. Hosted checks are only
-prepared in source, not run remotely. No lock/dependency upgrade or global install.
-
-The original transient service/transport failure was not retained in the inspected
-metadata. The source-level fatal-recovery paths are reproduced and fixed; ordinary
-operator confirmation of the refreshed UI remains. Actual sign-in and completed
-provider calls are now reported/observed for the operator's selected route, not
-proof of all account/model access, token refresh, model quality or useful delivery.
+The remapped paired release, public-content source/binary/bundle gates, relative
+references and diff checks pass. CI/release checks are prepared locally; no hosted
+workflow was run. Broader service/model campaigns were not repeated for this UI-only
+change. The ignored target/local-bin/waywr points to the temporary paired candidate;
+target/local-bin/candidate.json records its actual source/artifact identity.
 
 ## Existing behavior and next action
 
-`1e09f59` implements /login and F3 G using SDK-advertised methods, private masked
-entry, browser/manual callback handling and cancellation. SDK static OAuth flows
-are bundled; login/refresh diagnostics suppress response bodies. Keys/codes stay
-outside project IPC/outboxes/history. Sign-in never releases held inputs.
-`2c6451a` implements exact-turn Enter steering, separate Alt+Enter follow-ups,
-F7/E restoration, multiline/history and direct model/thinking/status controls.
-Earlier direct interrupt/leave/pause and renewable-session contracts remain:
-obsolete/stranded state is retired only after exact-owner fencing; source/Git/
-worktrees remain, compatible busy owners stay attachable and retired calls never
-replay. These mechanisms must not narrow provider/model support.
+`5ebbb15` keeps the read-only event subscriber recovering after busy/error replies,
+transport loss, noncontiguous pages and exhausted snapshot retry batches. Recovery
+requires the verified owner and monotonic coherent snapshot; it never resends a
+command/call. Disconnected cached work has no active elapsed timer. Read-only
+operator receipts had confirmed completed model calls/usage behind the stale UI;
+the initial transient failure itself was not retained in inspected metadata.
+`1e09f59` adds /login and F3 G with SDK-advertised methods, private masked entry,
+browser/manual callback handling and sanitized exchange/refresh diagnostics.
+`2c6451a` adds Enter steering, separate Alt+Enter follow-ups, F7/E restore, multiline/
+history and direct model/thinking/status controls. Direct interrupt/leave/pause,
+renewable obsolete sessions and compatible busy-owner attachment remain. Preserve
+source/Git/worktrees, exact execution ownership, approval boundaries and no replay;
+keep model/provider catalogs/options outside core routing.
 
-The ignored target/local-bin/waywr is the paired temporary local launcher;
-target/local-bin/candidate.json records its actual source/artifact identity.
-Next: the user leaves the stale UI with Ctrl-Q and relaunches that launcher to
-load retained results, then continues the bounded [walkthrough](verify-usability.md).
-Do not resubmit work merely to repair its display. Operator installation/account
-calls remain explicit; no broad test campaign or orchestration redesign first.
+Next is the user's normal walkthrough after reopening the refreshed local launcher:
+scroll retained output and continue useful work, interrupt/redirect, leave/return,
+rebuild and continue. Account access was reported/observed for the selected route,
+not all models/accounts; quality/useful delivery/refresh remain to assess. Public
+installer/update/uninstall, workflow-wide usage and the substantial application
+remain later work. Do not infer permission for account calls or global installs.
 
-Owners: [providers](provider-selection.md), [controls](tui-controls.md),
-[live input](live-input.md), [architecture](architecture.md), [plan](usability-plan.md).
+Owners: [controls](tui-controls.md), [live input](live-input.md),
+[providers](provider-selection.md), [plan](usability-plan.md),
+[user walkthrough](verify-usability.md).

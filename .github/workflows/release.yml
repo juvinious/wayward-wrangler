@@ -47,6 +47,9 @@ jobs:
           cargo test --locked -p waywr-backend --lib compatible_ui
           cargo test --locked -p waywr --lib protocol::tests
           cargo test --locked -p waywr --lib provider_ui_tests
+          cargo test --locked -p waywr --lib mouse_wheel_
+          cargo build --locked -p waywr --bin waywr-ui-prototype
+          python3 scripts/test-mouse-scroll.py
           cargo test --locked -p waywr --lib disconnected_work_indicator
           cargo test --locked -p waywr --lib coordinator_usage
           cargo test --locked -p waywr --lib escape_and_control_c

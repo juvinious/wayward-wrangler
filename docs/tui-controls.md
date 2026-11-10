@@ -14,11 +14,16 @@ and execution approvals. Browsing never grants authority or executes work.
 | Read-only content popup | Up/Down scrolls a line; PageUp/PageDown scrolls eight lines; Home/End goes to the start/end. Alt+PageUp/PageDown moves one line. |
 | Modal action row | Left/Right or Tab/Shift-Tab selects an action. Enter activates it. The initial choice stays non-destructive. |
 | Existing task, queue, question and history lists | Up/Down selects a row. Actions remain in their own action row. Page keys scroll displayed content. |
+| Mouse wheel | Over conversation: scroll three lines per notch, keep the reading anchor through new output, and return to following latest at the bottom. Over a popup: scroll its content; provider/model pickers move their highlight without applying. Outside those regions: ignore. Focus, composer text and actions are unchanged. |
 | Main composer | Up/Down moves within multiline input and recalls history at its first/last line. Ctrl-J or Shift+Enter inserts a newline; F2 is the fallback. Enter sends idle input or steers an active coordinator; Alt+Enter queues a follow-up. Ctrl-C/Esc clears nonempty input or interrupts with empty input. Tab/Shift-Tab changes focus. |
 | Conversation queue | F7 opens pending/applied steering and queued/held follow-ups. Up/Down selects; E withdraws/restores a pending input for editing. Applied/claimed inputs cannot be edited. Restore never sends. |
 | Provider sign-in | /login or F3 G. Up/Down and Enter choose a provider/method or SDK choice. Private single-line editor for keys/codes. Ctrl-B reopens the browser URL; PageUp/PageDown scrolls details. Esc backs out/cancels; Ctrl-Q still leaves. Draft/history never receives credential input. |
 | Leave | Ctrl-Q from any overlay/editor; Ctrl-D with empty input; `/detach`, `/exit`, `/quit`. Save local draft and leave immediately without confirmation or settlement wait, including disconnected state. |
 | Interrupt / pause | Visible Interrupt action or `/interrupt` stops only the foreground coordinator directly. Show Stopping until settlement; typing and leaving remain available. `/pause` separately stops new dispatch; `/resume` continues it. |
+
+Mouse capture is enabled only while the TUI runs and is restored on leave or
+startup failure. Other mouse events do not act as clicks or change focus. Terminal
+text selection may require Shift while capture is active.
 
 Esc closes a popup only after its nested picker/editor has been left. Page and
 Escape handling must not bypass the focused editor. Holding navigation keys

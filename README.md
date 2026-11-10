@@ -144,6 +144,7 @@ this runtime. Each new request and approval belongs to you.
 | Left / Right in modal action rows | Select previous/next option; Enter activates it. Tab / Shift-Tab also selects |
 | F3 | Provider/model and project settings; arrows/Tab/Shift-Tab move focus, Enter chooses/edits, Esc backs out one level |
 | F6 | Inspect scopes and concurrent child tasks |
+| Mouse wheel | Scroll the conversation or popup under the pointer, three lines per notch; provider/model pickers scroll without applying |
 | F7, then E | Restore a pending steering input or queued follow-up for editing; applied inputs cannot be withdrawn |
 | `/model`, `/thinking`, `/status` | Open the model picker, thinking picker, or current session/model/queue/usage summary |
 | `/discuss` | Explicitly switch chat to the inspected task’s request |

@@ -268,6 +268,8 @@ pub struct App {
     pub screen_width: u16,
     pub modal_scroll: u16,
     modal_scroll_limit: u16,
+    conversation_rect:Rect,
+    modal_rect:Rect,
     pub history_index: usize,
     pub input_history: InputHistory,
     pub viewport_top: usize,
@@ -352,6 +354,7 @@ impl App {
             screen_width: 80,
             modal_scroll: 0,
             modal_scroll_limit: 0,
+            conversation_rect:Rect::default(),modal_rect:Rect::default(),
             history_index: 0,
             input_history: InputHistory::default(),
             viewport_top: 0,
@@ -2186,7 +2189,23 @@ impl App {
         }
         self.mark();
     }
+    fn mouse_scroll(&mut self,mouse:crossterm::event::MouseEvent){
+        use crossterm::event::MouseEventKind;
+        let up=match mouse.kind{MouseEventKind::ScrollUp=>true,MouseEventKind::ScrollDown=>false,_=>return};
+        let point=(mouse.column,mouse.row).into();
+        if self.modal!=Modal::None{
+            if !self.modal_rect.contains(point){return;}
+            if self.provider_settings()&&self.provider_picker.is_some(){
+                for _ in 0..3{self.catalog_key(KeyEvent::new(if up{KeyCode::Up}else{KeyCode::Down},KeyModifiers::NONE));}
+            }else{
+                self.modal_scroll=if up{self.modal_scroll.saturating_sub(3)}else{self.modal_scroll.saturating_add(3).min(self.modal_scroll_limit)};
+                if self.provider_settings(){self.provider_follow=false;}self.mark();
+            }
+        }else if !self.menu&&self.conversation_rect.contains(point){self.scroll_by(up,3);}
+    }
     pub fn input(&mut self, event: Event) {
+        if let Event::Mouse(mouse)=event{self.mouse_scroll(mouse);return;}
+
         // Leaving outranks every editor/confirmation/pending-operation state.
         if let Event::Key(k)=&event&&k.kind!=KeyEventKind::Release&&k.modifiers.contains(KeyModifiers::CONTROL)&&
             (k.code==KeyCode::Char('q') || (k.code==KeyCode::Char('d')&&self.modal==Modal::None&&self.composer.text().is_empty())){
@@ -2802,6 +2821,7 @@ impl App {
     }
     pub fn render(&mut self, frame: &mut Frame<'_>, elapsed: Duration) {
         let screen = frame.area();
+        self.conversation_rect=Rect::default();self.modal_rect=Rect::default();
         self.screen_width = screen.width;
         if screen.width < 60 || screen.height < 18 {
             frame.render_widget(Clear, screen);
@@ -2906,6 +2926,7 @@ impl App {
         self.present_visible_card(top,body_h as usize,conv_width);
         self.present_visible_candidate(top,body_h as usize,conv_width);
         let conv = Rect::new(0, body_y, conv_width, body_h);
+        self.conversation_rect=conv;
         frame.render_widget(
             p.scroll((top.min(u16::MAX as usize) as u16, 0)).style(base),
             conv,
@@ -3679,6 +3700,7 @@ impl App {
             width,
             height,
         );
+        self.modal_rect=rect;
         frame.render_widget(Clear, rect);
         let block = Block::default()
             .borders(Borders::ALL)
@@ -3801,6 +3823,30 @@ mod tests {
     use ratatui::{backend::TestBackend, Terminal};
     fn key(code: KeyCode) -> Event {
         Event::Key(KeyEvent::new(code, KeyModifiers::NONE))
+    }
+    fn wheel(up:bool,column:u16,row:u16)->Event{
+        Event::Mouse(crossterm::event::MouseEvent{kind:if up{crossterm::event::MouseEventKind::ScrollUp}else{crossterm::event::MouseEventKind::ScrollDown},column,row,modifiers:KeyModifiers::NONE})
+    }
+    #[test]
+    fn mouse_wheel_scrolls_chat_without_editing_or_sending_and_keeps_its_anchor(){
+        let mut app=App::new(tempfile::tempdir().unwrap().path().into()).unwrap();
+        for n in 0..40{app.journal.add("Coordinator",format!("Retained conversation message {n}"));}
+        app.composer=Composer::from_draft(Draft{text:"Unsent\n続き".into(),row:1,col:1,..Draft::default()});let draft=app.composer.snapshot();let focus=app.focus;
+        let mut terminal=Terminal::new(TestBackend::new(80,24)).unwrap();terminal.draw(|f|app.render(f,Duration::ZERO)).unwrap();let bottom=app.viewport_top;
+        app.input(wheel(true,2,4));assert_eq!(app.viewport_top,bottom-3,"Mouse wheel did not scroll the conversation");
+        app.journal.add("Coordinator","New message while reading older output");terminal.draw(|f|app.render(f,Duration::ZERO)).unwrap();assert_eq!(app.viewport_top,bottom-3);
+        for _ in 0..100{app.input(wheel(false,2,4));}assert_eq!(app.viewport_top,app.viewport_total-app.viewport_height);
+        let top=app.viewport_top;app.input(wheel(true,2,23));assert_eq!(app.viewport_top,top,"Wheel over controls scrolled the conversation");
+        assert_eq!(serde_json::to_value(app.composer.snapshot()).unwrap(),serde_json::to_value(draft).unwrap());assert_eq!(app.focus,focus);assert!(app.take_intent().is_none());
+    }
+    #[test]
+    fn mouse_wheel_over_a_popup_scrolls_its_content_and_never_the_chat_behind_it(){
+        let mut app=App::new(tempfile::tempdir().unwrap().path().into()).unwrap();for n in 0..40{app.journal.add("Coordinator",format!("Retained message {n}"));}
+        app.journal.candidate=Some("Candidate detail\n".repeat(80));let mut terminal=Terminal::new(TestBackend::new(80,24)).unwrap();terminal.draw(|f|app.render(f,Duration::ZERO)).unwrap();let top=app.viewport_top;
+        app.open(Modal::Artifact);terminal.draw(|f|app.render(f,Duration::ZERO)).unwrap();assert!(app.modal_scroll_limit>3);
+        app.input(wheel(false,10,8));assert_eq!(app.modal_scroll,3,"Wheel ignored popup content");assert_eq!(app.viewport_top,top);
+        app.input(wheel(true,0,2));assert_eq!(app.modal_scroll,3);assert_eq!(app.viewport_top,top);
+        app.input(wheel(true,10,8));assert_eq!(app.modal_scroll,0);assert!(app.take_intent().is_none());
     }
     #[test]
     fn live_output_cursor_and_exact_candidate_review_are_scoped(){

@@ -34,7 +34,7 @@ Ordinary provider setup and useful model execution remain unverified. The
 [pre-test interaction/lifecycle sequence](usability-plan.md#finish-before-the-next-operator-test) is implemented locally:
 direct foreground interrupt/leave/pause and compatible busy-owner attachment are
 implemented locally, along with [live steering/follow-up](live-input.md), queue
-editing, multiline/history controls, model/thinking/status shortcuts and
+editing, mouse-wheel buffer/popup scrolling, multiline/history controls, model/thinking/status shortcuts and
 [in-app provider sign-in](provider-selection.md). The
 useful operator loop remains. The event subscriber now continues verified resync
 after busy replies or exhausted retry batches, and disconnected work loses its

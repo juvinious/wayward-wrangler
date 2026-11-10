@@ -1,4 +1,4 @@
-use crossterm::{event::{self, EnableBracketedPaste, DisableBracketedPaste, KeyboardEnhancementFlags, PushKeyboardEnhancementFlags, PopKeyboardEnhancementFlags}, execute, terminal::{EnterAlternateScreen, LeaveAlternateScreen, enable_raw_mode, disable_raw_mode}};
+use crossterm::{event::{self, EnableBracketedPaste, EnableMouseCapture, DisableBracketedPaste, DisableMouseCapture, KeyboardEnhancementFlags, PushKeyboardEnhancementFlags, PopKeyboardEnhancementFlags}, execute, terminal::{EnterAlternateScreen, LeaveAlternateScreen, enable_raw_mode, disable_raw_mode}};
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 use serde_json::{Value, json};
@@ -22,9 +22,9 @@ struct TerminalGuard;
 impl TerminalGuard {
     fn enter() -> io::Result<Self> {
         enable_raw_mode()?;
-        if let Err(error) = execute!(stdout(), EnterAlternateScreen, EnableBracketedPaste,
+        if let Err(error) = execute!(stdout(), EnterAlternateScreen, EnableBracketedPaste, EnableMouseCapture,
             PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES)) {
-            let _=execute!(stdout(),PopKeyboardEnhancementFlags,DisableBracketedPaste,LeaveAlternateScreen);
+            let _=execute!(stdout(),PopKeyboardEnhancementFlags,DisableBracketedPaste, DisableMouseCapture,LeaveAlternateScreen);
             let _ = disable_raw_mode();
             return Err(error);
         }
@@ -32,7 +32,7 @@ impl TerminalGuard {
     }
 }
 impl Drop for TerminalGuard {
-    fn drop(&mut self) { let _ = execute!(stdout(), PopKeyboardEnhancementFlags, DisableBracketedPaste, LeaveAlternateScreen); let _ = disable_raw_mode(); }
+    fn drop(&mut self) { let _ = execute!(stdout(), PopKeyboardEnhancementFlags, DisableBracketedPaste, DisableMouseCapture, LeaveAlternateScreen); let _ = disable_raw_mode(); }
 }
 fn page_bytes(hex:&str)->io::Result<Vec<u8>>{
     if hex.len()%2!=0{return Err(io::Error::other("Malformed project output page"));}

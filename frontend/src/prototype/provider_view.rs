@@ -522,6 +522,13 @@ mod provider_ui_tests {
         app
     }
     #[test]
+    fn mouse_wheel_moves_the_model_list_without_applying_or_saving_a_selection(){
+        let mut app=navigation_app();app.open_catalog(CatalogScope::Models(None));capture(&mut app,96,30,"mouse-picker");
+        let saved=app.provider_edit.clone();let query=app.provider_picker.as_ref().unwrap().query.text();
+        app.input(Event::Mouse(crossterm::event::MouseEvent{kind:crossterm::event::MouseEventKind::ScrollDown,column:10,row:8,modifiers:KeyModifiers::NONE}));
+        assert_eq!(app.provider_picker.as_ref().unwrap().index,3);assert_eq!(app.provider_picker.as_ref().unwrap().query.text(),query);assert_eq!(app.provider_edit,saved);assert!(app.take_intent().is_none());
+    }
+    #[test]
     fn provider_login_from_settings_uses_sdk_methods_and_keeps_the_draft(){
         let mut app=navigation_app();app.composer.area.insert_str("Unsent work");
         app.live.as_mut().unwrap().conversation.as_mut().unwrap()["development"]["providers"]["discovery"]["providers"][0]["login_methods"]=serde_json::json!(["oauth","apiKey"]);

@@ -242,6 +242,7 @@ impl App {
             rect.width,
             rect.height,
         );
+        self.modal_rect=rect;
         frame.render_widget(Clear, rect);
         let title = if self.provider_activation.is_some(){"Activate saved model".into()}else if let Some(picker) = &self.provider_picker {
             match &picker.scope {
