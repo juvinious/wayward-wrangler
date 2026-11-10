@@ -2522,7 +2522,7 @@ impl App {
         }
     }
     fn active_work(&self) -> Option<(String, Option<f64>)> {
-        if self.live.as_ref()?.phase != "running" { return None; }
+        if self.live.as_ref()?.phase != "running" || self.journal.connection!="connected" { return None; }
         if let Some(turn) = self.queue_rows().into_iter().find(|row| row["status"] == "reserved"&&(!self.coordination_mode()||row["subject_id"]==self.conversation_subject)) {
             return Some(("Coordinator working".into(), turn["started_at"].as_f64()));
         }
@@ -5190,6 +5190,12 @@ mod tests {
         let text = app.message_text(message, 120).lines.iter().map(ToString::to_string).collect::<Vec<_>>().join("\n");
         assert!(text.contains(&App::activity_time(Some(now), waywr_backend::execution::now())));
         assert!(text.contains("Session"));
+    }
+    #[test]
+    fn disconnected_work_indicator_does_not_claim_cached_work_is_still_running(){
+        let mut app=continuous_app();rows(&mut app,json!([{"turn_id":"old-call","subject_id":"discussion","status":"reserved","started_at":100.}]));
+        assert!(app.active_work_line(280.).is_some());app.journal.connection="reconnecting".into();
+        assert!(app.active_work_line(280.).is_none(),"Disconnected UI keeps timing a call that may already have completed");
     }
     #[test]
     fn live_indicator_times_only_active_work_and_respects_motion_settings() {

@@ -16,6 +16,7 @@ mod rust_migrate;
 mod rust_session;
 mod cli_schema;
 mod auth_login;
+mod event_subscription;
 
 struct TerminalGuard;
 impl TerminalGuard {
@@ -213,7 +214,7 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
     ui_token: Option<String>, project:Option<PathBuf>) -> io::Result<()> {
     let draft_path=outbox_dir.parent().ok_or_else(||io::Error::other("outbox lacks session parent"))?.join("draft.json");
     let mut command_stream = session(&socket, &key, &release, "command")?;
-    let mut event_stream = session(&socket, &key, &release, "events")?;
+    let event_stream = session(&socket, &key, &release, "events")?;
     if let Some(token) = ui_token {
         if env::var("HERDR_ENV").ok().as_deref() != Some("1") {
             return Err(io::Error::new(io::ErrorKind::PermissionDenied, "UI pane is not Herdr-managed"));
@@ -288,70 +289,8 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
     let event_key = key.clone();
     let event_release = release.clone();
     let initial_cursor = snapshot.body.get("cursor").and_then(Value::as_u64).unwrap_or(0);
-    thread::spawn(move || {
-        let mut cursor = initial_cursor;
-        let mut counter = 0;
-        loop {
-            let id = next_id(&mut counter);
-            let reply = request(&mut event_stream, "events_read", &id, json!({"after_seq":cursor,"limit":64,"wait_ms":1000}));
-            let frame = match reply {
-                Ok(frame) => frame,
-                Err(_) => {
-                    event_mutations.store(false,Ordering::SeqCst);
-                    let _=updates_tx.send(Frame::new("error",&id,json!({"code":"service_unavailable","message":"Reconnecting to this project's service; draft preserved"})));
-                    let (replacement,snapshot)=match reconnect_snapshot(&event_socket,&event_key,&event_release,cursor){
-                        Ok(value)=>value,
-                        Err(error)=>{let _=updates_tx.send(Frame::new("error",&id,json!({"code":"resync_required","message":format!("Reconnect stopped: {error}. Reopen Waywr to reconcile; no call was resubmitted.")})));break;}
-                    };
-                    cursor=snapshot.body["cursor"].as_u64().unwrap();
-                    if let Some(value)=snapshot.body.get("state_revision").and_then(Value::as_u64) { event_revision.fetch_max(value,Ordering::SeqCst); }
-                    if updates_tx.send(snapshot).is_err() { break; }
-                    event_stream=replacement;
-                    event_mutations.store(true,Ordering::SeqCst);
-                    continue;
-                }
-            };
-            let mut expected = cursor + 1;
-            let mut gap = false;
-            if let Some(events) = frame.body.get("events").and_then(Value::as_array) {
-                for item in events {
-                    if item.get("seq").and_then(Value::as_u64) != Some(expected) { gap = true; break; }
-                    expected += 1;
-                }
-            } else { gap = true; }
-            let next = frame.body.get("next_seq").and_then(Value::as_u64).unwrap_or(cursor);
-            if gap || next != expected - 1 {
-                event_mutations.store(false, Ordering::SeqCst);
-                let _ = updates_tx.send(Frame::new("error", &id, json!({"code":"resync_required","message":"Event sequence gap; reconnect and reload snapshot before mutation"})));
-                break;
-            }
-            cursor = next;
-            if let Some(value) = frame.body.get("state_revision").and_then(Value::as_u64) {
-                event_revision.fetch_max(value, Ordering::SeqCst);
-            }
-            let changed = frame.body.get("events").and_then(Value::as_array).is_some_and(|items| !items.is_empty());
-            if updates_tx.send(frame).is_err() { break; }
-            if changed {
-                let id = next_id(&mut counter);
-                match request(&mut event_stream,"snapshot",&id,json!({})) {
-                    Ok(snapshot) if snapshot.kind == "snapshot" => { if updates_tx.send(snapshot).is_err() { break; } },
-                    _ => {
-                        event_mutations.store(false,Ordering::SeqCst);
-                        let _=updates_tx.send(Frame::new("error",&id,json!({"code":"service_unavailable","message":"Snapshot delivery interrupted; reconnecting with draft preserved"})));
-                        match reconnect_snapshot(&event_socket,&event_key,&event_release,cursor){
-                            Ok((replacement,snapshot))=>{
-                                cursor=snapshot.body["cursor"].as_u64().unwrap();
-                                if let Some(value)=snapshot.body["state_revision"].as_u64(){event_revision.fetch_max(value,Ordering::SeqCst);}
-                                if updates_tx.send(snapshot).is_err(){break;}
-                                event_stream=replacement;event_mutations.store(true,Ordering::SeqCst);
-                            },
-                            Err(error)=>{let _=updates_tx.send(Frame::new("error",&id,json!({"code":"resync_required","message":format!("Snapshot reconnect stopped: {error}. Reopen Waywr; no call was resubmitted.")})));break;}
-                        }
-                    }
-                }
-            }
-        }
-    });
+    thread::spawn(move||event_subscription::run(event_stream,event_socket,event_key,event_release,initial_cursor,event_revision,event_mutations,updates_tx));
+
     let mut _guard=TerminalGuard::enter()?;
     let mut terminal=Terminal::new(CrosstermBackend::new(stdout()))?;
     let mut app=App::new_live(title,load_editor_draft(&draft_path)?);

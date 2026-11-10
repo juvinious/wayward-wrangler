@@ -200,7 +200,9 @@ The main conversation also shows its current coordinator conversation call, or
 the most recent call with telemetry for the selected subject. It names that
 call's selected provider/model and thinking level, separate from saved preferences.
 Active calls refresh through a small read-only telemetry request once per second;
-missing refreshes and disconnected views are labelled. Completed-call totals remain
+missing refreshes and disconnected views are labelled. A disconnected view does
+not keep timing cached work as active. Event/snapshot recovery continues across
+transient busy replies and failed retry batches without resubmitting any call. Completed-call totals remain
 visible after reopening. Starting a new call does not borrow the previous totals.
 This summary covers conversation calls; autonomous workflow coordinator operations
 are not yet included in it. Existing worker activity remains separate.

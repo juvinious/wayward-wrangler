@@ -221,6 +221,11 @@ interruption is labelled until settlement; existing late-action fences remain.
 Ctrl-Q leaves from editors/overlays immediately; empty-composer Ctrl-D and
 /detach, /exit, /quit leave without a network/settlement wait. /pause requests
 stop_session without leaving. Drafts remain local/durable, including disconnects.
+The read-only event subscriber resynchronizes after transport loss, busy/error
+responses or noncontiguous event pages. Each recovery uses the verified owner and
+a monotonic coherent snapshot, with mutations fenced until recovery. Exhausting
+one bounded retry batch leaves another background attempt, not a permanently
+stopped subscriber. Cached disconnected work has no active timer.
 The service now owns [durable live input](live-input.md). It publishes exact-turn
 guidance into an attempt-scoped inbox; the SDK claims it between steps and calls
 Agent.steer. Applied context is acknowledged separately from pending input.

@@ -36,7 +36,10 @@ direct foreground interrupt/leave/pause and compatible busy-owner attachment are
 implemented locally, along with [live steering/follow-up](live-input.md), queue
 editing, multiline/history controls, model/thinking/status shortcuts and
 [in-app provider sign-in](provider-selection.md). The
-useful operator loop remains. A held local HTTP/SDK/runner/service/TUI check
+useful operator loop remains. The event subscriber now continues verified resync
+after busy replies or exhausted retry batches, and disconnected work loses its
+active timer. Read-only operator receipts confirmed completed provider calls
+behind a stale view; useful delivery remains to be assessed. A held local HTTP/SDK/runner/service/TUI check
 verifies interruption, draft retention, prompt leave while stopping, reattachment
 and disconnected leave. The
 [planned controls](tui-controls.md#planned-everyday-interaction) record the

@@ -72,7 +72,9 @@ Target recorded on2026-11-10, following the user's request to align ordinary use
 with Codex/Pi and finish it before another operator walkthrough. This section is
 implemented locally for interrupt/leave/pause, steering/follow-up, multiline
 history/newlines and direct model/thinking/status actions. The useful operator
-walkthrough remains separate evidence. A waiting
+walkthrough remains separate evidence. A disconnected view labels retained state and stops its active-work timer. The
+event subscriber keeps attempting a verified snapshot resync after busy replies,
+gaps or transport loss; it does not stop permanently after one retry batch. A waiting
 task must not make the interface unusable. Drafting, browsing, inspection, changing
 topics and leaving remain available while an operation is waiting or stopping.
 
