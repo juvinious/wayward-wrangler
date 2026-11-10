@@ -61,3 +61,70 @@ and JSON option fields remain available without provider-specific key bindings.
 F1 and popup footers provide contextual help. This contract standardizes the
 existing Rust/Ratatui interface; it does not authorize operator services, provider
 login or inference. See [provider setup](provider-selection.md) for those steps.
+
+## Planned everyday interaction
+
+Target recorded on2026-11-10, following the user's request to align ordinary use
+with Codex/Pi and finish it before another operator walkthrough. This section is
+not implemented yet; the sections above describe the current build. A waiting
+task must not make the interface unusable. Drafting, browsing, inspection, changing
+topics and leaving remain available while an operation is waiting or stopping.
+
+### Reference observations
+
+Codex documents Enter as steering during work, Tab as a queued follow-up, prompt
+history/search, slash-command discovery, model/status controls, keymap editing,
+saved-session resume and direct exit. Its keymap is contextual. See the official
+[interactive shortcuts](https://learn.chatgpt.com/docs/developer-commands?surface=cli#interactive-shortcuts),
+[keymap command](https://learn.chatgpt.com/docs/developer-commands?surface=cli#remap-tui-shortcuts-with-keymap)
+and [resume/exit commands](https://learn.chatgpt.com/docs/developer-commands?surface=cli).
+
+Pi documents Enter for steering, Alt+Enter for follow-up and Escape for abort;
+its editor supports newline/history actions and restores queued input after abort.
+Its configurable named actions separate interrupt, clear and exit, with model and
+thinking shortcuts. See [terminal usage](https://raw.githubusercontent.com/earendil-works/pi/main/packages/coding-agent/docs/usage.md),
+[keybindings](https://raw.githubusercontent.com/earendil-works/pi/main/packages/coding-agent/docs/keybindings.md)
+and [action definitions](https://raw.githubusercontent.com/earendil-works/pi/main/packages/coding-agent/src/core/keybindings.ts).
+These are upstream observations checked on the date above, not a claim that every
+shortcut or delivery boundary is identical across versions and terminals.
+
+Waywr uses the shared libraries, not Pi's application. The pinned agent class
+already provides steer, followUp and abort. Our [runtime entry](../model-runtime/main.mjs)
+currently reads one input object before starting a call and handles signals for
+abort; it has no live steering/control input. The service's later-turn queue is
+not equivalent to delivering guidance into the active SDK loop. That connection
+must be implemented rather than inferred from a key binding.
+
+### Target actions and precedence
+
+| Action/context | Target behavior |
+| --- | --- |
+| Enter while idle | Send the draft. Required setup offers the relevant action in place and keeps the draft. |
+| Enter while the current agent works | Deliver steering at the next supported agent-loop boundary; show pending versus applied. It does not silently expand approved work. |
+| Alt+Enter while busy | Queue a follow-up for after the current task. Queue controls can edit, withdraw or restore it without sending. |
+| Escape in a popup/editor | Return one level. Do not clear the underlying composer or interrupt unrelated work. |
+| Escape in the composer with text | Clear the draft, honoring the user's requested behavior. |
+| Escape with empty composer and active agent | Request interruption immediately, preserve input/work, show Stopping until actual settlement, and keep the UI usable. |
+| Ctrl-C | Clear nonempty composer input; with empty input and an active agent, interrupt. Empty idle input does not implicitly terminate work or exit. |
+| Visible Interrupt action; `/interrupt` | Stop the foreground coordinator without a confirmation panel. A selected-worker stop must name that worker; it must not reuse whole-workflow cancellation implicitly. |
+| Ctrl-Q, Ctrl-D with empty input, `/detach`, `/exit`, `/quit` | Save local draft and leave the UI promptly without confirmation or waiting for model/tool settlement. Active service-owned work continues; this is detach, not pause. |
+| `/pause` | Stop new dispatch for the selected session/work; report current-call settlement separately. Keep typing, inspection and leave available. `/resume` explicitly continues a pause. |
+| Shift+Enter or Ctrl-J | Insert a newline where terminal reporting permits. Retain F2 as a fallback. Up/Down moves within multiline input; history is recalled at the editor boundary. |
+| `/model`, `/thinking`, `/status`, `/help` | Direct discoverable actions; F3 and existing navigation remain available. Show active, saved and pending choices truthfully. |
+| Waiting/error | Show the affected task/call, concrete reason and available action. Preserve the draft; allow another topic or leaving. An unrelated request must not lock the whole application. |
+
+The Escape/text and Ctrl-C choices deliberately retain the user's clear-buffer
+preference rather than copying Pi's precedence wholesale. Alt+Enter avoids taking
+Tab away from Waywr's existing focus controls. Key handling and help should share
+one action definition; configurable bindings can follow without delaying the
+everyday loop. Model/provider behavior must remain below this interaction layer.
+
+Current `/exit` pauses via a service acknowledgement and current Ctrl-Q opens a
+confirmation; the target above changes those semantics. Introduce the separate
+pause action and reconcile help, CLI and lifecycle owners in the implementing
+slice. Do not silently claim the current build already follows the target.
+
+Interruption is a request to stop one operation. Uncertain settlement still fences
+replay, replacement or conflicting writes for that operation; it cannot prevent
+closing the UI. Whole-workflow cancellation and destructive resource removal are
+separate explicit actions. Neither detach nor a new message discards prior work.

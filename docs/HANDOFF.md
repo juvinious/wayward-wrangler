@@ -1,93 +1,91 @@
-# Waywr handoff — unblock Send, clear input and reduce idle CPU
+# Waywr handoff — reconcile progress and finish the everyday interaction loop
 
-Branch: `plan/usability-and-installation`. Base: `2d4567a` (conversation telemetry).
-Follow [AGENTS.md](../AGENTS.md), [providers](provider-selection.md) and
-[controls](tui-controls.md). Local commits only; the user handles remote delivery.
+Branch: `plan/usability-and-installation`. Application checkpoint: `ba229e8`.
+This checkpoint changes documentation only. The user asked what the plan has
+actually delivered, wants remaining usability changes finished before reopening,
+and asked to align normal input/interrupt/leaving behavior with Codex/Pi.
+Follow [AGENTS.md](../AGENTS.md). Local commits only; no remote delivery.
 
-## Current outcome
+## Delivered versus complete
 
-The user could not send because a saved shared-runtime model differed from the
-retired active binding. The footer still directed them through the old Switch
-section. Read-only inspection also found an unrelated attention request whose
-policy would veto activation globally, although no coordinator was running or
-uncertain. These were product usability failures.
+The [reconciled progress table](usability-plan.md#reconciled-checkpoint--2026-11-10)
+is the current status. Implemented locally: shared standalone provider/tool
+libraries replacing native integrations; complete searchable provider/model and
+thinking selection; saved/active labels; direct setup from Send; conversation
+usage and worker activity; paired build/developer install/local launcher; reopen
+and idle/portable handover; whole populated snapshots; clear-buffer controls;
+scoped policy repair and reduced idle copying/polling.
 
-Setup-blocked Send now opens the saved coordinator model's activation review
-with the draft intact; the main action says Use saved model. Keep current and Esc
-return to the composer. Explicit activation also returns there with the message
-unsent; after application, Enter sends normally. F3 Profiles → S → A remains
-available. Outdated section4 instructions are replaced. Saving still does not
-grant context or invoke a model. Activation retains revision/generation checks,
-explicit context grant and reserved/uncertain-call settlement fences.
+These mechanisms do not complete daily usability. Direct interruption/leaving,
+actual SDK steering versus follow-up, busy-owner reattachment after update and
+one useful shared-runtime task remain incomplete. Workflow coordinator usage is
+not yet in the conversation summary. Public unauthenticated installation,
+update/uninstall, artifact collection and subsequent packaging remain deliverables.
+Real account/model usefulness and the substantial web-app milestone are unproven.
 
-Unrelated request policies no longer veto the project conversation choice.
-Requests keep their exact policies and cannot dispatch through an excluded model.
-Switch application leaves excluded workflow state untouched, including blocked
-attention requests; it cannot resume or amend them. A later coordinator policy
-refusal is classified as that request's provider-policy block. Workers retain
-their assignments. No model/provider allowlist was added.
+The previous isolated release journey covered saved model/level activation from
+blocked Send, preserved/cleared drafts, populated history/usage and reopening.
+Its idle measurement was0.7% UI /2.7% service; the large-snapshot idle-tick workload
+fell from about660ms to20ms. These are bounded fixture measurements, not proof of
+performance or useful delivery on every operator project. Do not repeat broad
+completed checks merely to claim progress.
 
-Ctrl-C clears the main composer. Escape clears it when no popup/menu is open;
-inside a popup/editor it still backs out one level and preserves the underlying
-draft. Clearing resets history navigation and the saved draft without erasing
-history or cancelling work. Clear controls are included in footer hints.
+## Comparison and revised target
 
-Idle UI checks now borrow the large development projection instead of repeatedly
-cloning catalogs and retained work. Task detail refreshes follow project/task
-revision changes, rather than unconditional half-second reads. The readable
-history projector checks a small revision watermark instead of parsing a full
-historical snapshot just to detect changes. No history is truncated or removed.
+The [planned everyday interaction](tui-controls.md#planned-everyday-interaction)
+records current official Codex documentation and Pi documentation/source checked
+on2026-11-10. Both distinguish guidance during active work from later follow-ups.
+Pi defines separate interrupt/clear/exit actions; Codex documents contextual
+shortcuts, command discovery, model/status controls and saved-session resume.
+Adopt useful interaction principles while retaining the user's explicit
+Escape/Ctrl-C clear-buffer preference and Waywr's project-service lifecycle.
 
-## Verification and limits
+Local inspection confirms the pinned agent library supplies steer, followUp and
+abort. The Waywr runtime currently reads one input object before running, then
+only supports abort via signals. Enter currently creates later turns; relabelling
+that queue is not true active-agent steering. Existing UI interrupt/detach/exit
+routes use confirmations or acknowledgement waits. Busy-owner update still
+refuses attachment. These are concrete gaps, not completed capabilities.
 
-Behavioral red reproduced inert blocked Send, the unrelated request veto, missing
-clear controls and slow idle ticks with1600 models and46 retained units. The
-idle-tick workload fell from about660ms to20ms. Focused checks cover direct review
-and preserved drafts, both clear keys including history recall, unchanged excluded
-requests and dispatch grants, late policy changes, generation races, uncertainty,
-workers/questions and independent revision reads. The locked remapped release
-build passes. Dependencies/locks are unchanged.
+A task can wait without locking the application. Keep drafting, reading, topic
+selection, inspection and leaving available. Stop/settlement state belongs to the
+affected operation; it does not justify trapping the terminal. Preserve exact
+execution ownership, approved work and no-replay boundaries without forcing
+unrelated conversations through old recovery/settings menus.
 
-The real isolated paired-binary IPC/TUI journey selects/saves model and thinking,
-uses Send to review activation while paused, retains the draft, clears it with
-Ctrl-C and Escape, removes the former build and reopens with ready binding,
-settings, history and conversation usage intact. No model call or manual rebind
-occurred. Idle measurement with the full catalog and populated retained-event
-history was0.7% UI /2.7% service. This fixture does not reproduce every aspect of
-the operator project or guarantee identical CPU on another machine. Source/bundle
-public-content checks pass; documentation and local CI/release definitions include
-these repairs. Hosted workflows were not run by the agent.
+## Next authorized implementation
 
-Conversation usage remains read-only and subject-local; unknown values and
-cost/context estimates stay labelled. Autonomous workflow coordinator operations
-are not yet included in that conversation summary. Real account login, useful
-model-driven delivery and public download/update/package channels remain
-unverified/incomplete. Available readiness checks local runtime configuration,
-not authentication or model quality.
+Finish the [pre-test sequence](usability-plan.md#finish-before-the-next-operator-test)
+one visible journey at a time:
 
-## Operator action and cleanup scope
+1. Direct foreground-coordinator interrupt and prompt leave, including stopping
+   or disconnected state, without whole-workflow cancellation or confirmation.
+2. Enter steering versus Alt+Enter follow-up, with truthful delivery, editable
+   queued input and an actual service/runner/runtime connection to the SDK.
+3. Inspect/control the busy owner after selecting a rebuilt application; hand
+   over only once idle, without force-stop, replay or manual project rebinding.
+4. Complete consistent editing/commands/error/model feedback. Then do one
+   authorized start → redirect → leave → return → rebuild → continue walkthrough.
 
-The user explicitly requested killing the reported UI/service. Their supplied
-processes were verified, terminated, and the exact project systemd unit was
-stopped and confirmed inactive. The agent did not restart it, alter its binding,
-call a provider, install globally or delete project data/worktrees.
+The target changes exit semantics: /exit and /quit leave like /detach, with pause
+as a separate action. Current code still uses its old semantics. Reconcile their
+owners when implemented; do not imply the planned controls already work. First
+slice acceptance and exclusions are recorded in the plan. Use targeted isolated
+checks during development; the user wants one later walkthrough after this work.
 
-Earlier inspection found36 managed worktrees, one with uncommitted content and
-nine with commits absent from the primary checkout. Disposal scope for those
-resources remains unresolved; process termination does not authorize discarding
-unfinished code. Do not restore snapshots, delete branches/worktrees or perform
-remote writes as routine cleanup.
+## Operator and authority state
 
-## Next authorized action
+The previous user explicitly authorized stopping their reported UI/service; the
+exact processes were stopped and the project unit confirmed inactive. This review
+did not start the application, install globally, change an operator binding,
+read credentials, call a provider, delete project work or perform a remote write.
+Earlier worktree disposal scope is unresolved and independent of process stopping.
+Preserve unfinished work unless disposal is explicitly authorized.
 
-The ignored target/local-bin/waywr points to v0.4.0-local.unblocked, manifest hash
-below. The user can relaunch and use Send → activate the saved model → Enter to
-send the retained message. Operator launch, binding selection, resume and provider
-calls remain explicit user actions. Continue from observed ordinary-use friction;
-no further broad acceptance run is needed without a relevant change or failure.
+The ignored target/local-bin/waywr still selects v0.4.0-local.unblocked, manifest
+SHA256 `33d4e295b30ed19d8a52f19f30f2e1796816de6e0a342afbce2572cf5cc9b2a5`.
+No build or runtime tests are needed for this documentation-only checkpoint.
 
-Owners: [providers](provider-selection.md), [controls](tui-controls.md),
-[architecture](architecture.md), [distribution](distribution.md),
-[user verification](verify-usability.md).
-
-Review-bundle manifest SHA256: `33d4e295b30ed19d8a52f19f30f2e1796816de6e0a342afbce2572cf5cc9b2a5`.
+Owners: [product plan](usability-plan.md), [controls](tui-controls.md),
+[providers](provider-selection.md), [distribution](distribution.md),
+[verification](verify-usability.md), [development approach](development-approach.md).

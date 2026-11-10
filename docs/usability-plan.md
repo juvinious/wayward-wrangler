@@ -12,13 +12,78 @@ A user installs Waywr once, opens any supported project with `waywr`, gives it a
 real development request, reviews the result and can return later. Updating Waywr
 must not require upgrading each project or reinstalling the build that created it.
 
+## Reconciled checkpoint — 2026-11-10
+
+Source checkpoint: `ba229e8`. The mechanisms below are implemented locally;
+their isolated evidence does not establish a fluid, useful daily workflow.
+
+| Plan area | Delivered | Still needed |
+| --- | --- | --- |
+| Shared model layer | Standalone pi-ai/agent-core runtime replaces the native integrations; catalogs/configuration and manual IDs stay outside core routing; two protocol/tool/runner fixtures | Real account setup and useful delivery through selected models; catalog breadth is not verified account access |
+| Selection and visibility | Full searchable provider/model pickers, runtime thinking levels, saved/active labels, direct setup from Send, worker activity and conversation-call usage/cost/context estimates | Simpler ordinary model changes and actionable authentication/errors; workflow coordinator usage is not yet in the conversation summary |
+| Local iteration | Paired locked build, one-command developer install, ignored local launcher, compatible reopen after removing the former build, idle/portable service handover | Return to busy work after an update without a launcher refusal or manual recovery; complete start → leave → return → rebuild → continue journey |
+| Input and responsiveness | Contextual arrows/Tab/Enter/Escape, literal paste and history, Ctrl-C/Escape clearing, draft persistence, reduced idle copying/polling | Direct interruption, real steering versus follow-up, consistent normal editing and prompt leave controls |
+| Isolation of blockers | Unrelated request policy no longer vetoes a new conversation's explicit model choice | Errors and settlement waits must remain scoped to affected operations while navigation, drafting, inspection and leaving stay available |
+| Distribution | Bundle validation, source/binary privacy checks, notices, local staged selection and version diagnostics | Public unauthenticated installer, update/uninstall and artifact collection; publication remains the user's action; Debian packaging follows |
+| Substantial application | Direction and proposed reference brief | Shared-runtime real task delivery, then a useful persisted web-app increment across selected models |
+
+The shared execution foundation is substantially implemented. Application fluidity
+is the current work, not a completed milestone. The reference application has not
+been delivered through this runtime. The operator service was stopped at the
+user's request; this review does not relaunch it or make a provider call.
+
+## Finish before the next operator test
+
+The user asked to finish the interaction/lifecycle changes before asking them to
+open the application again. Follow the [planned everyday interaction](tui-controls.md#planned-everyday-interaction)
+in this order. These are targets, not claims of current behavior.
+
+1. **Interrupt and leave directly.** Expose a visible interrupt action and normal
+   shortcut without a confirmation maze. Stop the foreground coordinator, not the
+   entire workflow. Detach/exit returns the terminal promptly while service-owned
+   work or settlement continues separately. Acceptance: start a held streaming
+   fixture, interrupt, continue drafting, leave while stopping, then reopen to the
+   exact saved status without duplicated work. Include a disconnected UI. Do not
+   wait for agent settlement just to restore the terminal.
+2. **Steer or follow up while busy.** Enter sends guidance to the active agent at
+   its next supported boundary; Alt+Enter explicitly queues later work. Show which
+   disposition was accepted and allow queued messages to be edited/withdrawn.
+   Connect the existing SDK methods through the service/runner/runtime boundary;
+   changing a label on the current next-turn queue is not steering. Acceptance:
+   a held two-step tool fixture receives steering before continuing its next step,
+   while a follow-up waits until the active task finishes. Drafts/queued input
+   survive interruption without silent replay or scope expansion.
+3. **Return to busy work after rebuilding.** Open a compatible current UI against
+   the existing owner, or provide an immediate usable view through its retained
+   pair. Replace only after settlement. Acceptance: A starts work, the launcher
+   selects B, reopening can inspect/control A without force-stopping it; idle
+   reopening selects B with retained conversation/work. Unsupported compatibility
+   must expose usable inspection and an action, not a generic connection failure.
+4. **Finish everyday defaults and recovery.** Align editor history/newlines,
+   command discovery, model/status shortcuts, error recovery and truthful usage
+   with the same action contract. Authentication/setup failures retain the message
+   and offer the relevant action. A request may wait; the application must remain
+   usable. Acceptance: ordinary editing and one missing-credential/request-policy
+   failure through isolated real UI/service components leave the draft and normal
+   navigation intact. Use one focused example per changed boundary.
+
+After1–4, do one operator walkthrough: a useful bounded task, interrupt/redirect,
+leave/return, rebuild and continue. Real model use belongs to that authorized
+walkthrough, not a prerequisite inferred from fixture checks. This replaces
+repeated requests to reopen the application after each small mechanism fix.
+
+Public packaging remains a deliverable after this usable local loop. Do not add
+another provider framework, reintroduce native model allowlists, run account calls,
+publish, or delete old work as part of these interaction changes. Real account use
+still needs its corresponding authorization; fixture evidence cannot supply it.
+
 ## Narrowed product direction
 
 The user has set this order: extensible model/execution support, application
 fluidity, then coordination refined through a substantial web application.
 Waywr owns project coordination and the user experience. Its core should not own
-a closed catalog of provider/model names. Pi is a comparison, not a selected
-dependency. A third-party execution utility remains an option to evaluate.
+a closed catalog of provider/model names. Pi's application is a comparison. Its
+standalone provider/agent libraries are the selected shared runtime dependencies.
 
 The target is one shared multi-provider model/execution layer beneath the existing
 Rust TUI/service. The [corrected direction](execution-adapter-decision.md) uses Pi's
@@ -130,7 +195,7 @@ release automation and additional packaging must not delay this loop. If this
 small increment cannot support useful work without repeated manual recovery,
 pause feature expansion and reassess whether to continue the project.
 
-## Current state and cleanup
+## Earlier distribution checkpoint and cleanup
 
 Public main at `085cc6c` builds and produces a privacy-checked paired bundle. Its
 installed command opened the real TUI and started its real systemd user service
@@ -189,7 +254,13 @@ systemd user manager. It creates and removes its own unique temporary unit,
 installation and project. CI's existing direct-service variant remains portable;
 the real-systemd variant is a local host check. No model call is made.
 
-## Third slice — provider updates (implemented)
+## Third slice — provider updates (historical native implementation)
+
+The native routes below were subsequently removed by the shared-runtime change.
+This is prior evidence, not current native integration support. The continuing
+contract is that new attempts resolve current runtime artifacts while prepared
+attempts retain their frozen identity; the [provider contract](provider-selection.md)
+owns its shared-runtime implementation.
 
 The metadata-only regression first reproduced version allowlists, changed-binary
 F3 requirements and legacy version/hash gates. New attempts now freeze a resolved
@@ -222,8 +293,8 @@ The agent has not made authenticated model calls or established useful task deli
 
 The shared-runtime slice is implemented locally; its [provider contract](provider-selection.md)
 records protocol/tool/runner and selection evidence. Real accounts/model quality
-and ordinary unassisted delivery remain unverified. Next checkpoint: user review
-and authorized ordinary use before further lifecycle changes.
+and ordinary unassisted delivery remain unverified. The current next work is the
+interaction/lifecycle sequence above, before the next operator walkthrough.
 Public curl, update/uninstall commands, artifact collection and additional
 package channels are not complete. Earlier checks remain available for the
 subsequent lifecycle phase; do not rerun them as a substitute for useful work.

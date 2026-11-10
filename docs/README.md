@@ -27,8 +27,13 @@ two-protocol SDK/tool/runner checks and searchable persistent selection. A
 startup fix opens retired schema2 projects with execution blocked and an unsaved
 F3 replacement form; real isolated systemd bootstrap and idle handover pass.
 Ordinary provider setup and useful model execution remain unverified. The next
-phase is lifecycle fluidity informed by ordinary use. [User verification](verify-usability.md)
-remains available; native task delivery and fluidity remain to be observed.
+work is the [pre-test interaction/lifecycle sequence](usability-plan.md#finish-before-the-next-operator-test):
+direct interrupt/leave, real steering versus follow-up, busy-owner return after
+update, then the useful everyday loop. The
+[planned controls](tui-controls.md#planned-everyday-interaction) record the
+Codex/Pi comparison and distinguish targets from current behavior. Complete those
+changes before another operator walkthrough. [User verification](verify-usability.md)
+remains the later use guide; ordinary task delivery and fluidity are not yet proven.
 Public download, update/uninstall and additional package channels remain incomplete.
 
 [Ordinary project workflow](ordinary-project-workflow.md), [providers](provider-selection.md)
