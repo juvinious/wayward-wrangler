@@ -3,8 +3,10 @@
 Status: accepted implementation target on `plan/usability-and-installation`.
 Follow the [acceptance-driven development approach](development-approach.md).
 Local implementation, isolated checks and local commits are authorized. The user
-handles all remote delivery. Operator installation, preserved-project changes and
-authenticated model calls remain outside the current authorization.
+handles all remote delivery. Operator installation, source/worktree disposal and
+authenticated model calls remain outside the current authorization. Discarding
+obsolete Waywr configuration/session context is authorized; implementation and
+isolated checks precede the deferred operator walkthrough.
 
 ## Outcome
 
@@ -14,23 +16,31 @@ must not require upgrading each project or reinstalling the build that created i
 
 ## Reconciled checkpoint — 2026-11-10
 
-Source checkpoint: `ba229e8`. The mechanisms below are implemented locally;
+Source checkpoint: session-renewal work after `4c804cd`. The mechanisms below are implemented locally;
 their isolated evidence does not establish a fluid, useful daily workflow.
 
 | Plan area | Delivered | Still needed |
 | --- | --- | --- |
 | Shared model layer | Standalone pi-ai/agent-core runtime replaces the native integrations; catalogs/configuration and manual IDs stay outside core routing; two protocol/tool/runner fixtures | Real account setup and useful delivery through selected models; catalog breadth is not verified account access |
 | Selection and visibility | Full searchable provider/model pickers, runtime thinking levels, saved/active labels, direct setup from Send, worker activity and conversation-call usage/cost/context estimates | Simpler ordinary model changes and actionable authentication/errors; workflow coordinator usage is not yet in the conversation summary |
-| Local iteration | Paired locked build, one-command developer install, ignored local launcher, compatible reopen after removing the former build, idle/portable service handover | Return to busy work after an update without a launcher refusal or manual recovery; complete start → leave → return → rebuild → continue journey |
+| Local iteration | Paired build/local launcher, compatible reopen, idle/portable handover, compatible busy-owner attachment, automatic renewal of obsolete/stranded sessions without old target/call reuse | Complete start → leave → return → rebuild → continue journey with useful model work; existing services predating cross-build UI attachment require their first idle transition |
 | Input and responsiveness | Contextual arrows/Tab/Enter/Escape, literal paste and history, Ctrl-C/Escape clearing, draft persistence, reduced idle copying/polling | Direct interruption, real steering versus follow-up, consistent normal editing and prompt leave controls |
-| Isolation of blockers | Unrelated request policy no longer vetoes a new conversation's explicit model choice | Errors and settlement waits must remain scoped to affected operations while navigation, drafting, inspection and leaving stay available |
+| Isolation of blockers | Unrelated policies do not veto new discussion; stranded old sessions stop being live update dependencies | Errors and settlement waits must remain scoped while navigation, drafting, inspection and leaving stay available |
 | Distribution | Bundle validation, source/binary privacy checks, notices, local staged selection and version diagnostics | Public unauthenticated installer, update/uninstall and artifact collection; publication remains the user's action; Debian packaging follows |
 | Substantial application | Direction and proposed reference brief | Shared-runtime real task delivery, then a useful persisted web-app increment across selected models |
 
 The shared execution foundation is substantially implemented. Application fluidity
 is the current work, not a completed milestone. The reference application has not
-been delivered through this runtime. The operator service was stopped at the
-user's request; this review does not relaunch it or make a provider call.
+been delivered through this runtime. Operator state has not been changed by this
+renewal implementation; the operator walkthrough and account calls stay deferred.
+
+Startup outcome: obsolete configuration/bindings, unsupported session formats or
+unresolved host uncertainty create a fresh session from current source and usable
+model settings. The old session is abandoned after stopping its exact owned
+processes; its calls, approvals and target configuration leave live state. Project
+source, Git work and dirty worktrees remain. Real isolated launcher/systemd/IPC/TUI
+checks cover renewal and healthy busy-owner attachment; no model was called.
+The [project layout](project-layout.md) owns the journal/retirement contract.
 
 ## Finish before the next operator test
 
@@ -53,7 +63,9 @@ in this order. These are targets, not claims of current behavior.
    a held two-step tool fixture receives steering before continuing its next step,
    while a follow-up waits until the active task finishes. Drafts/queued input
    survive interruption without silent replay or scope expansion.
-3. **Return to busy work after rebuilding.** Open a compatible current UI against
+3. **Return to busy work after rebuilding.** The compatible UI/owner attachment
+   mechanism is implemented and isolated checks pass. Complete it in the useful
+   interrupted/redirected-work walkthrough. Open a compatible current UI against
    the existing owner, or provide an immediate usable view through its retained
    pair. Replace only after settlement. Acceptance: A starts work, the launcher
    selects B, reopening can inspect/control A without force-stopping it; idle
@@ -74,7 +86,8 @@ repeated requests to reopen the application after each small mechanism fix.
 
 Public packaging remains a deliverable after this usable local loop. Do not add
 another provider framework, reintroduce native model allowlists, run account calls,
-publish, or delete old work as part of these interaction changes. Real account use
+publish, or delete source/worktrees as part of these interaction changes. Old
+Waywr configuration/session disposal is authorized through startup renewal. Real account use
 still needs its corresponding authorization; fixture evidence cannot supply it.
 
 ## Narrowed product direction

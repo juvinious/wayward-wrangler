@@ -13,6 +13,7 @@ mod rust_views;
 mod rust_review;
 mod rust_maintenance;
 mod rust_migrate;
+mod rust_session;
 mod cli_schema;
 
 struct TerminalGuard;

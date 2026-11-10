@@ -24,8 +24,12 @@ with local commits only; the user performs remote delivery. Stopped-project
 reopening, real-systemd idle handover, provider updates and one-command local
 build/install have focused acceptance evidence. The shared-runtime slice now has
 two-protocol SDK/tool/runner checks and searchable persistent selection. A
-startup fix opens retired schema2 projects with execution blocked and an unsaved
-F3 replacement form; real isolated systemd bootstrap and idle handover pass.
+startup renewal now retires obsolete configuration/bindings or stranded sessions,
+keeps source/worktrees and usable shared model settings, and opens fresh context
+without an old target/attempt dependency. Compatible busy owners stay attachable
+across builds; idle handover still verifies ownership. Real isolated systemd,
+IPC and TUI checks cover both paths; [project layout](project-layout.md) owns
+the retirement journal and [distribution](distribution.md) owns their evidence.
 Ordinary provider setup and useful model execution remain unverified. The next
 work is the [pre-test interaction/lifecycle sequence](usability-plan.md#finish-before-the-next-operator-test):
 direct interrupt/leave, real steering versus follow-up, busy-owner return after
@@ -36,8 +40,8 @@ changes before another operator walkthrough. [User verification](verify-usabilit
 remains the later use guide; ordinary task delivery and fluidity are not yet proven.
 The shared coordinator startup repair now creates its required child working
 directory; real runner fixtures cover conversation/workflow coordinators as well
-as workers. Already-recorded operator uncertainty remains unresolved and is not
-automatically replayed.
+as workers. Operator state has not been reset by this implementation; future
+normal startup renews obsolete/stranded sessions without replaying old calls.
 Public download, update/uninstall and additional package channels remain incomplete.
 
 [Ordinary project workflow](ordinary-project-workflow.md), [providers](provider-selection.md)
@@ -56,7 +60,7 @@ main conversation now shows current or latest subject-local coordinator-call
 activity and reported usage, with labelled cost/context estimates and retained
 completed-call metadata. The
 idle-service handover also supports a direct temporary paired-bundle symlink,
-with exact process/socket/project checks and preserved busy-owner refusals. The
+with exact process/socket/project checks and compatible busy-owner attachment. The
 complete snapshot reply budget now accommodates the catalog plus retained work;
 oversized replies return a correlated error. Bounded-status handover can replace
 an older service whose full snapshot cannot be delivered. The

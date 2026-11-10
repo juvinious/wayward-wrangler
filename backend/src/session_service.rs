@@ -100,6 +100,18 @@ fn peer_pid(fd:RawFd)->Result<u32,String>{
     Ok(creds.pid as u32)
 }
 
+// UI compatibility is a wire/storage contract, not an application-build pin.
+// The socket already authenticates the same UID. Still verify the actual peer's
+// executable against its paired manifest instead of trusting a payload path.
+fn compatible_frontend(executable:&Path)->Result<bool,String>{
+    if executable.file_name().is_none_or(|n|n!="waywr") {return Ok(false);}
+    let Some(root)=executable.parent().filter(|p|p.file_name().is_some_and(|n|n=="bin")).and_then(Path::parent) else{return Ok(false)};
+    let manifest=match read(&root.join("manifest.json")){Ok(v)=>v,Err(_)=>return Ok(false)};
+    Ok(manifest["schema_version"]==1 && manifest["backend_kind"]=="rust" && manifest["protocol_major"]==1 &&
+        manifest["interaction_contract"]=="conversation-v1" &&
+        manifest["files"]["bin/waywr"]==execution::hash_file(executable)?)
+}
+
 impl Service {
     fn write_dispatch_phase(&self,phase:&Value)->Result<(),String>{
         if !self.host{return Ok(());}
@@ -807,8 +819,9 @@ impl Service {
         // Serialize new UI claims with the launcher's quiescent service handover.
         let _execution=FileLock::exclusive(&self.session.workflow.state.join("supervision/fence.lock"))?;
         let executable=fs::read_link(format!("/proc/{pid}/exe")).map_err(|e|e.to_string())?;
-        if executable!=fs::canonicalize(&self.config.frontend).map_err(|e|e.to_string())?{
-            return Err("Invoking process is not the bound Waywr release".into());
+        if fs::canonicalize(&self.config.frontend).ok().as_ref()!=Some(&executable) &&
+            !(self.host && compatible_frontend(&executable)?){
+            return Err("Invoking UI does not support this project's interaction contract".into());
         }
         let process=execution::process_identity(pid)?;
         let herdr=Herdr::new(&self.config.herdr_socket);
@@ -1176,6 +1189,21 @@ impl Service {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn compatible_ui_uses_manifest_and_peer_binary_instead_of_build_identity(){
+        let root=tempfile::tempdir().unwrap();let bin=root.path().join("bin");std::fs::create_dir(&bin).unwrap();
+        let executable=bin.join("waywr");std::fs::write(&executable,b"fixture binary bytes").unwrap();
+        let mut manifest=serde_json::json!({"schema_version":1,"backend_kind":"rust","protocol_major":1,
+            "interaction_contract":"conversation-v1","release_id":"another-build",
+            "files":{"bin/waywr":crate::execution::hash_file(&executable).unwrap()}});
+        let path=root.path().join("manifest.json");crate::execution::write(&path,&manifest,false).unwrap();
+        assert!(super::compatible_frontend(&executable).unwrap());
+        manifest["protocol_major"]=serde_json::json!(2);crate::execution::write(&path,&manifest,false).unwrap();
+        assert!(!super::compatible_frontend(&executable).unwrap());
+        manifest["protocol_major"]=serde_json::json!(1);crate::execution::write(&path,&manifest,false).unwrap();
+        std::fs::write(&executable,b"changed binary bytes").unwrap();
+        assert!(!super::compatible_frontend(&executable).unwrap());
+    }
     use super::*;
     use std::thread;
     use rusqlite::Connection;

@@ -43,7 +43,13 @@ coordination through a substantial real application. Follow the
   libraries are now the chosen implementation behind the shared process boundary.
 - The user waived compatibility with current hardcoded integrations/profiles.
   Replace them directly; do not maintain parallel legacy routes or shims as a
-  migration goal. Preserve project work/history and actual execution ownership.
+  migration goal. Preserve project source/worktrees and actual execution ownership.
+- Startup must upgrade usable configuration or retire obsolete/stranded session
+  state and create a fresh context. The user authorized discarding old Waywr
+  configuration/context; it must not remain a live startup dependency. Retired
+  calls/approvals are not replayed or imported. Verify/stop the exact old owned
+  processes before renewal; retain source, Git history and dirty worktrees.
+  Compatible busy owners remain attachable across application builds.
 - Use capability-based coordination across selected models. Do not silently
   narrow later milestones to one brand, add model-specific coordinator branches,
   or turn developer testing rules into arbitrary product-agent restrictions.

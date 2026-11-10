@@ -345,19 +345,27 @@ def main():
             shutil.rmtree(prefix / 'releases' / releases[0])
             shutil.rmtree(root / releases[0])
 
-        def require_handover_refusal():
+        def require_attached_ui_preserved():
             pid = unit_property('MainPID')
             result = subprocess.run([str(launcher), '--ipc-dir', str(root / 'run')], cwd=project, env=env,
                                     capture_output=True, text=True, timeout=20)
             assert result.returncode != 0, 'Replacement interrupted busy service'
-            assert 'update waits for this project to be idle' in result.stderr, result.stderr
+            assert 'already attached' in result.stderr, result.stderr
             assert unit_property('MainPID') == pid, 'Busy service owner changed'
 
         def open_and_detach(expected_draft=None, while_open=None):
             master, slave = pty.openpty()
             rows, columns = (24, 80) if args.provider_navigation else (32, 120)
             fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH', rows, columns, 0, 0))
-            ui = subprocess.Popen([str(launcher), '--ipc-dir', str(root / 'run')], cwd=project, env=env,
+            # Retired in-memory bindings remain inspectable by an explicit IPC
+            # client. Normal startup now renews obsolete sessions automatically;
+            # test-session-renewal.py owns that ordinary entry-point behavior.
+            ui_args = [str(launcher), '--ipc-dir', str(root / 'run')]
+            if args.retired_profiles and not args.systemd_handover:
+                owner = json.loads((state / 'supervision/owner.json').read_text())
+                ui_args = [str(launcher), '--socket', str(ipc), '--project-key', key,
+                           '--release-id', owner['release_id'], '--outbox-dir', str(state / 'session/outbox')]
+            ui = subprocess.Popen(ui_args, cwd=project, env=env,
                                   stdin=slave, stdout=slave, stderr=slave,
                                   start_new_session=True)
             os.close(slave)
@@ -502,7 +510,7 @@ def main():
                     for name in ['HOME', 'PATH']:
                         assert inherited.get(name.encode()) == env[name].encode(), 'Service must preserve the calling terminal environment: ' + name
                     replace_install()
-                    require_handover_refusal()
+                    require_attached_ui_preserved()
                 open_and_detach(while_open=replace_while_attached)
                 old_pid = unit_property('MainPID')
                 old_owner = json.loads((state / 'supervision/owner.json').read_text())
@@ -514,14 +522,16 @@ def main():
                 pending.parent.mkdir(exist_ok=True)
                 pending.write_text('{}')
                 try:
-                    require_handover_refusal()
+                    open_and_detach(draft)
+                    assert unit_property('MainPID') == old_pid, 'Pending delivery owner changed'
                 finally:
-                    pending.unlink()
+                    pending.unlink(missing_ok=True)  # Reattached UI may reconcile its outbox.
                 uncertain = state / 'session/coordinator/fixture-call/attempt/launch.json'
                 uncertain.parent.mkdir(parents=True)
                 uncertain.write_text('{}')
                 try:
-                    require_handover_refusal()
+                    open_and_detach(draft)
+                    assert unit_property('MainPID') == old_pid, 'Unsettled owner changed'
                     assert uncertain.read_text() == '{}', 'Uncertain launch evidence changed'
                 finally:
                     shutil.rmtree(state / 'session/coordinator/fixture-call')
@@ -541,7 +551,7 @@ def main():
                                   'upgraded_from_snapshot_closing_service': bool(args.previous_binaries),
                                   'catalog_navigation_saved_and_reopened': args.provider_navigation,
                                   'thinking_level_saved_and_reopened': args.provider_navigation,
-                                  'live_ui_pending_delivery_and_uncertain_launch_preserved': True,
+                                  'existing_owner_attached_then_idle_handover': True,
                                   'old_build_removed': True, 'model_calls': 0}))
                 return
             start_service(releases[0])

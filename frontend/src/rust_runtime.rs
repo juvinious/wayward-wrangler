@@ -172,11 +172,18 @@ fn previous_service_root(ready:&Ready,prior:&str,arguments:&[u8],executable:&Pat
     if arguments!=expected{return Err(err("Previous service command differs from this project; service preserved"));}
     Ok(root.to_path_buf())
 }
-fn handover_idle_service(ready:&Ready)->io::Result<()> {
+pub(super) fn verify_previous_service(project:&Path,state:&Path,key:&str,release:&str,arguments:&[u8],executable:&Path)->io::Result<()> {
+    let argv=arguments.split(|b|*b==0).filter(|v|!v.is_empty()).map(|v|String::from_utf8(v.to_vec()).map_err(err)).collect::<io::Result<Vec<_>>>()?;
+    let ipc=value(&argv,"--ipc").ok_or_else(||err("Previous service IPC path missing"))?;
+    let ready=Ready{project:project.into(),state:state.into(),key:key.into(),release:release.into(),
+        ipc:ipc.into(),herdr:value(&argv,"--herdr-socket").unwrap_or_default().into(),unit:format!("waywr-{key}.service")};
+    previous_service_root(&ready,release,arguments,executable).map(|_|())
+}
+fn handover_idle_service(ready:&Ready)->io::Result<Option<String>> {
     use std::os::fd::AsRawFd;
     let owner=read(&ready.state.join("supervision/owner.json")).map_err(err)?;
     let prior=owner["release_id"].as_str().ok_or_else(||err("Service owner release missing"))?;
-    if prior==ready.release{return Ok(());}
+    if prior==ready.release{return Ok(None);}
     if owner["project_key"]!=ready.key || prior.is_empty() || prior.len()>64 ||
         !prior.bytes().all(|b|b.is_ascii_alphanumeric()||b"._-".contains(&b)) || prior.starts_with('.'){
         return Err(err("Previous service ownership is invalid; service preserved"));
@@ -202,8 +209,12 @@ fn handover_idle_service(ready:&Ready)->io::Result<()> {
         return Err(err("Previous service did not prove this project's state; service preserved"));
     }
     drop(peer);
-    super::rust_maintenance::stop_quiescent_project(&ready.project,&ready.state,&ready.key)
-        .map_err(|error|err(format!("Application update waits for this project to be idle: {error}. Existing service and work are preserved")))?;
+    if super::rust_maintenance::stop_quiescent_project(&ready.project,&ready.state,&ready.key).is_err(){
+        // The UI speaks the existing wire contract. A busy owner is a connection
+        // target, not an update error. Retain its exact release in IPC only.
+        eprintln!("waywr: Connected to the running project service; application replacement will occur when idle.");
+        return Ok(Some(prior.to_owned()));
+    }
     // Owned units are transient --collect units. Never rewrite a persistent or
     // unrelated definition to make a replacement fit.
     let deadline=Instant::now()+Duration::from_secs(5);
@@ -213,9 +224,9 @@ fn handover_idle_service(ready:&Ready)->io::Result<()> {
         if Instant::now()>=deadline{return Err(err("Idle service stopped but its unit is still loaded; project state preserved"));}
         thread::sleep(Duration::from_millis(50));
     }
-    Ok(())
+    Ok(None)
 }
-fn ensure_service(root:&Path,ready:&Ready)->io::Result<()> {
+fn ensure_service(root:&Path,ready:&mut Ready)->io::Result<()> {
     let lock_path=ready.state.join("session/start.lock");
     let lock_deadline=Instant::now()+Duration::from_secs(10);
     let _start_lock=loop{
@@ -231,7 +242,7 @@ fn ensure_service(root:&Path,ready:&Ready)->io::Result<()> {
         if matches!(state.as_str(),"inactive"|"failed"){break;}
         if state=="active" && request_service(ready,"session.status",json!({})).is_ok(){return Ok(());}
         if state=="active"{
-            handover_idle_service(ready)?;
+            if let Some(prior)=handover_idle_service(ready)?{ready.release=prior;return Ok(());}
             if matches!(unit_state(&ready.unit)?.as_str(),"inactive"|"failed"){break;}
         }
         if Instant::now()>=deadline{return Err(io::Error::new(io::ErrorKind::TimedOut,format!("Project service {} did not settle; inspect its journal",ready.unit)));}
@@ -269,12 +280,19 @@ fn ensure_service(root:&Path,ready:&Ready)->io::Result<()> {
 }
 fn prepare(root:&Path,manifest:&Value,args:&[String],setup:bool)->io::Result<Option<Ready>> {
     let project=selected_project(args)?;
-    check_project_compatibility(root,manifest,&project,args)?;
+    waywr_backend::project_layout::check(&project).map_err(err)?;
+    super::rust_bundle::validate(root)?;
     let configuration=project.join(".waywr/project.toml");
     if !configuration.exists(){
         if !setup{return Ok(None);}
         init_project(&project)?;
     }
+    let state=selected(value(args,"--state-dir"),&project,&project.join(".waywr/state"))?;
+    // Outside the replaceable state directory so renewal remains serialized
+    // across its rename and a crash can resume the journal on the next launch.
+    let _startup=FileLock::exclusive(&project.join(".waywr/startup.lock")).map_err(err)?;
+    super::rust_session::prepare(&project,&state,manifest)?;
+    check_project_compatibility(root,manifest,&project,args)?;
     let config:toml::Value=toml::from_str(&fs::read_to_string(&configuration)?).map_err(err)?;
     let key=config["project_key"].as_str().ok_or_else(||err("Project key missing"))?.to_owned();
     let host=config["schema_version"].as_integer()==Some(2) &&
@@ -285,7 +303,6 @@ fn prepare(root:&Path,manifest:&Value,args:&[String],setup:bool)->io::Result<Opt
         return Err(err("Unsupported project identity"));
     }
     let release=manifest["release_id"].as_str().ok_or_else(||err("Release ID missing"))?.to_owned();
-    let state=selected(value(args,"--state-dir"),&project,&project.join(".waywr/state"))?;
     register_project(&project,&state,&key,args)?;
     if host{
         write(&state.join("state-contract.json"),&json!({"schema_version":1,
@@ -319,11 +336,17 @@ fn prepare(root:&Path,manifest:&Value,args:&[String],setup:bool)->io::Result<Opt
     if ipc.as_os_str().as_bytes().len()>=108{
         return Err(err("Project IPC socket path exceeds Linux SUN_LEN; select a shorter --ipc-dir before starting the service"));
     }
-    let ready=Ready{project,state,key:key.clone(),release,ipc,herdr:socket,unit:format!("waywr-{key}.service")};
-    ensure_service(root,&ready)?;
+    let mut ready=Ready{project,state,key:key.clone(),release,ipc,herdr:socket,unit:format!("waywr-{key}.service")};
+    ensure_service(root,&mut ready)?;
     Ok(Some(ready))
 }
 pub fn service_call(root:&Path,manifest:&Value,args:&[String],kind:&str,body:Value)->io::Result<Value>{
+    // Inspection/cancellation addresses the current owner. It must not renew a
+    // session, start work, or replace its ledger before looking up a command.
+    if kind=="command_get" || (kind=="command" && matches!(body["action"].as_str(),
+        Some("stop_session"|"cancel_conversation"|"cancel_task"|"development.cancel"))) {
+        return existing_service_call(manifest,args,kind,body);
+    }
     let ready=prepare(root,manifest,args,false)?.ok_or_else(||err("Project is not initialized"))?;
     request_service(&ready,kind,body)
 }
@@ -335,13 +358,24 @@ pub(super) fn service_socket(_project:&Path,args:&[String],key:&str)->io::Result
     Ok(runtime.join("waywr").join(format!("{key}.sock")))
 }
 pub(super) fn existing_service_call(manifest:&Value,args:&[String],kind:&str,body:Value)->io::Result<Value>{
+    use std::os::fd::AsRawFd;
     let project=selected_project(args)?;
     let config:toml::Value=toml::from_str(&fs::read_to_string(project.join(".waywr/project.toml"))?).map_err(err)?;
-    let key=config["project_key"].as_str().ok_or_else(||err("Project key missing"))?;
+    let key=config["project_key"].as_str().filter(|s|s.len()==32&&s.bytes().all(|c|c.is_ascii_hexdigit())).ok_or_else(||err("Invalid project key"))?;
     let socket=service_socket(&project,args,key)?;
-    let release=manifest["release_id"].as_str().ok_or_else(||err("Release ID missing"))?;
+    let state=value(args,"--state-dir").map(PathBuf::from).unwrap_or_else(||project.join(".waywr/state"));
+    let state=if state.is_absolute(){state}else{project.join(state)}.canonicalize()?;
+    let owner=read(&state.join("supervision/owner.json")).map_err(err)?;
+    if owner["project_key"]!=key {return Err(err("Project service owner identity differs"));}
+    let release=owner["release_id"].as_str().or_else(||manifest["release_id"].as_str()).ok_or_else(||err("Service release ID missing"))?;
     let mut peer=super::session(socket.to_str().ok_or_else(||err("Non-UTF8 IPC socket"))?,key,release,"command")
         .map_err(|_|err("Project service unavailable; opening a view will not start execution"))?;
+    let mut creds:libc::ucred=unsafe{std::mem::zeroed()};
+    let mut size=std::mem::size_of::<libc::ucred>() as libc::socklen_t;
+    if unsafe{libc::getsockopt(peer.as_raw_fd(),libc::SOL_SOCKET,libc::SO_PEERCRED,(&raw mut creds).cast(),&mut size)}!=0 ||
+        creds.pid<=1 || creds.uid!=unsafe{libc::geteuid()}{return Err(err("Cannot verify current project service peer"));}
+    verify_previous_service(&project,&state,key,release,&fs::read(format!("/proc/{}/cmdline",creds.pid))?,
+        &fs::read_link(format!("/proc/{}/exe",creds.pid))?)?;
     let reply=super::request(&mut peer,kind,"view-control",body)?;
     if reply.kind=="error"{return Err(err(reply.body));}
     Ok(reply.body)
@@ -452,8 +486,7 @@ fn ensure_herdr(ready:&Ready)->io::Result<()> {
 
 pub fn launch(root:&Path,manifest:&Value,args:&[String])->io::Result<()> {
     let project=selected_project(args)?;
-    check_project_compatibility(root,manifest,&project,args)?;
-    let ready=if let Some(ready)=prepare(root,manifest,args,false)?{ready}else{
+    let mut ready=if let Some(ready)=prepare(root,manifest,args,false)?{ready}else{
         let approved=if args.iter().any(|arg|arg=="--yes"){true}else{
             eprint!("Initialize Wayward Wrangler for {}? [y/N] ",project.display());
             io::stderr().flush()?;let mut response=String::new();io::stdin().read_line(&mut response)?;
@@ -469,7 +502,7 @@ pub fn launch(root:&Path,manifest:&Value,args:&[String])->io::Result<()> {
             // Retry only read-only preparation, within the existing bound. A
             // possibly delivered mutation below still retains its exact ID and
             // reports uncertainty; it is never replaced by this retry loop.
-            let snapshot=match ensure_service(root,&ready).and_then(|()|
+            let snapshot=match ensure_service(root,&mut ready).and_then(|()|
                 phase(&mut session(ready.ipc.to_str().ok_or_else(||err("Non-UTF8 IPC"))?,&ready.key,&ready.release,"command")?)){
                 Ok(snapshot)=>snapshot,
                 Err(error) if matches!(error.kind(),io::ErrorKind::ConnectionReset|io::ErrorKind::ConnectionRefused|io::ErrorKind::NotFound|io::ErrorKind::UnexpectedEof|io::ErrorKind::TimedOut|io::ErrorKind::WouldBlock|io::ErrorKind::Interrupted) && Instant::now()<until=>{
@@ -543,7 +576,7 @@ mod registry_tests {
         assert!(previous_service_root(&ready,"wrong-build",&arguments,&executable).is_err());
     }
     #[test]fn normal_init_has_live_profile_without_seeded_requests_or_fake_workflow(){
-        let d=tempfile::tempdir().unwrap();init_project(d.path()).unwrap();let root=d.path().join(".waywr");let p=read(&root.join("coordinator.json")).unwrap();assert_eq!(p["schema_version"],2);assert_eq!(p["coordinator"],"codex");assert!(!root.join("workflow.toml").exists());assert!(!root.join("state/state.sqlite").exists());
+        let d=tempfile::tempdir().unwrap();init_project(d.path()).unwrap();let root=d.path().join(".waywr");let p=read(&root.join("coordinator.json")).unwrap();assert_eq!(p["schema_version"],3);assert_eq!(p["coordinator"],"default");assert!(waywr_backend::provider_selection::Preferences::parse(&p).is_ok());assert!(!root.join("workflow.toml").exists());assert!(!root.join("state/state.sqlite").exists());
         let conflict=tempfile::tempdir().unwrap();fs::create_dir(conflict.path().join(".waywr")).unwrap();fs::write(conflict.path().join(".waywr/unrelated"),"preserve").unwrap();assert!(init_project(conflict.path()).is_err());assert!(!conflict.path().join(".waywr/project.toml").exists());
     }
     #[test]fn canonical_registry_relocation_preserves_other_projects_and_refuses_divergence(){

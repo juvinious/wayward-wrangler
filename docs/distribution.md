@@ -48,7 +48,9 @@ it does not route through an old build named in `.waywr/release.json`. That reta
 record supplies project identity/diagnostics, not an executable dependency. The
 installed bundle's hashes, storage schema and retained semantic contracts remain
 checked. An idle running service can be replaced under exact owner/quiescence checks;
-attached views, pending delivery and uncertain launches preserve its owner.
+compatible busy owners remain attachable through the current UI. Obsolete or
+stranded sessions follow [startup renewal](project-layout.md), rather than making
+an old failed attempt a dependency of the application update.
 This also works for a manifest-validated paired bundle launched directly through
 a temporary/project-local symlink; an installed releases directory is not
 required. Handover verifies the old unit's real executable (including a deleted
@@ -122,17 +124,29 @@ binaries; the regression isolates application-build identity changes.
 
 The `--systemd-handover` variant uses the real user manager and normal launcher to
 start and replace only its own uniquely keyed unit. It removes the old installation
-while the service runs, checks refusal for a live TUI, pending input and uncertain
-launch evidence, then verifies a new process/generation restores the saved draft.
+while the service runs, preserves an attached TUI and reconnects pending delivery
+or unresolved launch evidence to the existing owner, then verifies an idle
+replacement process/generation restores the saved draft.
 This establishes idle handover, not interruption or resumption of active model work.
 Adding `--portable` uses a temporary local-bin symlink directly to the paired
 bundles without installing them. That real-systemd variant reproduces the local
-development path and checks the same busy/uncertain-owner refusals and idle
+development path and checks the same existing-owner attachment and idle
 replacement after removal of the old bundle.
 `--populated-history` exercises complete snapshot delivery above1MiB using inert
 retained fixture records. With `--systemd-handover --portable`, an explicit
 `--previous-binaries ABS_BIN` tests an older service that demonstrably closes its
 oversized snapshot, followed by safe idle replacement and successful reopening.
+
+`python3 scripts/test-session-renewal.py` uses real uniquely keyed temporary
+systemd services, IPC and TUI. It reproduces the old unresolved-attempt update
+refusal, verifies termination of an inert held operation, retires the stranded
+session/obsolete target, opens fresh state with retained model choices/source,
+and reopens without resetting again. It also replaces obsolete native settings
+on startup. `--busy` verifies attachment to the same active owner across builds,
+then idle handover. Its held process is sleep, not a provider call; this does not
+establish useful model delivery. Crash continuation and foreign-state refusal
+have focused unit coverage. The explicit retired-profile IPC fixture in
+test-project-reopen.py characterizes inspection UI, not ordinary startup renewal.
 
 `python3 scripts/test-dev-install.py` runs two actual builds/installations with an
 explicit temporary prefix (including spaces) and the permanent Rust toolchain. It

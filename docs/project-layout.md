@@ -16,8 +16,26 @@ opening checks project identity, supported storage/semantic contracts and curren
 bundle integrity; it does not require or execute the recorded old build. A
 compatible stopped project can reopen after that installation is removed. No
 historical approval, packet or receipt is relabelled. Idle-service handover verifies exact process/socket ownership and positive
-quiescence. Live views, pending delivery and uncertain launches retain the current
-owner; explicit older-format migrations keep their separate constraints.
+quiescence. Compatible busy owners remain attachable through the current UI;
+execution keeps its original service/attempt identities until idle replacement.
+
+Normal startup renews obsolete provider settings/bindings, unsupported session
+formats or a stranded host attempt carrying unresolved uncertain.json. It stops
+the exact project service and its project-scoped operation cgroups, then moves
+the old state/history and target/endpoint/release configuration out of live use
+into private `.waywr/retired-sessions/<id>/`. A fresh state directory uses the
+same project identity/location, current storage contract, valid shared model
+preferences and workflow settings detected from the current source checkout.
+Retired native preferences are replaced from the shared catalog. Old calls,
+queues, context, budgets, approvals and model bindings are not imported. Source,
+Git commits and dirty worktrees are untouched. Old execution outcomes stay
+unknown; retirement is abandonment, not proof of nonexecution or a retry grant.
+
+`.waywr/session-renewal.json` journals preparation, stopped processes, retirement
+and completion. Startup resumes its own interrupted renewal. The startup lock is
+outside the replaceable state; a renewed session is retained on later reopen.
+Retired archives are diagnostic material only, never another launch target.
+Explicit maintenance/layout migrations retain their separate constraints below.
 
 
 For a legacy project, use a current installed release:

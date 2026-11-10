@@ -39,6 +39,9 @@ jobs:
           cargo test --locked -p waywr-backend --lib only_exact_proven_builtin_pair_is_allowed_without_enabling_skills_or_tools
           cargo test --locked -p waywr --bin waywr release_guard
           cargo test --locked -p waywr --bin waywr handover_checks
+          cargo test --locked -p waywr --bin waywr rust_session::tests
+          cargo test --locked -p waywr --bin waywr normal_init_has_live_profile
+          cargo test --locked -p waywr-backend --lib compatible_ui
           cargo test --locked -p waywr --lib protocol::tests
           cargo test --locked -p waywr --lib provider_ui_tests
           cargo test --locked -p waywr --lib coordinator_usage

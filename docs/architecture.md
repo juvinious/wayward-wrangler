@@ -21,7 +21,7 @@ candidates, checkout ownership, retention and completion; HANDOFF records verifi
 | Owner | Responsibility |
 | --- | --- |
 | `frontend/src/main.rs`, `prototype/view.rs` | Accepted Ratatui composer, exact scope/policy approval, tasks and Inspect |
-| `rust_runtime.rs`, `rust_bundle.rs`, `rust_migrate.rs`, `cli_schema.rs` | Init, paired stable install, stopped-service layout migration, CLI routing, service attachment |
+| `rust_runtime.rs`, `rust_session.rs`, `rust_bundle.rs`, `rust_migrate.rs`, `cli_schema.rs` | Init, paired install, session renewal, layout migration, CLI routing and service attachment |
 | `session_service.rs`, `db_writer.rs` | One service per project, responsive IPC and bounded SQLite writer |
 | `ipc_limits.rs`, `frontend/src/protocol.rs` | Shared1MiB incoming/64KiB command budgets,8MiB complete replies and correlated oversized-reply errors |
 | `coordination.rs`, `coordination/providers.rs`, `prototype/coordination_view.rs` | Request-bound chat, presented cards, exact decisions, continued answers, provider choices and append-only repair |
@@ -200,8 +200,13 @@ reports the selected artifact without initializing a project. `rust_runtime.rs`,
 explicit guarded migration/rollback. Ordinary startup no longer routes through
 an old executable named in project release metadata. Compatible stopped projects
 reopen with the selected paired application; a running service still enforces
-its own release/owner identity. Idle services hand over under startup/execution fences after exact ownership and
-quiescence checks; busy or uncertain work is preserved. Installed
+its own release/owner identity. Compatible current UIs attach across builds after
+peer executable/manifest verification; active execution stays with that owner.
+Idle services hand over after exact ownership and quiescence checks. Obsolete or
+stranded sessions follow [startup renewal](project-layout.md): stop exact owned
+processes, retire old state/target configuration and create a fresh session from
+usable shared settings and current project source, without old execution replay.
+Installed
 bundles are independent of this source checkout. The GitHub PR/build workflow passed focused checks, production packaging, real
 isolated installation/TUI startup and artifact upload. The version-tag release
 workflow remains unexecuted; no release has been published. Versioned Linux binary artifacts, a download entry

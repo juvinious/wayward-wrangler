@@ -302,8 +302,9 @@ waywr
 Plain `waywr` prompts for first-use setup when needed. After editing Waywr, close
 its old TUI and repeat `sh scripts/dev-install.sh` from this checkout, then reopen
 the same project with `waywr`. No bundle ID, per-project rebind or separate service
-command is needed. Idle services are replaced safely; busy/uncertain execution
-preserves its current owner and reports the reason. Use `resume` only when you
+command is needed. Idle services are replaced; compatible busy work remains
+attachable with its original owner. Obsolete or stranded sessions are renewed
+automatically as described below. Use `resume` only when you
 intend to resume a paused session. `--prefix ABSOLUTE` provides an isolated/custom
 installation; its launcher is `PREFIX/bin/waywr`.
 
@@ -335,7 +336,7 @@ for this example is `~/.local/share/wayward-wrangler/bin/waywr`. No sudo is need
 ## Existing projects: upgrade versus migration
 
 The selected application opens compatible stopped projects directly. Existing
-`.waywr/release.json` metadata is preserved; startup checks project identity,
+`.waywr/release.json` metadata does not pin execution; startup checks project identity,
 storage compatibility, required semantic contracts and the installed bundle's
 integrity without looking for the former executable. Repeated init preserves the
 saved record. A routine compatible rebuild needs no per-project rebind or
@@ -344,9 +345,17 @@ saved record. A routine compatible rebuild needs no per-project rebind or
 Close with `/exit` to checkpoint/pause before changing the application; `/detach`
 leaves background work running. Opening a paused project preserves that pause;
 `waywr resume` explicitly resumes dispatch. An idle service from another build is replaced automatically after its exact
-process/socket ownership and quiescence are verified. A live view, pending input
-or uncertain execution preserves the existing service and reports the reason;
-there is no force-stop or replay.
+process/socket ownership and quiescence are verified. Pending input or active work
+keeps a compatible existing service attachable while its work continues.
+
+Obsolete provider settings/bindings, unsupported session formats and stranded
+uncertain host attempts start a fresh session automatically. Waywr stops the
+old session's owned processes and removes its state and target configuration
+from live use. Valid shared model choices are retained; retired native settings
+are replaced from the current catalog. New context uses the current source and
+new instructions. Code, commits and dirty worktrees remain. Old calls, queues
+and approvals are never replayed. Private diagnostic archives and a resumable
+renewal journal live under `.waywr`; see [project layout](docs/project-layout.md).
 
 Installing a bundle does not convert every older storage format or authorize
 work. Explicit `session upgrade`/`rollback` commands remain advanced maintenance

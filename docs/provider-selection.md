@@ -1,16 +1,18 @@
 # Project providers and models
 
 State9 / conversation config6 / IPC1.10 now uses schema3 project preferences with
-one shared model runtime. Existing schema1/2 native profiles are retired and need
-explicit reconfiguration. Their files, work and history are not rewritten or
-removed. The [old native contract](archive/provider-selection/2026-11-09-retired-native-provider-contract.md)
+one shared model runtime. Normal startup replaces retired schema1/2 native
+settings/bindings with a fresh shared-runtime session. Valid shared model choices
+are retained; old native choices, calls and approvals are not translated. Source
+and worktrees remain. The [renewal contract](project-layout.md) owns retirement.
+The [old native contract](archive/provider-selection/2026-11-09-retired-native-provider-contract.md)
 is evidence only. The [product direction](execution-adapter-decision.md) owns the
 breadth requirement; no native compatibility route is maintained for this rewrite.
 
-Schema2 settings can be read to open the project and inspect its history. They
-cannot execute. F3 offers a fresh, unsaved schema3 draft from the shared catalog;
-it does not translate old native choices or invoke their executables. Choose the
-provider/model and thinking level, S save, then A reviews activation in Profiles.
+An explicitly connected IPC inspection client can still display retired settings;
+they cannot execute. This is not the normal startup path. For a model change in
+a current session, choose the provider/model and thinking level, S save, then A
+reviews activation in Profiles.
 Choose Activate and share project context and Enter to request the switch. Saving alone
 does not replace the active binding. Existing request policies may require a
 separate amendment in section6 Policy before that request can use a new model;
