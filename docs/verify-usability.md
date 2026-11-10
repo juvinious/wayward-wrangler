@@ -3,10 +3,11 @@
 The next operator walkthrough is deferred until the
 [interaction/lifecycle changes](usability-plan.md#finish-before-the-next-operator-test)
 are complete. The instructions below describe the current build and later use
-checks; they do not mean the planned interrupt/steering/exit controls are already
-implemented. The shared coordinator startup-directory repair is now local, but
-an already-recorded uncertain operator attempt still requires separate
-reconciliation before another call. A prepared new bundle does not clear it.
+checks. Direct interrupt/leave/pause and automatic obsolete-session renewal are
+implemented locally; live steering/follow-up and remaining editor/action work are
+still incomplete. Normal startup retires obsolete/stranded session context rather
+than preserving it as a live update dependency. Operator state has not been reset
+by these isolated checks; do not reopen until the sequence is finished.
 
 The candidate uses the shared model runtime on Linux x86_64 with a systemd user
 manager, Node >=22.19 and `flock`. Configure a provider through the SDK's explicit
@@ -53,7 +54,8 @@ an explicit amendment in section6.
 If the active binding is retired, Send opens the saved model review directly;
 there is no need to find the Switch section. Activation returns to the unsent
 draft. An unrelated old request cannot veto a new discussion's model choice.
-Ctrl-C or Escape in the plain composer clears input and its saved draft; Escape
+Ctrl-C or Escape in the plain composer clears nonempty input and its saved draft;
+with empty input it interrupts only the foreground coordinator. Escape
 inside a popup still returns one level without clearing the composer.
 
 Discuss one small useful development request. Review its scope/policy card and
@@ -64,7 +66,8 @@ unexpected block or missing explanation.
 
 ## Rebuild and return
 
-Use `/exit` to save/pause and close the TUI. From the Waywr source checkout,
+Use `/pause` if you want to stop new dispatch, then Ctrl-Q or `/exit` to leave
+immediately. Leaving alone keeps background work running. From the Waywr source checkout,
 repeat `sh scripts/dev-install.sh` after a local application change. Then return
 to the same project and run `waywr` again. `waywr --version` shows the new generated
 artifact ID. No manual bundle IDs, rebinding or project upgrade command is needed.
@@ -74,10 +77,10 @@ handover supports this portable layout without a global installation.
 Conversation, settings, draft/work and intentional pause should remain. Resume
 only when you intend to restart dispatch.
 
-An idle old service is replaced automatically. A live TUI, pending client input
-or uncertain launch keeps its existing service; the error explains why replacement
-waits. Do not force-stop it or delete its state to proceed. `/detach` deliberately
-leaves background work running. Older installation artifacts are retained for now;
+An idle old service is replaced automatically. A compatible busy owner remains
+attachable without replacement; obsolete/stranded sessions use automatic renewal.
+Source and dirty worktrees remain. `/detach` deliberately leaves background work
+running. Older installation artifacts are retained for now;
 automatic cleanup and uninstall commands are subsequent work.
 
 The success criterion is completing useful work, rebuilding Waywr and continuing

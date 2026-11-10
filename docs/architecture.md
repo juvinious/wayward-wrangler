@@ -214,6 +214,16 @@ point and guarded quiescent updates now use the [distribution contract](distribu
 
 ## Conversational coordination
 
+The current TUI separates foreground interruption, leaving and pausing. An empty
+composer's Escape/Ctrl-C, /interrupt and the visible primary action address only
+the selected topic's exact coordinator turn through cancel_conversation. Pending
+interruption is labelled until settlement; existing late-action fences remain.
+Ctrl-Q leaves from editors/overlays immediately; empty-composer Ctrl-D and
+/detach, /exit, /quit leave without a network/settlement wait. /pause requests
+stop_session without leaving. Drafts remain local/durable, including disconnects.
+The shared SDK's live steer/followUp methods are still not connected to the
+runtime's single-input boundary; the later-turn queue is not live steering.
+
 The [conversation contract](conversational-coordination.md) owns the state9 IPC1.8
 interaction overlay. Stable request ownership is independent of task inspection.
 Frozen draft/submission targets feed saved question decisions and once-only continuation,

@@ -14,7 +14,9 @@ and execution approvals. Browsing never grants authority or executes work.
 | Read-only content popup | Up/Down scrolls a line; PageUp/PageDown scrolls eight lines; Home/End goes to the start/end. Alt+PageUp/PageDown moves one line. |
 | Modal action row | Left/Right or Tab/Shift-Tab selects an action. Enter activates it. The initial choice stays non-destructive. |
 | Existing task, queue, question and history lists | Up/Down selects a row. Actions remain in their own action row. Page keys scroll displayed content. |
-| Main composer | Up/Down recalls history. Alt+Up/Down moves the multiline cursor. Ctrl-C clears input; Esc clears when no popup/menu is open. Enter sends; F2 toggles multiline. Tab/Shift-Tab changes focus. |
+| Main composer | Up/Down recalls history. Alt+Up/Down moves the multiline cursor. Ctrl-C/Esc clears nonempty input; with empty input interrupts the foreground coordinator. Enter sends; F2 toggles multiline. Tab/Shift-Tab changes focus. |
+| Leave | Ctrl-Q from any overlay/editor; Ctrl-D with empty input; `/detach`, `/exit`, `/quit`. Save local draft and leave immediately without confirmation or settlement wait, including disconnected state. |
+| Interrupt / pause | Visible Interrupt action or `/interrupt` stops only the foreground coordinator directly. Show Stopping until settlement; typing and leaving remain available. `/pause` separately stops new dispatch; `/resume` continues it. |
 
 Esc closes a popup only after its nested picker/editor has been left. Page and
 Escape handling must not bypass the focused editor. Holding navigation keys
@@ -66,7 +68,8 @@ login or inference. See [provider setup](provider-selection.md) for those steps.
 
 Target recorded on2026-11-10, following the user's request to align ordinary use
 with Codex/Pi and finish it before another operator walkthrough. This section is
-not implemented yet; the sections above describe the current build. A waiting
+partially implemented: direct interrupt/leave/pause are current behavior; live
+steering/follow-up and the remaining editor/action shortcuts are still targets. A waiting
 task must not make the interface unusable. Drafting, browsing, inspection, changing
 topics and leaving remain available while an operation is waiting or stopping.
 

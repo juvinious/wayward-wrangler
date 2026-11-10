@@ -489,9 +489,7 @@ def main():
                     assert expected_draft.encode() in screen, 'Saved draft was not restored in the composer'
                 if while_open:
                     while_open()
-                os.write(master, b'\x11')  # Ctrl-Q opens Detach without submitting the draft.
-                time.sleep(.2)
-                os.write(master, b'\x1b[C\r')
+                os.write(master, b'\x11')  # Ctrl-Q leaves without submitting the draft or waiting for work.
                 assert ui.wait(timeout=10) == 0
             finally:
                 if ui.poll() is None:

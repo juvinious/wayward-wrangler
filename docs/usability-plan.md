@@ -24,7 +24,7 @@ their isolated evidence does not establish a fluid, useful daily workflow.
 | Shared model layer | Standalone pi-ai/agent-core runtime replaces the native integrations; catalogs/configuration and manual IDs stay outside core routing; two protocol/tool/runner fixtures | Real account setup and useful delivery through selected models; catalog breadth is not verified account access |
 | Selection and visibility | Full searchable provider/model pickers, runtime thinking levels, saved/active labels, direct setup from Send, worker activity and conversation-call usage/cost/context estimates | Simpler ordinary model changes and actionable authentication/errors; workflow coordinator usage is not yet in the conversation summary |
 | Local iteration | Paired build/local launcher, compatible reopen, idle/portable handover, compatible busy-owner attachment, automatic renewal of obsolete/stranded sessions without old target/call reuse | Complete start → leave → return → rebuild → continue journey with useful model work; existing services predating cross-build UI attachment require their first idle transition |
-| Input and responsiveness | Contextual arrows/Tab/Enter/Escape, literal paste and history, Ctrl-C/Escape clearing, draft persistence, reduced idle copying/polling | Direct interruption, real steering versus follow-up, consistent normal editing and prompt leave controls |
+| Input and responsiveness | Contextual controls, literal paste/history, clearing/draft persistence, reduced idle CPU, direct foreground interruption, immediate leave from overlays/disconnection, separate pause | Real steering versus follow-up, consistent multiline/history and direct model/status actions |
 | Isolation of blockers | Unrelated policies do not veto new discussion; stranded old sessions stop being live update dependencies | Errors and settlement waits must remain scoped while navigation, drafting, inspection and leaving stay available |
 | Distribution | Bundle validation, source/binary privacy checks, notices, local staged selection and version diagnostics | Public unauthenticated installer, update/uninstall and artifact collection; publication remains the user's action; Debian packaging follows |
 | Substantial application | Direction and proposed reference brief | Shared-runtime real task delivery, then a useful persisted web-app increment across selected models |
@@ -48,13 +48,19 @@ The user asked to finish the interaction/lifecycle changes before asking them to
 open the application again. Follow the [planned everyday interaction](tui-controls.md#planned-everyday-interaction)
 in this order. These are targets, not claims of current behavior.
 
-1. **Interrupt and leave directly.** Expose a visible interrupt action and normal
+1. **Interrupt and leave directly — implemented locally.** Expose a visible interrupt action and normal
    shortcut without a confirmation maze. Stop the foreground coordinator, not the
    entire workflow. Detach/exit returns the terminal promptly while service-owned
    work or settlement continues separately. Acceptance: start a held streaming
    fixture, interrupt, continue drafting, leave while stopping, then reopen to the
    exact saved status without duplicated work. Include a disconnected UI. Do not
    wait for agent settlement just to restore the terminal.
+   Evidence: the real local HTTP/SDK/service/runner/TUI fixture interrupts through
+   IPC, keeps the runner SIGSTOP-held so settlement cannot finish, saves a new
+   draft and leaves in under one second. It reattaches to that same busy owner,
+   resumes the runner to a receipt, then leaves a disconnected UI. One local HTTP
+   request; no model/account call. Topic-specific targeting and late-action
+   fencing have focused regressions. `/pause` remains separate from leave.
 2. **Steer or follow up while busy.** Enter sends guidance to the active agent at
    its next supported boundary; Alt+Enter explicitly queues later work. Show which
    disposition was accepted and allow queued messages to be edited/withdrawn.

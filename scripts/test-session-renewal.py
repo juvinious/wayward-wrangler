@@ -6,27 +6,34 @@ operation is sleep, not a model; only uniquely keyed fixture units are stopped.
 """
 import argparse
 import fcntl
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
 from pathlib import Path
 import pty
 import re
+import runpy
 import select
 import shutil
+import signal
+import sqlite3
 import struct
 import subprocess
 import tempfile
 import termios
 import time
+import threading
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--binaries', type=Path, default=Path('target/release'))
     parser.add_argument('--busy', action='store_true', help='Reconnect to a healthy active owner after an update')
+    parser.add_argument('--controls', action='store_true', help='Interrupt a real held SDK stream, leave while stopping, reopen and leave disconnected')
     args = parser.parse_args()
     binaries = args.binaries.resolve()
     source = Path(__file__).resolve().parents[1]
+    terminal_text = runpy.run_path(str(source / 'scripts/test-project-reopen.py'))['terminal_text']
     with tempfile.TemporaryDirectory(prefix='waywr-renewal-') as temporary:
         root = Path(temporary)
         project = root / 'project'
@@ -59,7 +66,7 @@ def main():
         unit = f'waywr-{key}.service'
         operation_unit = f'waywr-op-{key}-' + 'b' * 16 + '-' + 'c' * 32 + '.service'
         cli = ['--project', project, '--ipc-dir', root / 'run']
-        def open_ui(launcher):
+        def open_ui(launcher, while_open=None, expected_draft=None):
             master, slave = pty.openpty()
             fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH', 32, 120, 0, 0))
             ui = subprocess.Popen(list(map(str, [launcher, *cli])), cwd=project, env=env,
@@ -69,23 +76,111 @@ def main():
                 screen = bytearray()
                 deadline = time.monotonic() + 15
                 def composer_open():
+                    if expected_draft is not None:
+                        return expected_draft.encode() in screen
                     return any(text in screen for text in [b'Message the coordinator', b'Describe work'])
                 while not composer_open() and time.monotonic() < deadline and ui.poll() is None:
                     if select.select([master], [], [], .1)[0]:
                         try: screen.extend(os.read(master, 65536))
                         except OSError: break
                 assert composer_open(), re.sub(rb'\x1b\[[0-?]*[ -/]*[@-~]', b'', screen).decode(errors='replace')[:2500]
+                def wait_for(check, label, seconds=15):
+                    until = time.monotonic() + seconds
+                    while not check() and time.monotonic() < until:
+                        assert ui.poll() is None, 'UI closed while ' + label
+                        if select.select([master], [], [], .05)[0]:
+                            try: screen.extend(os.read(master, 65536))
+                            except OSError: break
+                    assert check(), label + ': ' + re.sub(rb'\x1b\[[0-?]*[ -/]*[@-~]', b'', screen).decode(errors='replace')[-1600:]
+                if while_open:
+                    while_open(master, wait_for, screen)
+                started = time.monotonic()
                 os.write(master, b'\x11')
-                time.sleep(.2)
-                os.write(master, b'\x1b[C\r')  # Current confirmation; direct detach has its own slice.
-                assert ui.wait(timeout=10) == 0
+                assert ui.wait(timeout=2) == 0
+                assert time.monotonic() - started < 1, 'Leaving waited for service/agent settlement'
             finally:
                 if ui.poll() is None:
                     ui.terminate()
                     ui.wait(timeout=10)
                 os.close(master)
 
+        server = None
+        release_stream = threading.Event()
+        held_runner = None
         try:
+            if args.controls:
+                started = threading.Event()
+                calls = []
+                class HeldStream(BaseHTTPRequestHandler):
+                    def log_message(self, *_): pass
+                    def do_POST(self):
+                        calls.append(json.loads(self.rfile.read(int(self.headers['Content-Length']))))
+                        self.send_response(200)
+                        self.send_header('Content-Type', 'text/event-stream')
+                        self.end_headers()
+                        chunk = {'id': 'held', 'object': 'chat.completion.chunk', 'created': 1,
+                                 'model': 'model-outside-core', 'choices': [{'index': 0, 'delta': {'role': 'assistant', 'content': 'Held local fixture stream'}, 'finish_reason': None}]}
+                        self.wfile.write(('data: ' + json.dumps(chunk) + '\n\n').encode())
+                        self.wfile.flush()
+                        started.set()
+                        release_stream.wait(45)
+                server = ThreadingHTTPServer(('127.0.0.1', 0), HeldStream)
+                server.daemon_threads = True
+                threading.Thread(target=server.serve_forever, daemon=True).start()
+                endpoint = f'http://127.0.0.1:{server.server_port}/v1'
+                config = root / 'models.json'
+                config.write_text(json.dumps({'providers': [{'id': 'held-fixture', 'api': 'openai-completions',
+                    'base_url': endpoint, 'models': [{'id': 'model-outside-core', 'context_window': 32768}]}]}))
+                path = project / '.waywr/coordinator.json'
+                prefs = json.loads(path.read_text())
+                profile = prefs['profiles']['default']
+                profile.update(provider='held-fixture', model='model-outside-core', options={})
+                profile['transport'] = {'entry': 'bundled', 'config': str(config),
+                    'destination': {'provider': 'held-fixture', 'api': 'openai-completions', 'base_url': endpoint, 'auth_env': None}}
+                path.write_text(json.dumps(prefs))
+                draft = 'Keep this unsent draft while stopping'
+                def interrupt(master, wait, screen):
+                    nonlocal held_runner
+                    os.write(master, b'A bounded local fixture conversation\r')
+                    wait(started.is_set, 'SDK did not reach the held HTTP endpoint')
+                    wait(lambda: 'Interrupt coordinator' in terminal_text(screen, 32, 120), 'Interrupt action missing')
+                    claims = list(state.glob('session/coordinator/*/call-v*/attempts/*/claim.json'))
+                    assert len(claims) == 1
+                    claim = json.loads(claims[0].read_text())
+                    held_runner = claim['runner']['pid']
+                    os.kill(held_runner, signal.SIGSTOP)  # Settlement cannot finish until this fixture resumes it.
+                    os.write(master, b'\x03' + draft.encode())
+                    def interrupt_recorded():
+                        with sqlite3.connect(state / 'state.sqlite') as db:
+                            return db.execute('SELECT COUNT(*) FROM dialogue_inputs WHERE interrupt_command_id IS NOT NULL').fetchone()[0] == 1
+                    wait(interrupt_recorded, 'Empty-input Ctrl-C did not interrupt through IPC')
+                    assert not list(state.rglob('receipt.json')), 'Fixture settled before prompt-leave check'
+                open_ui(old, interrupt)
+                assert json.loads((state / 'session/draft.json').read_text()).get('draft', {}).get('text') == draft
+                # Reattach while the same owner is still waiting for settlement.
+                open_ui(new, expected_draft=draft)
+                os.kill(held_runner, signal.SIGCONT)
+                held_runner = None
+                until = time.monotonic() + 15
+                while not list(state.rglob('receipt.json')) and time.monotonic() < until:
+                    time.sleep(.05)
+                assert list(state.rglob('receipt.json')), 'Interrupted runner did not settle'
+                def disconnect(master, wait, screen):
+                    os.write(master, b'\x03/pause\r')  # Clear draft, explicitly pause; do not leave.
+                    def paused():
+                        with sqlite3.connect(state / 'state.sqlite') as db:
+                            phase = json.loads(db.execute("SELECT value FROM session_metadata WHERE name='lifecycle_v1'").fetchone()[0])
+                            return phase['phase'] in ['exit-requested', 'draining', 'paused']
+                    wait(paused, 'Pause did not stop new dispatch while keeping the UI open')
+                    os.write(master, draft.encode())
+                    run(['systemctl', '--user', 'stop', unit])
+                    wait(lambda: any(text in terminal_text(screen, 32, 120).lower() for text in ['reconnecting', 'disconnected']), 'UI did not expose disconnection')
+                open_ui(new, disconnect, expected_draft=draft)
+                assert len(calls) == 1, 'Interrupt/reopen replayed the model request'
+                print(json.dumps({'real_sdk_stream_interrupted': True, 'prompt_leave_while_stopping_and_disconnected': True,
+                                  'draft_retained_and_busy_owner_reattached': True, 'pause_is_separate_from_leave': True,
+                                  'http_fixture_requests': 1, 'model_calls': 0}))
+                return
             open_ui(old)
             preferences = (project / '.waywr/coordinator.json').read_bytes()
             workflow = project / '.waywr/workflow.json'
@@ -153,8 +248,18 @@ def main():
                               'retired_profiles_replaced_at_startup': True,
                               'real_systemd_ipc_tui': True, 'model_calls': 0}))
         finally:
-            subprocess.run(['systemctl', '--user', 'stop', unit, operation_unit], env=env,
-                           capture_output=True, timeout=20)
+            if held_runner is not None:
+                os.kill(held_runner, signal.SIGCONT)
+            release_stream.set()
+            if server is not None:
+                server.shutdown()
+                server.server_close()
+            subprocess.run(['systemctl', '--user', 'stop', unit], env=env, capture_output=True, timeout=20)
+            units = subprocess.run(['systemctl', '--user', 'list-units', '--all', '--plain', '--no-legend', '--full',
+                                    f'waywr-op-{key}-*.service'], env=env, capture_output=True, text=True, timeout=5)
+            owned = [line.split()[0] for line in units.stdout.splitlines()
+                     if re.fullmatch(f'waywr-op-{key}-[0-9a-f]{{16}}-[0-9a-f]{{32}}.service', line.split()[0])]
+            subprocess.run(['systemctl', '--user', 'stop', operation_unit, *owned], env=env, capture_output=True, timeout=20)
 
 
 if __name__ == '__main__':

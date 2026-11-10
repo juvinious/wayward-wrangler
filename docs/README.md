@@ -32,8 +32,11 @@ IPC and TUI checks cover both paths; [project layout](project-layout.md) owns
 the retirement journal and [distribution](distribution.md) owns their evidence.
 Ordinary provider setup and useful model execution remain unverified. The next
 work is the [pre-test interaction/lifecycle sequence](usability-plan.md#finish-before-the-next-operator-test):
-direct interrupt/leave, real steering versus follow-up, busy-owner return after
-update, then the useful everyday loop. The
+direct foreground interrupt/leave/pause and compatible busy-owner attachment are
+implemented locally; live steering/follow-up, remaining editor/action work and
+the useful everyday loop remain. A held local HTTP/SDK/runner/service/TUI check
+verifies interruption, draft retention, prompt leave while stopping, reattachment
+and disconnected leave. The
 [planned controls](tui-controls.md#planned-everyday-interaction) record the
 Codex/Pi comparison and distinguish targets from current behavior. Complete those
 changes before another operator walkthrough. [User verification](verify-usability.md)

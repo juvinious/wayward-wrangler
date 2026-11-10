@@ -147,6 +147,11 @@ then idle handover. Its held process is sleep, not a provider call; this does no
 establish useful model delivery. Crash continuation and foreign-state refusal
 have focused unit coverage. The explicit retired-profile IPC fixture in
 test-project-reopen.py characterizes inspection UI, not ordinary startup renewal.
+The `--controls` variant uses an actual SDK stream against local HTTP, interrupts
+through the real service/runner, and SIGSTOP-holds settlement while verifying
+prompt leave and busy reattachment with the draft intact. It also verifies pause
+without leaving and prompt disconnected leave. It makes one local fixture
+request and no real model/account call; all fixture units are stopped afterward.
 
 `python3 scripts/test-dev-install.py` runs two actual builds/installations with an
 explicit temporary prefix (including spaces) and the permanent Rust toolchain. It

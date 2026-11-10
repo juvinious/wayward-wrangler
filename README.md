@@ -148,16 +148,19 @@ this runtime. Each new request and approval belongs to you.
 | `/inspect` | Inspect integration, checks, obligations and exact readable history/summary paths |
 | `/resume` | Resume a paused session or recover the selected blocked workflow after its blocker is resolved |
 | `/detach` | Close the TUI while authorized work continues |
-| `/exit` | Checkpoint and pause dispatch, then close the TUI |
+| Ctrl-Q, empty-input Ctrl-D, `/exit`, `/quit` | Save the draft and leave immediately; service-owned work continues |
+| `/interrupt`, empty-input Escape / Ctrl-C | Interrupt the foreground coordinator directly; keep typing or leave while it stops |
+| `/pause` | Request a stop to new dispatch; current calls settle separately and the UI remains available |
 
-Ctrl-C clears the main input. Escape clears it when no popup/menu is open;
+Ctrl-C clears nonempty main input. Escape clears it when no popup/menu is open;
 inside a popup, Escape backs out without clearing the underlying draft.
+With empty input these keys interrupt only the foreground coordinator; idle
+Ctrl-C does not exit. Interruption never implicitly cancels a whole workflow.
 History recall never sends or executes an entry. Modal text fields retain cursor
 movement while editing; Tab moves focus to their actions. Queue Up/Down selects a
-message, Left/Right selects its action, and page keys scroll. Closing commands open
-a panel: select **Detach** or **Exit** with Right and confirm with Enter;
-leaving the default **Stay** selected keeps the view open. Reopening `waywr` restores
-context and preserves an intentional pause.
+message, Left/Right selects its action, and page keys scroll. Leaving requires no
+confirmation or settlement wait, including from editors or a disconnected UI.
+Reopening `waywr` restores context and preserves an intentional pause.
 
 F3 → F opens the complete searchable model catalog. Type to filter, Up/Down to
 select and Enter to place a model in the draft; S saves after returning to the
@@ -342,8 +345,8 @@ integrity without looking for the former executable. Repeated init preserves the
 saved record. A routine compatible rebuild needs no per-project rebind or
 `session upgrade` command.
 
-Close with `/exit` to checkpoint/pause before changing the application; `/detach`
-leaves background work running. Opening a paused project preserves that pause;
+Use `/pause` when you want to stop new dispatch. `/exit` and `/detach` leave the
+UI while background work continues. Opening a paused project preserves that pause;
 `waywr resume` explicitly resumes dispatch. An idle service from another build is replaced automatically after its exact
 process/socket ownership and quiescence are verified. Pending input or active work
 keeps a compatible existing service attachable while its work continues.

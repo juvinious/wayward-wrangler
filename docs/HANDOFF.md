@@ -1,6 +1,6 @@
-# Waywr handoff — renewable sessions and busy-owner attachment
+# Waywr handoff — renewable sessions and direct controls
 
-Branch: `plan/usability-and-installation`. Base: `4c804cd`. Follow
+Branch: `plan/usability-and-installation`. Base: `70a252b` (startup renewal); current changes add direct controls. Follow
 [AGENTS.md](../AGENTS.md). Local implementation/commits only; the user handles
 remote delivery. Keep the operator walkthrough deferred until the accepted
 [interaction/lifecycle sequence](usability-plan.md#finish-before-the-next-operator-test)
@@ -35,6 +35,21 @@ Stop/cancel/command lookup target the exact current IPC owner and never initiate
 session renewal or another model attempt. Their peer command/project/state are
 verified even when the invoking application is from another build.
 
+## Direct controls now implemented
+
+Empty plain-composer Escape/Ctrl-C requests interruption of only the foreground
+subject's exact coordinator turn. Nonempty input still clears; popup Escape backs
+out one level. The visible primary action and /interrupt use that same command,
+without workflow cancellation or a confirmation panel. Repeated requests show
+Stopping; drafts/navigation/leave remain usable until actual settlement. A lost
+connection does not pretend interruption was delivered.
+
+Ctrl-Q leaves directly from all editors/overlays; empty-composer Ctrl-D and
+/detach, /exit, /quit also leave immediately. The local draft is saved without
+waiting for model/tool settlement or network acknowledgement. /pause separately
+requests stop_session and keeps the UI open; it does not kill the foreground call
+or imply that it has settled. Existing /resume semantics remain explicit.
+
 ## Verification and limits
 
 The real isolated launcher/systemd/IPC/TUI regression first reproduced the user's
@@ -51,8 +66,17 @@ schema3 contract. No dependency/lock changes or account calls.
 The remapped release and source public-content checks pass. Portable real-systemd
 handover with retained history/pending delivery/unresolved launch records passes.
 The explicit retired-profile IPC fixture remains a UI inspection check, separate
-from ordinary startup renewal. Final review/check results belong with this local
-checkpoint. No hosted workflows, publication or remote Git writes were performed.
+from ordinary startup renewal, and its combined catalog/thinking/activation/usage/
+draft/pause regression passed at the startup checkpoint (idle UI 1%, service 3%).
+
+The --controls variant of test-session-renewal.py uses the actual SDK against one
+held local HTTP stream and the real service/runner/IPC/TUI. It SIGSTOP-holds the
+runner so interruption cannot settle, requests interrupt through the UI, keeps an
+unsent draft, leaves in under one second, and reattaches to the stopping owner.
+Resuming the runner produces its receipt; the UI then explicitly pauses without
+leaving and leaves a disconnected service promptly. Only one HTTP fixture request
+is made. All uniquely keyed fixture units are stopped; no operator state/account
+or actual inference is used. Focused control/topic/late-action checks pass. No hosted workflows, publication or remote Git writes were performed.
 
 Renewal requires verifiable process ownership and writable state/archive paths;
 it cannot bypass permission failures or ambiguous project/layout ownership.
@@ -66,11 +90,10 @@ by this implementation. The previous uncertain attempt was not replayed. The
 ignored target/local-bin/waywr still points to the previous local.startup bundle;
 do not present it as the new candidate or an instruction to test now.
 
-Continue with direct foreground interrupt and prompt leave, including stopping
-or disconnected state; then real steering/follow-up and consistent editor/error
-feedback. Runtime abort exists, but steer/followUp are not connected through its
-current single-input boundary. Current confirmations/exit semantics still need
-replacement. A waiting operation must not trap navigation, drafting or leaving.
+Next is real steering/follow-up, then consistent multiline/history, direct
+model/thinking/status actions and error feedback. Runtime abort is now connected
+to direct UI interruption; steer/followUp are still not connected through the
+runtime's single-input boundary. Do not relabel its later-turn queue as steering. A waiting operation must not trap navigation, drafting or leaving.
 Only after the audit sequence, prepare the paired local candidate and arrange
 the useful operator walkthrough. No installation/account use is inferred from
 fixture success. Source/worktree disposal is not authorized.

@@ -360,9 +360,8 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
     let mut last_draft=app.composer.snapshot();
     let mut last_draft_save=Instant::now();
     let mut last_draw=Instant::now()-Duration::from_secs(1);
-    let mut exit_preparation:Option<String>=None;
-    let mut exit_command_id:Option<String>=None;
-    let mut exit_result:Option<Value>=None;
+    let mut pause_preparation:Option<String>=None;
+    let mut pause_command_id:Option<String>=None;
     let mut output_request_id:Option<String>=None;
     let mut last_output_fetch=Instant::now()-Duration::from_secs(1);
     let mut operation_request_id:Option<String>=None;
@@ -386,6 +385,7 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
         if event::poll(Duration::from_millis(34))? { app.input(event::read()?); }
         while let Some(intent)=app.take_intent() {
             if !mutations_allowed.load(Ordering::SeqCst) && !matches!(intent,LiveIntent::Detach) {
+                if matches!(&intent,LiveIntent::Dialogue(v) if v["action"]=="cancel_conversation"){app.interrupt_not_sent();}
                 if matches!(intent,LiveIntent::SubmitTask(_)){if let Some(draft)=app.submission_draft.take(){app.composer=Composer::from_draft(draft);}}
                 if matches!(&intent,LiveIntent::Dialogue(v) if matches!(v["action"].as_str(),Some("coordination.present"|"candidate.present"))){app.presentation_delivery_failed();}
                 app.notice="Disconnected: draft retained; mutations wait for a verified service snapshot".into();
@@ -394,7 +394,16 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
             let row=app.live.as_ref().and_then(|v|v.tasks.get(app.journal.selected_task)).cloned();
             let task_id=row.as_ref().and_then(|v|v["task_id"].as_str()).map(str::to_owned);
             match intent {
-                LiveIntent::Dialogue(value)=>{let id=command_id(&mut counter);let mut payload=json!({"command_id":id,"action":value["action"],"payload":value["payload"]});if value["action"]=="resume_session"{payload["expected_state_revision"]=json!(revision.load(Ordering::SeqCst));}match enqueue_mutation(&outbox_dir,&commands_tx,id.clone(),payload){Ok(())=>{app.provider_command_started(value["action"].as_str().unwrap_or(""),&id);if !matches!(value["action"].as_str(),Some("coordination.present"|"candidate.present")){app.notice="Sending · delivery pending".into();}},Err(e)=>app.notice=format!("Delivery needs attention: {e}")}},
+                LiveIntent::Dialogue(value)=>{
+                    let id=command_id(&mut counter);let action=value["action"].as_str().unwrap_or("");
+                    let mut payload=json!({"command_id":id,"action":value["action"],"payload":value["payload"]});
+                    if action=="resume_session"{payload["expected_state_revision"]=json!(revision.load(Ordering::SeqCst));}
+                    match enqueue_mutation(&outbox_dir,&commands_tx,id.clone(),payload){
+                        Ok(())=>{app.provider_command_started(action,&id);app.interrupt_command_started(action,&id);
+                            if !matches!(action,"coordination.present"|"candidate.present"){app.notice=if action=="cancel_conversation"{"Stopping coordinator · keep drafting or Ctrl-Q to leave"}else{"Sending · delivery pending"}.into();}},
+                        Err(e)=>{if action=="cancel_conversation"{app.interrupt_not_sent();}app.notice=format!("Delivery needs attention: {e}");}
+                    }
+                },
                 scope_intent @ (LiveIntent::SaveScope(_)|LiveIntent::AuthorizeScope(_))=>{
                     let saving=matches!(scope_intent,LiveIntent::SaveScope(_));let payload=match scope_intent{LiveIntent::SaveScope(p)|LiveIntent::AuthorizeScope(p)=>p,_=>unreachable!()};let id=command_id(&mut counter);
                     let command=json!({"command_id":id,"action":if saving{"save_proposal_revision"}else{"authorize_scope"},"payload":payload});
@@ -650,10 +659,10 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
                         Err(e)=>app.notice=format!("Cancellation delivery needs attention: {e}"),
                     }
                 },
-                LiveIntent::Exit=>{
-                    if exit_preparation.is_some()||exit_command_id.is_some(){app.notice="Exit delivery pending; no duplicate request".into();continue;}
+                LiveIntent::Pause=>{
+                    if pause_preparation.is_some()||pause_command_id.is_some(){app.notice="Pause delivery pending; no duplicate request".into();continue;}
                     let id=command_id(&mut counter);
-                    if commands_tx.try_send(("snapshot".into(),id.clone(),json!({}))).is_ok(){exit_preparation=Some(id);app.notice="Preparing exit from current project state…".into();}else{app.notice="Exit preparation busy; choose Exit again".into();}
+                    if commands_tx.try_send(("snapshot".into(),id.clone(),json!({}))).is_ok(){pause_preparation=Some(id);app.notice="Preparing pause from current project state…".into();}else{app.notice="Pause preparation busy; choose /pause again".into();}
                 },
             }
             app.dirty=true;
@@ -700,17 +709,17 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
             if artifact_request_id.as_deref()==Some(update.request_id.as_str()){
                 artifact_request_id=None;
             }
-            if exit_preparation.as_deref()==Some(update.request_id.as_str()){
-                exit_preparation=None;
+            if pause_preparation.as_deref()==Some(update.request_id.as_str()){
+                pause_preparation=None;
                 if update.kind=="snapshot"&&update.body["state_revision"].is_u64(){
                     let id=command_id(&mut counter);let payload=json!({"command_id":id,"action":"stop_session","expected_state_revision":update.body["state_revision"],"payload":{}});
-                    match enqueue_mutation(&outbox_dir,&commands_tx,id.clone(),payload){Ok(())=>{exit_command_id=Some(id);app.notice="Exit requested; awaiting durable acknowledgement".into();},Err(e)=>app.notice=format!("Exit delivery needs attention: {e}")}
-                }else{app.notice="Exit preparation failed; reconnect, then choose Exit again".into();}
+                    match enqueue_mutation(&outbox_dir,&commands_tx,id.clone(),payload){Ok(())=>{pause_command_id=Some(id);app.notice="Pause requested; awaiting durable acknowledgement".into();},Err(e)=>app.notice=format!("Pause delivery needs attention: {e}")}
+                }else{app.notice="Pause preparation failed; reconnect, then choose /pause again".into();}
             }
-            if exit_command_id.as_deref()==Some(update.request_id.as_str()) {
+            if pause_command_id.as_deref()==Some(update.request_id.as_str()) {
                 if update.kind=="command_result" && update.body["status"]=="accepted" {
-                    exit_result=Some(update.body.clone());app.detached=true;
-                } else {app.notice=format!("Exit not committed: {}",update.body);exit_command_id=None;}
+                    pause_command_id=None;app.notice="Session pause accepted; keep drafting or Ctrl-Q to leave".into();
+                } else {app.notice=format!("Pause not committed: {}",update.body);pause_command_id=None;}
             }
             if let Some(submitted)=update.body.get("local_refused_submission"){
                 if app.composer.text().is_empty()&&(!app.continuous_mode()||submitted["subject_id"]==app.conversation_subject){
@@ -760,7 +769,7 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
                 },
                 "task.result"=>app.apply_detail(update.body),
                 "error"=>{
-                    if update.body["code"]!="service_unavailable"{app.provider_command_result(&update.request_id,&update.body);}
+                    if update.body["code"]!="service_unavailable"{app.provider_command_result(&update.request_id,&update.body);app.interrupt_command_result(&update.request_id,&update.body);}
                     if detail_reply {app.pending_action_failed();}
                     if matches!(update.body["code"].as_str(),Some("service_unavailable"|"resync_required")) {
                         app.journal.connection="reconnecting".into();
@@ -770,6 +779,7 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
                 },
                 "command_result"=>{
                     app.provider_command_result(&update.request_id,&update.body);
+                    app.interrupt_command_result(&update.request_id,&update.body);
                     if app.scope_edit.as_ref().is_some_and(|e|e["pending_command_id"].as_str()==Some(update.request_id.as_str())){
                         if update.body["status"]=="accepted"{app.scope_edit=None;}else if let Some(e)=app.scope_edit.as_mut(){e.as_object_mut().unwrap().remove("pending_command_id");}
                     }
@@ -824,10 +834,6 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
     save_editor_draft(&draft_path,&app.input_history.draft_to_save(app.composer.snapshot()))?;
     app.input_history.save(&input_history_path)?;
     drop(terminal);drop(_guard);
-    if let Some(result)=exit_result {
-        println!("Exit requested. Checkpoint: {}\nResume: cd {}; waywr resume",
-            result["checkpoint"]["path"].as_str().unwrap_or("project state/session/checkpoints"),env::current_dir()?.display());
-    }
     Ok(())
 }
 
