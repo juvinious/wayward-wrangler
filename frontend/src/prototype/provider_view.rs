@@ -521,6 +521,15 @@ mod provider_ui_tests {
         app
     }
     #[test]
+    fn direct_model_thinking_and_status_commands_open_their_controls_without_execution(){
+        let mut app=navigation_app();app.modal=Modal::None;
+        app.command("model");assert_eq!(app.modal,Modal::Settings);assert!(app.provider_picker.is_some());assert!(app.take_intent().is_none());
+        app.input(Event::Key(KeyEvent::new(KeyCode::Esc,KeyModifiers::NONE)));app.input(Event::Key(KeyEvent::new(KeyCode::Esc,KeyModifiers::NONE)));
+        app.command("thinking");assert_eq!(app.modal,Modal::Settings);assert_eq!(app.provider_field,2);assert!(app.provider_picker.is_some());assert!(app.take_intent().is_none());
+        app.input(Event::Key(KeyEvent::new(KeyCode::Esc,KeyModifiers::NONE)));app.input(Event::Key(KeyEvent::new(KeyCode::Esc,KeyModifiers::NONE)));
+        app.command("status");let(title,body)=app.modal_body();assert!(title.contains("Status"));assert!(body.contains("Connection"));assert!(body.contains("Model"));assert!(app.take_intent().is_none());
+    }
+    #[test]
     fn blocked_send_opens_saved_model_setup_with_the_draft_intact(){
         let mut app=navigation_app();app.modal=Modal::None;app.focus=Focus::Composer;
         let c=app.live.as_mut().unwrap().conversation.as_mut().unwrap();

@@ -133,7 +133,9 @@ this runtime. Each new request and approval belongs to you.
 
 | Control | Behavior |
 | --- | --- |
-| Up / Down in the composer | Recall older/newer entries, including typed slash commands; Down past newest restores your draft and cursor |
+| Up / Down in the composer | Move within multiline input; at the first/last line, recall history. Down past newest restores the draft and cursor |
+| Enter / Alt+Enter | Send idle input or steer the active coordinator / queue a separate follow-up |
+| Shift+Enter / Ctrl-J | Insert a newline where the terminal reports it; F2 is the multiline fallback |
 | Alt+Up / Alt+Down | Move the multiline input cursor |
 | PageUp / PageDown | Scroll chat and live activity eight wrapped lines |
 | Alt+PageUp / Alt+PageDown | Scroll chat or the open content panel one wrapped line |
@@ -142,6 +144,8 @@ this runtime. Each new request and approval belongs to you.
 | Left / Right in modal action rows | Select previous/next option; Enter activates it. Tab / Shift-Tab also selects |
 | F3 | Provider/model and project settings; arrows/Tab/Shift-Tab move focus, Enter chooses/edits, Esc backs out one level |
 | F6 | Inspect scopes and concurrent child tasks |
+| F7, then E | Restore a pending steering input or queued follow-up for editing; applied inputs cannot be withdrawn |
+| `/model`, `/thinking`, `/status` | Open the model picker, thinking picker, or current session/model/queue/usage summary |
 | `/discuss` | Explicitly switch chat to the inspected task’s request |
 | `/plan` | Review the current topic's saved scope and operating policy |
 | `/output` | Read current/retained output; Left/Right switches attempts, arrows/page keys scroll |
@@ -161,6 +165,11 @@ movement while editing; Tab moves focus to their actions. Queue Up/Down selects 
 message, Left/Right selects its action, and page keys scroll. Leaving requires no
 confirmation or settlement wait, including from editors or a disconnected UI.
 Reopening `waywr` restores context and preserves an intentional pause.
+
+Steering is marked pending until it reaches the SDK's next agent boundary, then
+applied to context. Follow-ups wait for the current reply and have separate
+results. Interrupting keeps unconsumed inputs held; reopening does not replay
+them. Restoring queued text never sends it. See [live input](docs/live-input.md).
 
 F3 → F opens the complete searchable model catalog. Type to filter, Up/Down to
 select and Enter to place a model in the draft; S saves after returning to the

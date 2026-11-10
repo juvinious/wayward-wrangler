@@ -104,7 +104,11 @@ pub fn prepare(directory:&Path,packet:&Value,instruction:&str)->Result<(Vec<Stri
         if crate::codec::sha256(&bytes)!=p["runtime"]["config_sha256"]{return Err("Model configuration changed before launch".into())}
         let path=directory.join("model-config.json");write_bytes(&path,&bytes,true)?;Some(path)
     }else{None};
-    let request=json!({"protocol":1,"packet":packet,"config":snapshot,"instructions":instruction,
+    let control_scope=if packet["operation_kind"]=="conversation"&&directory.join("intent.json").is_file(){
+        let intent=read(&directory.join("intent.json"))?;
+        json!({"project_key":intent["project_key"],"turn_id":packet["turn_id"],"attempt_id":intent["attempt_id"],"packet_sha256":intent["packet_sha256"]})
+    }else{Value::Null};
+    let request=json!({"protocol":1,"packet":packet,"config":snapshot,"instructions":instruction,"control_scope":control_scope,
         "schema":crate::development::result_schema(packet),"directory":directory});
     write_bytes(&directory.join("prompt.txt"),&serde_json::to_vec(&request).map_err(|e|e.to_string())?,true)?;
     let argv=vec![p["client"]["binary"].as_str().ok_or("Runtime binary missing")?.to_owned(),
@@ -117,7 +121,7 @@ pub fn prepare(directory:&Path,packet:&Value,instruction:&str)->Result<(Vec<Stri
     Ok((argv,environment))
 }
 pub fn inspect(v:&Value)->Result<(),String>{
-    if !matches!(v["type"].as_str(),Some("runtime.started"|"runtime.text"|"runtime.activity"|"runtime.usage"|"runtime.completed")){
+    if !matches!(v["type"].as_str(),Some("runtime.started"|"runtime.text"|"runtime.activity"|"runtime.usage"|"runtime.completed"|"runtime.input")){
         return Err("Unexpected shared-runtime event".into())
     } Ok(())
 }

@@ -47,6 +47,8 @@ jobs:
           cargo test --locked -p waywr --lib coordinator_usage
           cargo test --locked -p waywr --lib escape_and_control_c
           cargo test --locked -p waywr --lib everyday_
+          cargo test --locked -p waywr --lib live_input_
+          cargo test --locked -p waywr-backend --lib live_steering_targets
           cargo test --locked -p waywr --lib continuous_busy_input
           cargo test --locked -p waywr --lib idle_ticks_remain
           cargo test --locked -p waywr-backend --lib discussion_switch_is_not_vetoed

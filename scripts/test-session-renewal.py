@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Go forward from a broken session using real isolated systemd/IPC/TUI.
+"""Project lifecycle and input controls through real isolated systemd/IPC/TUI.
 
-No operator project, installation, credentials or model call is used. The held
-operation is sleep, not a model; only uniquely keyed fixture units are stopped.
+No operator project, installation, credentials or model account is used. Held
+operations use sleep or local HTTP/SDK fixtures; only fixture units are stopped.
 """
 import argparse
 import fcntl
@@ -30,6 +30,7 @@ def main():
     parser.add_argument('--binaries', type=Path, default=Path('target/release'))
     parser.add_argument('--busy', action='store_true', help='Reconnect to a healthy active owner after an update')
     parser.add_argument('--controls', action='store_true', help='Interrupt a real held SDK stream, leave while stopping, reopen and leave disconnected')
+    parser.add_argument('--steering', action='store_true', help='Steer the active SDK, edit a queued follow-up and verify separate results through the real TUI/service')
     args = parser.parse_args()
     binaries = args.binaries.resolve()
     source = Path(__file__).resolve().parents[1]
@@ -108,7 +109,7 @@ def main():
         release_stream = threading.Event()
         held_runner = None
         try:
-            if args.controls:
+            if args.controls or args.steering:
                 started = threading.Event()
                 calls = []
                 class HeldStream(BaseHTTPRequestHandler):
@@ -124,6 +125,14 @@ def main():
                         self.wfile.flush()
                         started.set()
                         release_stream.wait(45)
+                        if args.steering:
+                            number=len(calls)
+                            reply={"schema_version":3,"assistant_text":"Steered fixture reply" if number==2 else "Follow-up fixture reply" if number>=3 else "Provisional fixture reply","evidence_refs":[],"action":None}
+                            chunk['choices']=[{'index':0,'delta':{'tool_calls':[{'index':0,'id':'submit-'+str(number),'type':'function','function':{'name':'submit_result','arguments':json.dumps(reply)}}]},'finish_reason':None}]
+                            self.wfile.write(('data: '+json.dumps(chunk)+'\n\n').encode())
+                            chunk['choices']=[{'index':0,'delta':{},'finish_reason':'tool_calls'}]
+                            self.wfile.write(('data: '+json.dumps(chunk)+'\n\ndata: [DONE]\n\n').encode())
+                            self.wfile.flush()
                 server = ThreadingHTTPServer(('127.0.0.1', 0), HeldStream)
                 server.daemon_threads = True
                 threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -138,6 +147,46 @@ def main():
                 profile['transport'] = {'entry': 'bundled', 'config': str(config),
                     'destination': {'provider': 'held-fixture', 'api': 'openai-completions', 'base_url': endpoint, 'auth_env': None}}
                 path.write_text(json.dumps(prefs))
+                if args.steering:
+                    guidance='Use the revised\nfixture constraint'
+                    follow_up='Explain it afterwards'
+                    updated='Updated follow-up message'
+                    def scalar(sql, values=()):
+                        with sqlite3.connect(state / 'state.sqlite') as db:
+                            return db.execute(sql, values).fetchone()[0]
+                    def steer_and_queue(master, wait, screen):
+                        os.write(master,b'Initial local fixture request\r')
+                        wait(started.is_set,'SDK did not reach the held fixture')
+                        wait(lambda:'Interrupt coordinator' in terminal_text(screen,32,120),'Active coordinator was not visible')
+                        os.write(master,b'\x1b[200~'+guidance.encode()+b'\x1b[201~\x1b[A\x1b[B\r')
+                        wait(lambda:scalar("SELECT count(*) FROM conversation_live_inputs WHERE status='pending'")==1,'Enter did not persist live guidance')
+                        wait(lambda:bool(list(state.glob('session/coordinator/*/call-v*/attempts/*/live-input/pending/*.json'))),'Guidance was not published to the active attempt')
+                        os.write(master,follow_up.encode()+b'\x1b\r')
+                        wait(lambda:scalar("SELECT count(*) FROM conversation_turns WHERE status='queued'")==1,'Alt+Enter did not queue a follow-up')
+                        # Running turn first, queued follow-up second; restore it
+                        # to the editor and replace it before either can finish.
+                        os.write(master,b'\x1b[18~')
+                        wait(lambda:follow_up in terminal_text(screen,32,120),'Queued follow-up was not visible in F7')
+                        os.write(master,b'\x1b[Be')
+                        wait(lambda:scalar("SELECT count(*) FROM conversation_turns WHERE status='withdrawn'")==1,'Queue E did not withdraw for editing')
+                        wait(lambda:json.loads((state/'session/draft.json').read_text()).get('draft',{}).get('text')==follow_up,'Queued text was not restored to the composer')
+                        os.write(master,b'\x01'+updated.encode()+b'\x1b\r')
+                        wait(lambda:scalar("SELECT count(*) FROM conversation_turns WHERE status='queued'")==1,'Edited follow-up was not requeued')
+                        release_stream.set()
+                        wait(lambda:scalar("SELECT count(*) FROM conversation_turns WHERE status='completed'")==2,'Steered turn and follow-up did not complete',seconds=25)
+                        wait(lambda:scalar("SELECT count(*) FROM conversation_live_inputs WHERE status='applied'")==1,'Guidance was not marked applied')
+                        assert len(calls)==3, 'Steering or queued editing caused duplicated model requests'
+                        assert guidance in json.dumps(calls[1],ensure_ascii=False).replace('\\n','\n')
+                        assert updated not in json.dumps(calls[1]), 'Follow-up entered the unfinished call'
+                        assert updated in json.dumps(calls[2]), 'Updated follow-up never reached its own call'
+                        assert 'Steered fixture reply' in json.dumps(calls[2]), 'Follow-up lost the earlier result'
+                        assert follow_up not in json.dumps(calls[2]), 'Withdrawn follow-up leaked into the new context'
+                    open_ui(old,steer_and_queue)
+                    open_ui(new)
+                    assert len(calls)==3,'Reopening replayed completed input'
+                    print(json.dumps({'live_sdk_steering_through_real_tui_service_runner':True,'follow_up_waited_and_was_edited':True,
+                                      'separate_completed_turns':2,'http_fixture_requests':3,'model_calls':0}))
+                    return
                 draft = 'Keep this unsent draft while stopping'
                 def interrupt(master, wait, screen):
                     nonlocal held_runner
@@ -149,6 +198,11 @@ def main():
                     claim = json.loads(claims[0].read_text())
                     held_runner = claim['runner']['pid']
                     os.kill(held_runner, signal.SIGSTOP)  # Settlement cannot finish until this fixture resumes it.
+                    os.write(master,b'Keep this guidance pending\rLater follow-up\x1b\r')
+                    def input_queued():
+                        with sqlite3.connect(state/'state.sqlite') as db:
+                            return db.execute("SELECT count(*) FROM conversation_live_inputs WHERE status='pending'").fetchone()[0]==1 and db.execute("SELECT count(*) FROM conversation_turns WHERE status='queued'").fetchone()[0]==1
+                    wait(input_queued,'Steering/follow-up inputs were not queued before interruption')
                     os.write(master, b'\x03' + draft.encode())
                     def interrupt_recorded():
                         with sqlite3.connect(state / 'state.sqlite') as db:
@@ -165,6 +219,13 @@ def main():
                 while not list(state.rglob('receipt.json')) and time.monotonic() < until:
                     time.sleep(.05)
                 assert list(state.rglob('receipt.json')), 'Interrupted runner did not settle'
+                with sqlite3.connect(state/'state.sqlite') as db:
+                    until=time.monotonic()+5
+                    while time.monotonic()<until and db.execute("SELECT count(*) FROM conversation_turns WHERE status='held'").fetchone()[0]!=1:
+                        time.sleep(.05)
+                    assert db.execute("SELECT count(*) FROM conversation_turns WHERE status='held'").fetchone()[0]==1
+                    assert db.execute("SELECT count(*) FROM conversation_live_inputs WHERE status='held'").fetchone()[0]==1
+                    assert db.execute("SELECT count(*) FROM conversation_messages WHERE text='Keep this guidance pending'").fetchone()[0]==0,'Unapplied guidance entered conversation context'
                 def disconnect(master, wait, screen):
                     os.write(master, b'\x03/pause\r')  # Clear draft, explicitly pause; do not leave.
                     def paused():
@@ -179,6 +240,7 @@ def main():
                 assert len(calls) == 1, 'Interrupt/reopen replayed the model request'
                 print(json.dumps({'real_sdk_stream_interrupted': True, 'prompt_leave_while_stopping_and_disconnected': True,
                                   'draft_retained_and_busy_owner_reattached': True, 'pause_is_separate_from_leave': True,
+                                  'unapplied_steering_and_follow_up_held_without_replay':True,
                                   'http_fixture_requests': 1, 'model_calls': 0}))
                 return
             open_ui(old)

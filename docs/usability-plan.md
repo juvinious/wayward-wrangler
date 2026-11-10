@@ -16,7 +16,7 @@ must not require upgrading each project or reinstalling the build that created i
 
 ## Reconciled checkpoint — 2026-11-10
 
-Source checkpoint: session-renewal work after `4c804cd`. The mechanisms below are implemented locally;
+Source checkpoint: live-input/editor work after `e4ac2ac`. The mechanisms below are implemented locally;
 their isolated evidence does not establish a fluid, useful daily workflow.
 
 | Plan area | Delivered | Still needed |
@@ -24,7 +24,7 @@ their isolated evidence does not establish a fluid, useful daily workflow.
 | Shared model layer | Standalone pi-ai/agent-core runtime replaces the native integrations; catalogs/configuration and manual IDs stay outside core routing; two protocol/tool/runner fixtures | Real account setup and useful delivery through selected models; catalog breadth is not verified account access |
 | Selection and visibility | Full searchable provider/model pickers, runtime thinking levels, saved/active labels, direct setup from Send, worker activity and conversation-call usage/cost/context estimates | Simpler ordinary model changes and actionable authentication/errors; workflow coordinator usage is not yet in the conversation summary |
 | Local iteration | Paired build/local launcher, compatible reopen, idle/portable handover, compatible busy-owner attachment, automatic renewal of obsolete/stranded sessions without old target/call reuse | Complete start → leave → return → rebuild → continue journey with useful model work; existing services predating cross-build UI attachment require their first idle transition |
-| Input and responsiveness | Contextual controls, literal paste/history, clearing/draft persistence, reduced idle CPU, direct foreground interruption, immediate leave from overlays/disconnection, separate pause | Real steering versus follow-up, consistent multiline/history and direct model/status actions |
+| Input and responsiveness | Contextual controls, literal paste/history, clearing/draft persistence, reduced idle CPU, direct foreground interruption, immediate leave from overlays/disconnection, separate pause, real SDK steering, durable follow-ups/editing, multiline boundaries, model/thinking/status actions | Useful operator delivery and feedback on actual model/authentication failures |
 | Isolation of blockers | Unrelated policies do not veto new discussion; stranded old sessions stop being live update dependencies | Errors and settlement waits must remain scoped while navigation, drafting, inspection and leaving stay available |
 | Distribution | Bundle validation, source/binary privacy checks, notices, local staged selection and version diagnostics | Public unauthenticated installer, update/uninstall and artifact collection; publication remains the user's action; Debian packaging follows |
 | Substantial application | Direction and proposed reference brief | Shared-runtime real task delivery, then a useful persisted web-app increment across selected models |
@@ -61,14 +61,28 @@ in this order. These are targets, not claims of current behavior.
    resumes the runner to a receipt, then leaves a disconnected UI. One local HTTP
    request; no model/account call. Topic-specific targeting and late-action
    fencing have focused regressions. `/pause` remains separate from leave.
-2. **Steer or follow up while busy.** Enter sends guidance to the active agent at
+2. **Steer or follow up while busy — implemented locally.** Enter sends guidance to the active agent at
    its next supported boundary; Alt+Enter explicitly queues later work. Show which
    disposition was accepted and allow queued messages to be edited/withdrawn.
-   Connect the existing SDK methods through the service/runner/runtime boundary;
+   Connect live SDK steering through the service/runner/runtime boundary;
    changing a label on the current next-turn queue is not steering. Acceptance:
    a held two-step tool fixture receives steering before continuing its next step,
    while a follow-up waits until the active task finishes. Drafts/queued input
    survive interruption without silent replay or scope expansion.
+   Implementation decision: steering stays in the exact active agent attempt.
+   Follow-ups remain separate durable turns after it finishes, each with its own
+   frozen context/result/receipt, rather than combining SDK followUp replies into
+   the earlier operation's single validated result. Pending inputs are editable
+   or withdrawable before dispatch; claimed/applied guidance is labelled honestly.
+   Acceptance includes a real SDK two-step tool loop receiving guidance before its
+   next request, plus ordinary TUI/service ordering, interruption and queue editing.
+   No new provider framework, account trial or operator installation is included.
+   Evidence: SDK loops receive steering before their next tool step on two local
+   protocols. The real TUI/service/runner journey edits/requeues a follow-up and
+   produces two separate completed turns from three HTTP fixture requests; the
+   next turn sees the earlier reply. Interruption holds unapplied inputs without
+   replay. [Live input](live-input.md) owns exact identities, claim/withdrawal,
+   context exclusion, editor restoration and compatibility semantics.
 3. **Return to busy work after rebuilding.** The compatible UI/owner attachment
    mechanism is implemented and isolated checks pass. Complete it in the useful
    interrupted/redirected-work walkthrough. Open a compatible current UI against
@@ -77,13 +91,16 @@ in this order. These are targets, not claims of current behavior.
    selects B, reopening can inspect/control A without force-stopping it; idle
    reopening selects B with retained conversation/work. Unsupported compatibility
    must expose usable inspection and an action, not a generic connection failure.
-4. **Finish everyday defaults and recovery.** Align editor history/newlines,
+4. **Finish everyday defaults and recovery — controls implemented locally.** Align editor history/newlines,
    command discovery, model/status shortcuts, error recovery and truthful usage
    with the same action contract. Authentication/setup failures retain the message
    and offer the relevant action. A request may wait; the application must remain
    usable. Acceptance: ordinary editing and one missing-credential/request-policy
    failure through isolated real UI/service components leave the draft and normal
-   navigation intact. Use one focused example per changed boundary.
+   navigation intact. Use one focused example per changed boundary. Multiline
+   cursor/history boundaries, Ctrl-J, direct /model /thinking /status and durable
+   queue restoration now have focused regressions. Real account setup and the
+   useful operator walkthrough remain unverified; no account call is inferred.
 
 After1–4, do one operator walkthrough: a useful bounded task, interrupt/redirect,
 leave/return, rebuild and continue. Real model use belongs to that authorized

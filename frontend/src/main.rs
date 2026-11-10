@@ -251,10 +251,17 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
             };
             match reply {
                 Ok(mut frame) => {
-                    if kind=="command"&&matches!(payload["action"].as_str(),Some("submit_message"|"coordination.submit"))&&(frame.body["status"]=="rejected"||frame.kind=="error"){
+                    if kind=="command"&&matches!(payload["action"].as_str(),Some("submit_message"|"coordination.submit"|"conversation.steer"))&&(frame.body["status"]=="rejected"||frame.kind=="error"){
                         let evidence=command_outbox.parent().unwrap().join("refused-deliveries").join(format!("{id}.json"));
                         let _=waywr_backend::execution::write(&evidence,&json!({"command":payload,"response":frame.body}),true);
                         frame.body["local_refused_submission"]=payload["payload"].clone();
+                    }
+                    if kind=="command"&&payload["payload"]["restore_to_editor"]==true&&frame.body["status"]=="accepted"&&frame.body["text"].is_string(){
+                        let input=json!({"source_command":id,"text":frame.body["text"],"subject_id":payload["payload"]["subject_id"]});
+                        if let Err(error)=waywr_backend::execution::write(&command_outbox.parent().unwrap().join("restored-input.json"),&input,false){
+                            let _=command_updates.send(Frame::new("error",&id,json!({"code":"restore_pending","message":error,"operator_action":"Edit result remains in the command ledger/outbox; reconnect to restore it"})));break;
+                        }
+                        frame.body["local_queue_restore"]=input;
                     }
                     if let Some(value) = frame.body.get("state_revision").and_then(Value::as_u64) {
                         command_revision.fetch_max(value, Ordering::SeqCst);
@@ -354,6 +361,14 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
     if app.scope_mode()&&scope_draft_path.exists(){let bytes=fs::read(&scope_draft_path)?;if bytes.len()>128*1024{return Err(io::Error::other("Saved scope edit exceeds bounds; inspect it before attaching"));}app.restore_scope_edit(serde_json::from_slice(&bytes)?);}
     let subject_path=draft_path.with_file_name("conversation-subject.json");
     if app.continuous_mode()&&subject_path.exists(){let bytes=fs::read(&subject_path)?;if bytes.len()>1024*1024{return Err(io::Error::other("Saved conversation subjects/drafts exceed 1 MiB"));}app.restore_conversation_ui(&serde_json::from_slice::<Value>(&bytes)?).map_err(io::Error::other)?;}
+    let restored_input_path=draft_path.with_file_name("restored-input.json");
+    if restored_input_path.is_file()&&fs::metadata(&restored_input_path)?.len()<=40*1024{
+        if let Ok(input)=waywr_backend::execution::read(&restored_input_path){
+            app.restore_queue_input(input);save_editor_draft(&draft_path,&app.composer.snapshot())?;
+            if app.continuous_mode(){waywr_backend::execution::write(&subject_path,&app.conversation_ui_state(),false).map_err(io::Error::other)?;}
+            fs::remove_file(&restored_input_path)?;
+        }
+    }
     let mut last_subject=app.conversation_ui_state();
     let mut last_scope_draft=app.scope_edit_snapshot();
     let mut counter=0u64;
@@ -386,7 +401,7 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
         while let Some(intent)=app.take_intent() {
             if !mutations_allowed.load(Ordering::SeqCst) && !matches!(intent,LiveIntent::Detach) {
                 if matches!(&intent,LiveIntent::Dialogue(v) if v["action"]=="cancel_conversation"){app.interrupt_not_sent();}
-                if matches!(intent,LiveIntent::SubmitTask(_)){if let Some(draft)=app.submission_draft.take(){app.composer=Composer::from_draft(draft);}}
+                if matches!(intent,LiveIntent::SubmitTask(_))||matches!(&intent,LiveIntent::Dialogue(v) if v["action"]=="conversation.steer"){if let Some(draft)=app.submission_draft.take(){app.composer=Composer::from_draft(draft);}}
                 if matches!(&intent,LiveIntent::Dialogue(v) if matches!(v["action"].as_str(),Some("coordination.present"|"candidate.present"))){app.presentation_delivery_failed();}
                 app.notice="Disconnected: draft retained; mutations wait for a verified service snapshot".into();
                 continue;
@@ -396,12 +411,13 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
             match intent {
                 LiveIntent::Dialogue(value)=>{
                     let id=command_id(&mut counter);let action=value["action"].as_str().unwrap_or("");
+                    let original=if action=="conversation.steer"{app.submission_draft.take()}else{None};
                     let mut payload=json!({"command_id":id,"action":value["action"],"payload":value["payload"]});
                     if action=="resume_session"{payload["expected_state_revision"]=json!(revision.load(Ordering::SeqCst));}
                     match enqueue_mutation(&outbox_dir,&commands_tx,id.clone(),payload){
-                        Ok(())=>{app.provider_command_started(action,&id);app.interrupt_command_started(action,&id);
-                            if !matches!(action,"coordination.present"|"candidate.present"){app.notice=if action=="cancel_conversation"{"Stopping coordinator · keep drafting or Ctrl-Q to leave"}else{"Sending · delivery pending"}.into();}},
-                        Err(e)=>{if action=="cancel_conversation"{app.interrupt_not_sent();}app.notice=format!("Delivery needs attention: {e}");}
+                        Ok(())=>{app.provider_command_started(action,&id);app.interrupt_command_started(action,&id);if action=="conversation.steer"{app.message_submitted();}
+                            if !matches!(action,"coordination.present"|"candidate.present"){app.notice=match action{"cancel_conversation"=>"Stopping coordinator · keep drafting or Ctrl-Q to leave","conversation.steer"=>"Steering pending · applies at the next agent boundary",_=>"Sending · delivery pending"}.into();}},
+                        Err(e)=>{if action=="cancel_conversation"{app.interrupt_not_sent();}if action=="conversation.steer"&&!e.to_string().contains("saved for reconciliation")&&let Some(draft)=original{app.composer=Composer::from_draft(draft);}app.notice=format!("Delivery needs attention: {e}");}
                     }
                 },
                 scope_intent @ (LiveIntent::SaveScope(_)|LiveIntent::AuthorizeScope(_))=>{
@@ -728,6 +744,7 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
                     app.retain_submission_context(submitted);
                 }
             }
+            let queue_restore=update.body.get("local_queue_restore").cloned();
             match update.kind.as_str() {
                 "snapshot"=>{
                     if let Some(value)=update.body["state_revision"].as_u64(){
@@ -793,6 +810,11 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
                     }
                 },
                 _=>app.notice=format!("Service response: {}",update.kind),
+            }
+            if let Some(input)=queue_restore{
+                app.restore_queue_input(input);save_editor_draft(&draft_path,&app.composer.snapshot())?;
+                if app.continuous_mode(){waywr_backend::execution::write(&subject_path,&app.conversation_ui_state(),false).map_err(io::Error::other)?;}
+                if restored_input_path.is_file(){fs::remove_file(&restored_input_path)?;}
             }
             app.dirty=true;
         }

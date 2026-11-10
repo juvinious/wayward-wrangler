@@ -643,6 +643,7 @@ impl Service {
             "complete":offset+take as u64==size}))
     }
     fn command(&self,body:&Value)->Result<Value,String>{
+        if body["action"].as_str().is_some_and(|a|a.starts_with("conversation.")){return crate::live_input::command(&self.session,body)}
         if body["action"].as_str().is_some_and(|a|a.starts_with("coordination.")){return crate::coordination::command(&self.session,body)}
         let _development_scope_fence=if self.session.development()&&matches!(body["action"].as_str(),Some("save_proposal_revision"|"authorize_scope"|"answer_conversation")){Some(FileLock::exclusive(&self.session.workflow.state.join("supervision/fence.lock")).map_err(|e|format!("busy: Scope decision waits for serialized Git effect: {e}"))?)}else{None};
         if self.session.conversation_chat() && !matches!(body["action"].as_str(),Some("submit_message"|"select_coordinator"|"cancel_conversation"|"stop_session"|"resume_session")){
@@ -1189,6 +1190,33 @@ impl Service {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn live_steering_targets_the_reserved_turn_and_survives_reopen(){
+        let root=tempfile::tempdir().unwrap();let project=root.path().join("project");let state=project.join(".waywr/state");fs::create_dir_all(&state).unwrap();
+        let key="a".repeat(32);write(&state.join("state-contract.json"),&json!({"schema_version":1,"state_schema":9,"execution_host":"systemd-user-v1","project_key":key}),true).unwrap();
+        write(&project.join(".waywr/coordinator.json"),&crate::model_runtime::initial_preferences().unwrap(),true).unwrap();
+        let exe=std::env::current_exe().unwrap();let service=Service::new(Config{project:project.clone(),state:state.clone(),key:key.clone(),release:"fixture".into(),ipc:root.path().join("ipc"),herdr_socket:PathBuf::new(),runner:exe.clone(),frontend:exe}).unwrap();
+        let c=service.session.workflow.connection().unwrap();
+        c.execute("INSERT INTO conversation_turns(turn_id,schema_version,project_key,message_id,binding_generation,status,packet_sha256) VALUES('active',1,?1,'original',1,'reserved',?2)",rusqlite::params![key,"b".repeat(64)]).unwrap();
+        c.execute("INSERT INTO dialogue_inputs(turn_id,subject_id) VALUES('active','discussion')",[]).unwrap();drop(c);
+        let command=json!({"command_id":"live-guidance","action":"conversation.steer","payload":{"turn_id":"active","subject_id":"discussion","text":"Use the revised constraint"}});
+        let result=service.command(&command).unwrap();assert_eq!(result["status"],"accepted", "{result}");assert_eq!(result["delivery"],"pending");
+        assert_eq!(service.session.workflow.connection().unwrap().query_row("SELECT count(*) FROM conversation_messages WHERE message_id=?1",[result["input_id"].as_str()],|r|r.get::<_,i64>(0)).unwrap(),0,"Pending guidance must not leak into another turn's context before it is applied");
+        assert_eq!(service.command(&command).unwrap(),result,"Replay must not create another guidance input");
+        let mut foreign=command.clone();foreign["command_id"]=json!("foreign-guidance");foreign["payload"]["subject_id"]=json!("other");assert_eq!(service.command(&foreign).unwrap()["status"],"rejected");
+        let saved=Session::open_existing(&project,&state,&key,"fixture").unwrap();
+        let snapshot=saved.dialogue_state().unwrap();assert!(snapshot["queue"].as_array().unwrap().iter().any(|r|r["input_id"]==result["input_id"]&&r["text"]=="Use the revised constraint"));
+        let withdraw=json!({"command_id":"withdraw-live-guidance","action":"conversation.withdraw_input","payload":{"input_id":result["input_id"],"subject_id":"discussion"}});
+        assert_eq!(service.command(&withdraw).unwrap()["status"],"accepted");
+        assert!(!saved.dialogue_state().unwrap()["queue"].as_array().unwrap().iter().any(|r|r["input_id"]==result["input_id"]));
+        let mut second=command.clone();second["command_id"]=json!("guidance-claimed");let second=service.command(&second).unwrap();
+        let directory=state.join("session/fixture-attempt");let input=second["input_id"].as_str().unwrap();
+        fs::create_dir_all(directory.join("live-input/claimed")).unwrap();fs::write(directory.join("live-input/claimed").join(format!("{input}.json")),"claimed by fixture").unwrap();
+        fs::create_dir_all(directory.join("live-input/pending")).unwrap();fs::write(directory.join("live-input/pending").join(format!("{input}.json")),"republished duplicate").unwrap();
+        service.session.workflow.connection().unwrap().execute("UPDATE conversation_live_inputs SET directory=?1 WHERE input_id=?2",rusqlite::params![directory.to_str(),input]).unwrap();
+        let mut late=withdraw;late["command_id"]=json!("withdraw-claimed");late["payload"]["input_id"]=json!(input);
+        assert_eq!(service.command(&late).unwrap()["code"],"already_dispatched","Claimed guidance cannot be edited after delivery begins");
+    }
     #[test]
     fn compatible_ui_uses_manifest_and_peer_binary_instead_of_build_identity(){
         let root=tempfile::tempdir().unwrap();let bin=root.path().join("bin");std::fs::create_dir(&bin).unwrap();
@@ -1870,6 +1898,7 @@ impl Service {
         Ok(())
     }
     fn tick_chat(&self,running:bool)->Result<(),String>{
+        if self.session.continuous(){crate::live_input::reconcile(&self.session)?;}
         let active=self.session.chat_reserved()?;
         let pending=if active.is_some(){None}else if running{self.session.conversation_next_queued()?}else{None};
         let Some(id)=active.as_ref().or(pending.as_ref()).and_then(|v|v["turn_id"].as_str())else{return Ok(());};

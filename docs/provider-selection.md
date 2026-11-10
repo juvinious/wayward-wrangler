@@ -21,6 +21,13 @@ as evidence; no prior approval grants a newly selected destination authority.
 
 ## Runtime and model selection
 
+/model opens the complete model picker for the coordinator profile; /thinking
+opens its runtime-advertised thinking choices. Selection remains a draft until
+saved/activated. /status shows the saved/active model, connection, current queue
+and reported usage without executing work. [Live steering](live-input.md) uses
+the active attempt's frozen selection; it never redirects an existing call to
+a newly saved model or expands its grants.
+
 The Rust TUI, project service, scheduler and runner remain Waywr-owned. A bundled
 Node process uses locked `@earendil-works/pi-ai` and `pi-agent-core` 1.5.0 libraries
 for provider APIs/catalogs/authentication and the tool loop. Pi's terminal app/CLI

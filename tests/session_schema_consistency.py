@@ -90,6 +90,10 @@ def check() -> None:
         assert f'"{action}"' in service
     for action in schema["x-waywr-claude-chat-actions"]:
         assert f'"{action}"' in service
+    live = (ROOT / "backend/src/live_input.rs").read_text()
+    for action in schema["x-waywr-live-input-v1"]["actions"]:
+        assert f'"{action}"' in live
+    assert '"live_input_contract"' in (ROOT / "backend/src/continuous.rs").read_text()
     assert 'body["channel"]=="view" && self.host' in service
     assert '"operation.retry_start"=>' in service  # durable command action, not frame kind
     assert '"view.herdr.open"' not in kinds  # composed CLI action, not an IPC frame

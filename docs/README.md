@@ -30,17 +30,18 @@ without an old target/attempt dependency. Compatible busy owners stay attachable
 across builds; idle handover still verifies ownership. Real isolated systemd,
 IPC and TUI checks cover both paths; [project layout](project-layout.md) owns
 the retirement journal and [distribution](distribution.md) owns their evidence.
-Ordinary provider setup and useful model execution remain unverified. The next
-work is the [pre-test interaction/lifecycle sequence](usability-plan.md#finish-before-the-next-operator-test):
+Ordinary provider setup and useful model execution remain unverified. The
+[pre-test interaction/lifecycle sequence](usability-plan.md#finish-before-the-next-operator-test) is implemented locally:
 direct foreground interrupt/leave/pause and compatible busy-owner attachment are
-implemented locally; live steering/follow-up, remaining editor/action work and
-the useful everyday loop remain. A held local HTTP/SDK/runner/service/TUI check
+implemented locally, along with [live steering/follow-up](live-input.md), queue
+editing, multiline/history controls and model/thinking/status shortcuts. The
+useful operator loop remains. A held local HTTP/SDK/runner/service/TUI check
 verifies interruption, draft retention, prompt leave while stopping, reattachment
 and disconnected leave. The
 [planned controls](tui-controls.md#planned-everyday-interaction) record the
-Codex/Pi comparison and distinguish targets from current behavior. Complete those
-changes before another operator walkthrough. [User verification](verify-usability.md)
-remains the later use guide; ordinary task delivery and fluidity are not yet proven.
+Codex/Pi comparison and distinguish targets from current behavior.
+[User verification](verify-usability.md) describes the next bounded walkthrough;
+ordinary task delivery and fluidity are not yet proven.
 The shared coordinator startup repair now creates its required child working
 directory; real runner fixtures cover conversation/workflow coordinators as well
 as workers. Operator state has not been reset by this implementation; future

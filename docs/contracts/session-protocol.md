@@ -250,10 +250,19 @@ filesystem or execution grant. Profiles/attempts include exact optional transpor
 
 ## Application replacement boundary
 
-Project opening no longer routes to an executable named in the legacy project
-release record. This is separate from the running IPC connection's release and
-owner identity checks, which remain enforced. A new frontend does not bypass the old service's release identity checks. It
-verifies the exact unit process and socket peer, then replaces a positively idle
-owner under startup/execution fences. Attached views, pending input or unresolved
-launch evidence refuse replacement. The optional real-systemd acceptance case
-covers that replacement; it never attaches across incompatible service identities.
+Continuous conversation snapshots optionally advertise live_input_contract1.
+That additive capability enables conversation.steer and
+conversation.withdraw_input through the durable command envelope. Guidance is
+bound to the exact reserved turn, subject and attempt; it does not change frozen
+scope, model, tools or authority. An owner without this capability receives
+ordinary queued follow-ups instead. See [live input](../live-input.md) for the
+pending/applied/held lifecycle and withdrawal race. No session wire-version or
+storage-version bump is required by this optional extension.
+
+Project opening does not route to an executable named in a legacy project release
+record. Compatible busy owners remain attachable using verified peer identity and
+interaction capabilities; execution stays with that owner. Idle handover verifies
+the exact owned process/socket before replacement. Obsolete or stranded sessions
+are renewed under startup/execution fences after stopping their exact owned
+cgroups; source/Git/worktrees remain and abandoned calls are never replayed.
+See [project layout](../project-layout.md) for retirement and crash continuation.

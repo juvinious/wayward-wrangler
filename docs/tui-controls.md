@@ -14,7 +14,8 @@ and execution approvals. Browsing never grants authority or executes work.
 | Read-only content popup | Up/Down scrolls a line; PageUp/PageDown scrolls eight lines; Home/End goes to the start/end. Alt+PageUp/PageDown moves one line. |
 | Modal action row | Left/Right or Tab/Shift-Tab selects an action. Enter activates it. The initial choice stays non-destructive. |
 | Existing task, queue, question and history lists | Up/Down selects a row. Actions remain in their own action row. Page keys scroll displayed content. |
-| Main composer | Up/Down recalls history. Alt+Up/Down moves the multiline cursor. Ctrl-C/Esc clears nonempty input; with empty input interrupts the foreground coordinator. Enter sends; F2 toggles multiline. Tab/Shift-Tab changes focus. |
+| Main composer | Up/Down moves within multiline input and recalls history at its first/last line. Ctrl-J or Shift+Enter inserts a newline; F2 is the fallback. Enter sends idle input or steers an active coordinator; Alt+Enter queues a follow-up. Ctrl-C/Esc clears nonempty input or interrupts with empty input. Tab/Shift-Tab changes focus. |
+| Conversation queue | F7 opens pending/applied steering and queued/held follow-ups. Up/Down selects; E withdraws/restores a pending input for editing. Applied/claimed inputs cannot be edited. Restore never sends. |
 | Leave | Ctrl-Q from any overlay/editor; Ctrl-D with empty input; `/detach`, `/exit`, `/quit`. Save local draft and leave immediately without confirmation or settlement wait, including disconnected state. |
 | Interrupt / pause | Visible Interrupt action or `/interrupt` stops only the foreground coordinator directly. Show Stopping until settlement; typing and leaving remain available. `/pause` separately stops new dispatch; `/resume` continues it. |
 
@@ -68,8 +69,9 @@ login or inference. See [provider setup](provider-selection.md) for those steps.
 
 Target recorded on2026-11-10, following the user's request to align ordinary use
 with Codex/Pi and finish it before another operator walkthrough. This section is
-partially implemented: direct interrupt/leave/pause are current behavior; live
-steering/follow-up and the remaining editor/action shortcuts are still targets. A waiting
+implemented locally for interrupt/leave/pause, steering/follow-up, multiline
+history/newlines and direct model/thinking/status actions. The useful operator
+walkthrough remains separate evidence. A waiting
 task must not make the interface unusable. Drafting, browsing, inspection, changing
 topics and leaving remain available while an operation is waiting or stopping.
 
@@ -92,11 +94,11 @@ These are upstream observations checked on the date above, not a claim that ever
 shortcut or delivery boundary is identical across versions and terminals.
 
 Waywr uses the shared libraries, not Pi's application. The pinned agent class
-already provides steer, followUp and abort. Our [runtime entry](../model-runtime/main.mjs)
-currently reads one input object before starting a call and handles signals for
-abort; it has no live steering/control input. The service's later-turn queue is
-not equivalent to delivering guidance into the active SDK loop. That connection
-must be implemented rather than inferred from a key binding.
+provides steer, followUp and abort. The [runtime entry](../model-runtime/main.mjs)
+now claims an attempt-scoped inbox between agent steps and calls Agent.steer.
+Follow-ups remain separate service turns, each with its own validated result.
+See [live input](live-input.md) for pending/applied/held state, editing and replay
+boundaries. An older owner without this capability queues until idle handover.
 
 ### Target actions and precedence
 
@@ -122,10 +124,9 @@ Tab away from Waywr's existing focus controls. Key handling and help should shar
 one action definition; configurable bindings can follow without delaying the
 everyday loop. Model/provider behavior must remain below this interaction layer.
 
-Current `/exit` pauses via a service acknowledgement and current Ctrl-Q opens a
-confirmation; the target above changes those semantics. Introduce the separate
-pause action and reconcile help, CLI and lifecycle owners in the implementing
-slice. Do not silently claim the current build already follows the target.
+The former exit confirmation/pause coupling is removed. /exit and Ctrl-Q leave
+promptly; /pause is separate. The controls above are implemented locally, with
+the useful operator walkthrough still required for ordinary-use evidence.
 
 Interruption is a request to stop one operation. Uncertain settlement still fences
 replay, replacement or conflicting writes for that operation; it cannot prevent

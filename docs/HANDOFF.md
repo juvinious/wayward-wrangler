@@ -1,103 +1,93 @@
-# Waywr handoff — renewable sessions and direct controls
+# Waywr handoff — live input and editor controls
 
-Branch: `plan/usability-and-installation`. Base: `70a252b` (startup renewal); current changes add direct controls. Follow
-[AGENTS.md](../AGENTS.md). Local implementation/commits only; the user handles
-remote delivery. Keep the operator walkthrough deferred until the accepted
-[interaction/lifecycle sequence](usability-plan.md#finish-before-the-next-operator-test)
-is implemented. Do not ask the user to reopen after each small repair.
+Branch: `plan/usability-and-installation`. Checkpoint: live-input/editor slice after
+`e4ac2ac`. Follow [AGENTS.md](../AGENTS.md). Local commits only; the user handles
+remote delivery. No operator project, service, binding, provider configuration or
+credentials were changed. No global installation or authenticated inference.
 
-## Current objective and implemented outcome
+## Implemented outcome
 
-The user explicitly authorized discarding obsolete Waywr configuration/session
-context. Preserving a broken old session as a live startup prerequisite is no
-longer the product contract. Source, Git history and dirty worktrees remain.
+Enter while a coordinator conversation is active sends live steering to that
+exact reserved turn/subject. The service durably records guidance and publishes
+an inbox bound to the attempt/project/frozen packet. The existing shared SDK
+claims it between steps and calls Agent.steer. Pending, entering-context, applied
+and held states are distinct. Applied means entered SDK context, not proof of
+remote action. Duplicate publication is ignored. No model-specific branch,
+extra daemon, dependency change or execution authority was introduced.
 
-Normal startup now renews obsolete native settings/bindings, unsupported session
-formats or stranded host uncertainty. rust_session.rs verifies identity, fences
-new dispatch, stops the exact owned service/operation cgroups, retires state and
-old target/endpoint/release configuration, and creates fresh current-contract
-state. Valid shared model choices survive; retired native choices use current
-catalog defaults. Fresh context uses current source/new instructions. Calls,
-queues, approvals, budgets and execution bindings are not imported. Old outcomes
-stay unknown; abandonment never fabricates completion or grants replay.
-The private archive/journal contract lives in [project layout](project-layout.md).
-The journal resumes interrupted retirement and healthy subsequent reopen retains
-its new session. Archives are diagnostic material, not runnable projects.
+Alt+Enter queues a separate follow-up, also in F2 multiline mode. It waits for
+the current reply, receives the committed reply/applied guidance as context and
+has its own frozen packet/result/receipt. SDK followUp is deliberately not used
+to fold multiple replies into one operation's single validated result. Pending,
+withdrawn or held guidance never silently enters later conversation context.
+Interruption holds unconsumed guidance and later turns; reopening never replays
+them. Formal approvals/questions and scope changes retain explicit actions.
 
-Healthy compatible busy owners remain attachable through the current UI; their
-release identity is used for IPC while execution stays with its existing owner.
-Idle handover still verifies exact process/socket/project ownership. The service
-accepts a compatible same-UID UI using its actual peer executable/manifest hash
-and interaction protocol, rather than requiring the original build path. Service
-versions predating this attachment capability still need their first idle
-transition; no legacy native-model route was reintroduced.
-Stop/cancel/command lookup target the exact current IPC owner and never initiate
-session renewal or another model attempt. Their peer command/project/state are
-verified even when the invoking application is from another build.
+F7 identifies delivery states; Up/Down reaches every returned queue row while a
+window keeps selection visible. E withdraws/restores full pending text for editing
+without sending. Claim versus withdrawal uses atomic rename; a late edit is
+refused. Restoring retains another draft/topic, journals before clearing the
+command outbox and rejects duplicate acknowledgement after reopening. Applied
+inputs cannot be withdrawn. Held guidance must be restored/resubmitted explicitly.
 
-## Direct controls now implemented
+Up/Down moves within multiline input, recalling history only at its boundary.
+Ctrl-J/Shift+Enter inserts a newline; F2 remains the terminal fallback. /model,
+/thinking and /status open direct controls without execution. Pickers still edit
+preferences; S saves and A explicitly reviews activation. Help and footer hints
+explain the current controls. Older compatible owners without live_input_contract1
+queue later turns until idle handover; build/model IDs do not gate the feature.
 
-Empty plain-composer Escape/Ctrl-C requests interruption of only the foreground
-subject's exact coordinator turn. Nonempty input still clears; popup Escape backs
-out one level. The visible primary action and /interrupt use that same command,
-without workflow cancellation or a confirmation panel. Repeated requests show
-Stopping; drafts/navigation/leave remain usable until actual settlement. A lost
-connection does not pretend interruption was delivered.
+The preceding direct interrupt/leave/pause and renewable-session slices remain:
+empty plain-composer Escape/Ctrl-C or /interrupt stops only the foreground call;
+nonempty input clears. Ctrl-Q leaves promptly from any overlay/editor, including
+while stopping/disconnected; empty-composer Ctrl-D and /exit also leave. /pause
+separately stops new dispatch and stays open. Obsolete/stranded state is renewed
+after exact-owned-process fencing, retaining source/Git/worktrees and usable
+shared choices; retired calls/approvals are never imported or replayed.
 
-Ctrl-Q leaves directly from all editors/overlays; empty-composer Ctrl-D and
-/detach, /exit, /quit also leave immediately. The local draft is saved without
-waiting for model/tool settlement or network acknowledgement. /pause separately
-requests stop_session and keeps the UI open; it does not kill the foreground call
-or imply that it has settled. Existing /resume semantics remain explicit.
+## Evidence and limits
 
-## Verification and limits
+Behavioral red cases preceded implementation: Enter only queued later work,
+SDK requests missed live guidance, duplicate publication caused an extra request,
+pending text leaked into later context, claimed guidance could be falsely
+withdrawn, replayed restore acknowledgements resurrected input, and long previews
+hid queue focus. Focused regressions now pass for these cases.
 
-The real isolated launcher/systemd/IPC/TUI regression first reproduced the user's
-exact unresolved-attempt update refusal. It now stops a held fixture operation,
-opens a fresh session with retained model choices/source/worktrees, discards the
-obsolete target, reopens without resetting again, and replaces retired native
-settings at startup. The separate busy fixture reconnects without changing the
-owner, then hands over after the operation ends. The held operation is sleep,
-not a model. Crash continuation, foreign-state refusal, peer executable/contract
-verification and new shared-profile initialization have focused unit coverage.
-The old init assertion still expected native schema2; it now checks the actual
-schema3 contract. No dependency/lock changes or account calls.
+The remapped release passes the real isolated --steering journey in
+scripts/test-session-renewal.py: actual TUI/systemd/service/runner/SDK, multiline
+input, queue withdrawal/edit/requeue, two completed turns from three local HTTP
+requests and reopen without replay. Its --controls journey holds the runner,
+interrupts a real local SDK stream, keeps a draft, leaves in under one second,
+reattaches while stopping, holds unapplied steering/follow-ups without context
+leak/replay, pauses separately and leaves disconnected. Only exact fixture units
+are stopped. These checks use no accounts, operator project or actual inference.
 
-The remapped release and source public-content checks pass. Portable real-systemd
-handover with retained history/pending delivery/unresolved launch records passes.
-The explicit retired-profile IPC fixture remains a UI inspection check, separate
-from ordinary startup renewal, and its combined catalog/thinking/activation/usage/
-draft/pause regression passed at the startup checkpoint (idle UI 1%, service 3%).
+SDK tool-loop checks cover OpenAI-compatible and Anthropic-compatible protocols.
+Focused backend tests cover durable replay, exact subject, reopening and the
+claim/withdraw race; UI checks cover editor, delivery, restoration, visibility and
+shortcuts. Existing affected history/card/protocol checks pass. Schema consistency,
+source/binary public-content gates, locked notices and release build pass.
+A deliberately ignored latency simulation remains ignored. No dependency/lock
+updates, hosted workflow runs or remote Git writes were performed.
 
-The --controls variant of test-session-renewal.py uses the actual SDK against one
-held local HTTP stream and the real service/runner/IPC/TUI. It SIGSTOP-holds the
-runner so interruption cannot settle, requests interrupt through the UI, keeps an
-unsent draft, leaves in under one second, and reattaches to the stopping owner.
-Resuming the runner produces its receipt; the UI then explicitly pauses without
-leaving and leaves a disconnected service promptly. Only one HTTP fixture request
-is made. All uniquely keyed fixture units are stopped; no operator state/account
-or actual inference is used. Focused control/topic/late-action checks pass. No hosted workflows, publication or remote Git writes were performed.
+Actual login, model quality, useful task delivery and the full daily workflow
+remain unverified. Steering waits for an agent boundary; it cannot interrupt a
+provider stream by itself. /interrupt is separate. Same-UID worktrees are not an
+OS sandbox. Queue snapshots retain bounded recent applied/held previews; full
+pending text remains durable. Public installer/update/uninstall/package work is
+still subsequent work, not completed by this slice.
 
-Renewal requires verifiable process ownership and writable state/archive paths;
-it cannot bypass permission failures or ambiguous project/layout ownership.
-Cross-filesystem custom-state retirement is not implemented. Real authentication,
-model quality, useful delivery and the complete ordinary loop remain unverified.
+## Next authorized action
 
-## Operator state and next authorized action
+The interaction/lifecycle sequence is implemented locally. The ignored
+target/local-bin/waywr is the local candidate launcher; target/local-bin/candidate.json
+records its paired temporary bundle identity. Leave global/operator installation
+alone. The next product evidence is
+one bounded useful [operator walkthrough](verify-usability.md), including redirect,
+interrupt, leave, rebuild and return. Account calls/operator changes need explicit
+authorization; fixtures never supply it. Convert concrete friction into focused
+regressions; do not start another broad test campaign or orchestration redesign.
 
-No operator service, bindings, state, project files or credentials were changed
-by this implementation. The previous uncertain attempt was not replayed. The
-ignored target/local-bin/waywr still points to the previous local.startup bundle;
-do not present it as the new candidate or an instruction to test now.
-
-Next is real steering/follow-up, then consistent multiline/history, direct
-model/thinking/status actions and error feedback. Runtime abort is now connected
-to direct UI interruption; steer/followUp are still not connected through the
-runtime's single-input boundary. Do not relabel its later-turn queue as steering. A waiting operation must not trap navigation, drafting or leaving.
-Only after the audit sequence, prepare the paired local candidate and arrange
-the useful operator walkthrough. No installation/account use is inferred from
-fixture success. Source/worktree disposal is not authorized.
-
-Owners: [providers](provider-selection.md), [architecture](architecture.md),
-[interaction target](tui-controls.md#planned-everyday-interaction),
-[product plan](usability-plan.md), [user verification](verify-usability.md).
+Owners: [live input](live-input.md), [controls](tui-controls.md),
+[providers](provider-selection.md), [architecture](architecture.md),
+[plan](usability-plan.md), [project layout](project-layout.md).

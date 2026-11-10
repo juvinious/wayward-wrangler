@@ -221,8 +221,13 @@ interruption is labelled until settlement; existing late-action fences remain.
 Ctrl-Q leaves from editors/overlays immediately; empty-composer Ctrl-D and
 /detach, /exit, /quit leave without a network/settlement wait. /pause requests
 stop_session without leaving. Drafts remain local/durable, including disconnects.
-The shared SDK's live steer/followUp methods are still not connected to the
-runtime's single-input boundary; the later-turn queue is not live steering.
+The service now owns [durable live input](live-input.md). It publishes exact-turn
+guidance into an attempt-scoped inbox; the SDK claims it between steps and calls
+Agent.steer. Applied context is acknowledged separately from pending input.
+Follow-ups use separate later turns/results. Withdrawal races the runtime claim
+atomically, and interruption holds unconsumed inputs without replay. The existing
+editor adds boundary-based multiline history, Ctrl-J and direct model/status
+actions. No new provider/model routing or execution authority is introduced.
 
 The [conversation contract](conversational-coordination.md) owns the state9 IPC1.8
 interaction overlay. Stable request ownership is independent of task inspection.

@@ -1,21 +1,18 @@
 # Verify the daily-use loop
 
-The next operator walkthrough is deferred until the
-[interaction/lifecycle changes](usability-plan.md#finish-before-the-next-operator-test)
-are complete. The instructions below describe the current build and later use
-checks. Direct interrupt/leave/pause and automatic obsolete-session renewal are
-implemented locally; live steering/follow-up and remaining editor/action work are
-still incomplete. Normal startup retires obsolete/stranded session context rather
-than preserving it as a live update dependency. Operator state has not been reset
-by these isolated checks; do not reopen until the sequence is finished.
+The local interaction/lifecycle implementation is ready for the bounded operator
+walkthrough. This is the next use check, not evidence already obtained: local
+HTTP/SDK/service/TUI fixtures establish control delivery and persistence, not
+actual account setup or useful model work. Normal startup renews obsolete or
+stranded sessions without replaying their calls. Source/worktrees remain.
 
 The candidate uses the shared model runtime on Linux x86_64 with a systemd user
 manager, Node >=22.19 and `flock`. Configure a provider through the SDK's explicit
 login/environment setup, then choose a provider/model in F3. No native Codex/Claude
-CLI is required. Retired profiles need reconfiguration. Schema2 projects can open
-for inspection and F3 setup while execution stays blocked. Choose a shared
-provider/model, S save, then A reviews activation. Choose Activate and share project
-context and Enter to request the switch after the current turn.
+CLI is required. Normal startup renews retired settings/bindings automatically;
+valid shared model choices remain. For a model change, /model and /thinking open
+their pickers; S saves and A reviews activation. Choose Activate and share project
+context to switch after the current turn. /status shows the active state/usage.
 Existing request policy amendments remain explicit. See [provider setup](provider-selection.md).
 Automated fixtures do not establish account login or model reliability.
 
@@ -57,6 +54,13 @@ draft. An unrelated old request cannot veto a new discussion's model choice.
 Ctrl-C or Escape in the plain composer clears nonempty input and its saved draft;
 with empty input it interrupts only the foreground coordinator. Escape
 inside a popup still returns one level without clearing the composer.
+
+While a coordinator reply is active, Enter sends live steering at its next
+boundary; Alt+Enter queues a follow-up for after the reply. F7 labels pending,
+applied and held inputs; E restores a pending input for editing without sending.
+Up/Down moves inside multiline input and recalls history at the first/last line.
+Ctrl-J/Shift+Enter adds a newline; F2 remains the fallback. Interrupt, keep typing,
+leave while stopping, then reopen and verify no automatic input replay.
 
 Discuss one small useful development request. Review its scope/policy card and
 authorize it only when correct. Local delivery keeps this first verification

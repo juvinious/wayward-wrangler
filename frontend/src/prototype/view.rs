@@ -25,6 +25,7 @@ use unicode_width::UnicodeWidthChar;
 pub enum Modal {
     None,
     Help,
+    Status,
     Tasks,
     Scope,
     ScopeEditor,
@@ -70,6 +71,9 @@ struct Command {
 }
 const COMMANDS: &[Command] = &[
     Command { name:"resume",description:"Resume this paused session",shortcut:"" },
+    Command {name:"model",description:"Choose a model from the full catalog",shortcut:""},
+    Command {name:"thinking",description:"Choose the model's thinking level",shortcut:""},
+    Command {name:"status",description:"Inspect session, model, queue and usage",shortcut:""},
     Command { name:"reply",description:"Answer the current development coordinator question",shortcut:"" },
     Command {
         name: "help",
@@ -280,6 +284,8 @@ pub struct App {
     scope_step:usize,
     pub conversation_subject:String,
     pub queue_index:usize,
+    restored_queue_input:Option<Value>,
+    last_queue_restore:Option<String>,
     pub conversation_revision_request:bool,
     question_confirmation:Option<Value>,
     project_edit:Option<Value>,provider_edit:Option<Value>,provider_section:usize,provider_index:usize,provider_row:usize,provider_field:usize,provider_typing:bool,provider_grant:bool,provider_interrupt:bool,
@@ -354,7 +360,7 @@ impl App {
             live,
             pending_primary_task: None,
             submission_draft: None,
-            scope_edit:None,scope_editor:Composer::default(),scope_field:1,scope_ack:None,scope_step:0,conversation_subject:"discussion".into(),queue_index:0,conversation_revision_request:false,question_confirmation:None,project_edit:None,provider_edit:None,provider_section:0,provider_index:0,provider_row:0,provider_field:0,provider_typing:false,provider_grant:false,provider_interrupt:false,provider_picker:None,provider_follow:true,provider_activation:None,
+            scope_edit:None,scope_editor:Composer::default(),scope_field:1,scope_ack:None,scope_step:0,conversation_subject:"discussion".into(),queue_index:0,restored_queue_input:None,last_queue_restore:None,conversation_revision_request:false,question_confirmation:None,project_edit:None,provider_edit:None,provider_section:0,provider_index:0,provider_row:0,provider_field:0,provider_typing:false,provider_grant:false,provider_interrupt:false,provider_picker:None,provider_follow:true,provider_activation:None,
         };
         if app.live.is_none() { app.schedule(); }
         if app.journal.effects == "subtle" {
@@ -375,7 +381,7 @@ impl App {
     pub fn apply_snapshot(&mut self, body: &Value) {
         let previous_scope=self.current_scope().map(Self::scope_identity);
         let previous_subject_task = self.conversation_scope_task_id().map(str::to_owned);
-        let old_queue_id=self.queue_rows().get(self.queue_index).map(|r|r["turn_id"].clone());
+        let old_queue_id=self.queue_rows().get(self.queue_index).map(Self::queue_identity);
         let first_conversation=self.live.as_ref().is_some_and(|live|live.conversation.is_none())
             && body.get("conversation").is_some();
         if first_conversation && self.input_history.is_empty() {
@@ -428,7 +434,7 @@ impl App {
         self.restore_proposal_cards();
         self.restore_candidate_cards();
         if self.coordination_mode()&&previous_scope!=self.current_scope().map(Self::scope_identity){self.scope_ack=None;self.scope_step=0;self.card_action=0;}
-        if self.modal==Modal::Queue{let rows=self.queue_rows();if let Some(i)=old_queue_id.and_then(|id|rows.iter().position(|r|r["turn_id"]==id)){self.queue_index=i;}else{self.queue_index=self.queue_index.min(rows.len().saturating_sub(1));self.modal_action=0;}}
+        if self.modal==Modal::Queue{let rows=self.queue_rows();if let Some(i)=old_queue_id.and_then(|id|rows.iter().position(|r|Self::queue_identity(r)==id)){self.queue_index=i;}else{self.queue_index=self.queue_index.min(rows.len().saturating_sub(1));self.modal_action=0;}}
         if body["conversation"]["history_truncated"]==true{self.notice="Older conversation is retained in project records; this view shows the bounded recent window".into();}
         if let Some(events)=body["recent_events"].as_array() {
             for event in events { self.apply_event(event); }
@@ -487,6 +493,9 @@ impl App {
         }
         live.last_seq=seq;
         let kind=event["type"].as_str().unwrap_or("event");
+        if kind.starts_with("conversation.input_")&&event["body"]["subject_id"]==self.conversation_subject{
+            self.notice=match kind{"conversation.input_applied"=>"Steering applied to the agent context","conversation.input_held"=>"Steering was not applied; retained in F7 for editing or withdrawal","conversation.input_delivering"=>"Steering is entering the agent context","conversation.input_withdrawn"=>"Queued steering withdrawn",_=>"Steering pending"}.into();
+        }
         self.coordination_event(kind,&event["body"]);
         if self.coordination_mode()&&kind=="conversation.proposal_card"{if let Some(id)=event["body"]["card_id"].as_str(){self.card_seqs.insert(seq,id.into());while self.card_seqs.len()>64{self.card_seqs.pop_first();}}}
         if self.coordination_mode()&&kind=="conversation.card_presented"{self.mark();return;}
@@ -520,6 +529,11 @@ impl App {
             "conversation.withdrawn"=>("Waywr","Queued message withdrawn · No call spent.".into()),
             "conversation.turn_stopped" if self.continuous_mode()=>("Waywr",if body["status"]=="interrupted"{format!("Interrupted · {}",if body["recoverable"]==true{"Message saved; send a new message to continue. Older queued messages remain held."}else{"Inspect retained evidence before continuing."})}else{format!("Reply unavailable · {}. {}",body["reason"].as_str().unwrap_or("The coordinator could not provide a valid reply"),if body["recoverable"]==true{"Message saved; send a new message to continue. Older queued messages remain held."}else{"Inspect retained evidence before continuing."})}),
             "conversation.cancel_requested"=>("Waywr","Coordinator interruption requested · Partial output and held allowance are retained.".into()),
+            "conversation.input_pending"=>("Waywr","Steering pending · The active agent will receive it at its next boundary.".into()),
+            "conversation.input_delivering"=>("Waywr","Applying steering to the active agent context.".into()),
+            "conversation.input_applied"=>("Waywr","Steering applied to the active agent context.".into()),
+            "conversation.input_held"=>("Waywr","Steering was not applied · Retained in F7 for editing or withdrawal.".into()),
+            "conversation.input_withdrawn"=>("Waywr","Pending steering withdrawn.".into()),
             "conversation.mock_delta"=>("Waywr","Mock coordinator working from selected project context…".into()),
             "conversation.question" if self.coordination_mode()=>("Waywr",format!("Your answer is needed: {} Reply here.",body["question"].as_str().unwrap_or("question"))),
             "conversation.question"=>("Waywr",format!("Your answer is needed: {} Open the visible Answer question action; saving an answer does not spend a call.",body["question"].as_str().unwrap_or("question"))),
@@ -1075,11 +1089,38 @@ impl App {
       if !self.continuous_mode(){return None}self.live.as_ref()?.conversation.as_ref()?["actions"].as_array()?.iter().find(|a|a["kind"]=="suggest_question_disposition"&&a["body"]["subject_id"]==self.conversation_subject)
     }
     fn queue_rows(&self)->Vec<Value>{self.dialogue_state()["queue"].as_array().cloned().unwrap_or_default()}
+    fn queue_identity(row:&Value)->Value{row.get("input_id").unwrap_or(&row["turn_id"]).clone()}
+    fn queue_editable(row:&Value)->bool{matches!(row["status"].as_str(),Some("queued"|"pending"|"held"))}
+    fn queue_withdraw(&mut self,row:&Value,restore:bool){
+        if restore&&!self.composer.text().is_empty(){self.notice="Keep or clear the current draft before restoring a queued input".into();self.mark();return;}
+        if !Self::queue_editable(row){self.notice="This input has already entered the agent context".into();self.mark();return;}
+        let payload=if row["input_id"].is_string(){serde_json::json!({"action":"conversation.withdraw_input","payload":{"input_id":row["input_id"],"subject_id":row["subject_id"],"restore_to_editor":restore}})}else{
+            serde_json::json!({"action":"withdraw_queued","payload":{"turn_id":row["turn_id"],"subject_id":row["subject_id"],"restore_to_editor":restore}})};
+        self.intent(LiveIntent::Dialogue(payload));self.notice="Queue change pending; applied inputs cannot be edited".into();self.mark();
+    }
+    pub fn restore_queue_input(&mut self,value:Value){
+        if value["text"].as_str().is_none_or(|t|t.len()>32768){return;}
+        if let Some(id)=value["source_command"].as_str(){
+            if self.last_queue_restore.as_deref()==Some(id){return;}self.last_queue_restore=Some(id.into());
+        }
+        self.restored_queue_input=Some(value);self.restore_pending_queue_input();
+    }
+    fn restore_pending_queue_input(&mut self){
+        let Some(input)=self.restored_queue_input.as_ref() else{return;};
+        if !self.composer.text().is_empty()||input["subject_id"].as_str().is_some_and(|s|s!=self.conversation_subject){
+            self.notice="Input withdrawn and retained; clear the draft in its topic, then F7 and E to restore it".into();self.mark();return;
+        }
+        let text=input["text"].as_str().unwrap_or("");
+        self.composer=Composer::from_draft(Draft{text:text.into(),row:text.split('\n').count()-1,col:text.rsplit('\n').next().unwrap_or("").chars().count(),literal_paste:true,..Draft::default()});
+        self.restored_queue_input=None;self.input_history.reset_navigation();self.modal=Modal::None;self.focus=Focus::Composer;
+        self.discard_reply_context();self.notice="Input restored for editing; Enter steers, Alt+Enter queues a follow-up".into();self.mark();
+    }
     fn foreground_coordinator(&self)->Option<&Value>{
         let c=self.live.as_ref()?.conversation.as_ref()?;
         let rows=if self.continuous_mode(){c["continuous"]["queue"].as_array()?}else{c["turns"].as_array()?};
         rows.iter().find(|r|r["status"]=="reserved"&&(!self.coordination_mode()||r["subject_id"]==self.conversation_subject))
     }
+    fn live_steering_available(&self)->bool{self.live.as_ref().and_then(|l|l.conversation.as_ref()).is_some_and(|c|c["continuous"]["live_input_contract"]==1)}
     fn interrupt_coordinator(&mut self){
         let Some(turn)=self.foreground_coordinator().and_then(|r|r["turn_id"].as_str()).map(str::to_owned) else{
             self.notice="No foreground coordinator call is active".into();self.mark();return;
@@ -1108,12 +1149,16 @@ impl App {
         let mut drafts=self.journal.drafts.iter().filter(|(k,_)|k.starts_with("subject:")).take(16).map(|(k,v)|(k.clone(),serde_json::to_value(v).unwrap_or(Value::Null))).collect::<serde_json::Map<_,_>>();
         drafts.insert(format!("subject:{}:{}",self.conversation_subject,Self::request_draft_slot(self.journal.target)),serde_json::to_value(self.input_history.draft_to_save(self.composer.snapshot())).unwrap_or(Value::Null));
         let mut contexts=self.draft_replies.iter().take(16).map(|(k,v)|(k.clone(),v.clone())).collect::<serde_json::Map<_,_>>();let current=if self.input_history.is_recalling(){self.history_reply.clone()}else{self.draft_reply.clone()};if let Some(context)=current{contexts.insert(format!("subject:{}:{}",self.conversation_subject,Self::request_draft_slot(self.journal.target)),context);}contexts.retain(|key,_|drafts.get(key).and_then(|d|d["text"].as_str()).is_some_and(|text|!text.is_empty()));
-        serde_json::json!({"schema_version":2,"subject_id":self.conversation_subject,"request_revision":self.conversation_revision_request,"drafts":drafts,"draft_contexts":contexts})
+        serde_json::json!({"schema_version":2,"subject_id":self.conversation_subject,"request_revision":self.conversation_revision_request,"drafts":drafts,"draft_contexts":contexts,"restored_input":self.restored_queue_input,"last_queue_restore":self.last_queue_restore})
     }
     pub fn restore_conversation_ui(&mut self,v:&Value)->Result<(),String>{
         let id=v["subject_id"].as_str().ok_or("Saved conversation subject is missing")?;
         if !matches!(v["schema_version"].as_u64(),Some(1|2))||id.is_empty()||id.len()>128||!id.bytes().all(|c|c.is_ascii_alphanumeric()||b"-_".contains(&c)){return Err("Saved conversation subject is invalid".into())}
         if v["schema_version"]==1&&self.live.as_ref().and_then(|l|l.conversation.as_ref()).and_then(|c|c["coordination"]["resume_subject"].as_str()).is_some_and(|hint|hint!=id){self.journal.drafts.insert(format!("subject:{id}:{}",Self::request_draft_slot(self.journal.target)),self.composer.snapshot());self.composer=Composer::default();}
+        self.last_queue_restore=v["last_queue_restore"].as_str().filter(|s|s.len()<=128).map(str::to_owned);
+        if let Some(input)=v.get("restored_input").filter(|v|!v.is_null()){
+            if input["text"].as_str().is_none_or(|t|t.len()>32768){return Err("Restored input exceeds bounds".into())}self.restored_queue_input=Some(input.clone());
+        }
         self.conversation_subject=if v["schema_version"]==1{self.live.as_ref().and_then(|l|l.conversation.as_ref()).and_then(|c|c["coordination"]["resume_subject"].as_str()).unwrap_or(id).into()}else{id.into()};self.conversation_revision_request=v["request_revision"]==true;
         if let Some(drafts)=v["drafts"].as_object(){if drafts.len()>17{return Err("Too many saved request drafts".into())}for(k,value)in drafts{let draft:Draft=serde_json::from_value(value.clone()).map_err(|e|e.to_string())?;if !k.starts_with("subject:")||k.len()>200||draft.text.len()>32768{return Err("Saved request draft exceeds bounds".into())}self.journal.drafts.insert(k.clone(),draft);}let key=format!("subject:{}:{}",self.conversation_subject,Self::request_draft_slot(self.journal.target));if let Some(draft)=self.journal.drafts.get(&key){self.composer=Composer::from_draft(draft.clone());}}
         if let Some(contexts)=v["draft_contexts"].as_object(){if contexts.len()>17{return Err("Too many saved reply contexts".into())}for(k,c)in contexts{if k.len()>200||!k.starts_with("subject:")||waywr_backend::codec::canonical(c).map_err(|e|e.to_string())?.len()>8192{return Err("Invalid saved reply context".into())}if self.journal.drafts.get(k).is_some_and(|d|!d.text.is_empty())||k==&format!("subject:{}:{}",self.conversation_subject,Self::request_draft_slot(self.journal.target))&&!self.composer.text().is_empty(){self.draft_replies.insert(k.clone(),c.clone());}}self.draft_reply=self.draft_replies.get(&format!("subject:{}:{}",self.conversation_subject,Self::request_draft_slot(self.journal.target))).cloned();}
@@ -1125,7 +1170,7 @@ impl App {
     fn dialogue_modal(&self)->Option<(String,String)>{
       if !self.continuous_mode(){return None}
       match self.modal {
-       Modal::Queue=>{let rows=self.queue_rows();let mut text=format!("Up/Down select message; Left/Right select action; PageUp/PageDown scroll. Held messages require explicit release.\nRecovery generation {} · {}\n\n",self.dialogue_state()["pause"]["generation"],self.dialogue_state()["pause"]["reason"].as_str().unwrap_or("No stopped outcome"));for(i,r)in rows.iter().enumerate(){text.push_str(&format!("{} {} · {}\n",if i==self.queue_index{"›"}else{" "},match r["status"].as_str(){Some("reserved")=>if r["interrupt_requested"]==true{"Interrupt requested"}else{"Running"},Some("held")=>"Held",_=>"Queued"},r["text"].as_str().unwrap_or("")));}if rows.is_empty(){text.push_str("No queued or held messages. Your unsent draft remains in the composer.");}Some(("Conversation queue".into(),text))},
+       Modal::Queue=>Some(self.queue_body()),
        Modal::QuestionConfirm=>{let Some(a)=self.question_confirmation.as_ref().filter(|_|self.confirmation_current())else{return Some(("Suggestion changed".into(),"No current formal suggestion to record. Close and continue discussing.".into()))};let p=&a["body"]["action"]["payload"];Some(("Confirm formal question decision".into(),format!("Suggested {} for question {}\n\n{}\n\nTab to edit or record. Ordinary discussion needs no confirmation. Recording uses no call; it grants no scope authorization.",p["disposition"].as_str().unwrap_or("answer"),p["question_id"].as_str().unwrap_or(""),self.scope_editor.text())))},
        Modal::Help=>Some(("Continuous conversation".into(),"Send discussion while a question or scope is pending. Enter on empty input opens the visible action; while running it interrupts the foreground coordinator directly. Keep composing. F7 shows queued/held messages with explicit release/withdraw. /plan opens optional scope review; only its final Authorize scope action grants permission. Suggested formal answers/deferrals require Record confirmation; normal chat needs none. New Send after a proven recoverable failure requests only that new turn, leaving older messages held. /detach preserves supervision; /exit leaves immediately; /pause stops dispatch; resume reconciles. Mock transport is scripted regression data, not a live coordinator.".into())),
        Modal::Settings=>Some(("Coordinator settings · continuous scope".into(),format!("Transport: {}\nClaude Code · claude-sonnet-5-5 · medium\nReadiness: {}\n{}\n\nAt most six coordinator invocations. Zero workers, consultation or execution admissions; no retry, repair or fallback. Bounded project context; no inherited hooks/history/MCP or filesystem/process tools. Only inert StructuredOutput is enabled. Native allowance requires separate authorization. Mock transport is scripted regression data.\n\nTheme {} (t) · Effects {} (e)",if self.chat()?["profile"]["mode"]=="mock-cli"{"MOCK CLI STREAM"}else{"Native · separately authorized"},self.chat()?["status"].as_str().unwrap_or("blocked"),self.chat()?["reason"].as_str().unwrap_or(""),self.journal.theme,self.journal.effects))),
@@ -1512,10 +1557,10 @@ impl App {
         }
         self.input_history.remember(draft);
         if matches!(name,"detach"|"exit"|"quit"){
-            self.composer.clear();self.menu=false;self.detach_now();return;
+            self.composer.clear();self.discard_reply_context();self.menu=false;self.detach_now();return;
         }
         if name=="interrupt"{
-            self.composer.clear();self.menu=false;self.interrupt_coordinator();return;
+            self.composer.clear();self.discard_reply_context();self.menu=false;self.interrupt_coordinator();return;
         }
         if let Some(reason) = self.enabled_reason(name) {
             self.notice = format!("/{name} unavailable: {reason}");
@@ -1524,6 +1569,13 @@ impl App {
         }
         if self.live.is_some() {
             match name {
+                "model"|"thinking"=>{
+                    self.open(Modal::Settings);self.provider_section=0;self.provider_field=if name=="thinking"{2}else{1};
+                    let names=self.provider_names();let coordinator=self.provider_draft()["coordinator"].as_str().unwrap_or("").to_owned();
+                    self.provider_index=names.iter().position(|n|n==&coordinator).unwrap_or(0);
+                    self.open_catalog(if name=="thinking"{CatalogScope::Thinking}else{CatalogScope::Models(None)});
+                },
+                "status"=>self.open(Modal::Status),
                 "help" => self.open(Modal::Help),
                 "tasks" => self.open(Modal::Tasks),
                 "settings" => self.open(Modal::Settings),
@@ -1591,7 +1643,8 @@ impl App {
         self.menu = false;
         self.mark();
     }
-    fn submit_composer(&mut self) {
+    fn submit_composer(&mut self) {self.submit_input(false);}
+    fn submit_input(&mut self,follow_up:bool) {
         let text = self.composer.text();
         if text.trim().is_empty() {
             if self.live.is_some() && !self.menu {self.primary();}
@@ -1639,6 +1692,11 @@ impl App {
                 self.notice="Select a task before steering it; draft preserved".into();self.mark();return;
             }
             self.submission_draft=Some(self.composer.snapshot());
+            if !follow_up&&self.live_steering_available()&&matches!(self.journal.target,Target::Coordinator|Target::NewTask)&&let Some(turn)=self.foreground_coordinator().and_then(|r|r["turn_id"].as_str()).map(str::to_owned){
+                let mut payload=self.message_payload(&text);payload["turn_id"]=serde_json::json!(turn);
+                self.intent(LiveIntent::Dialogue(serde_json::json!({"action":"conversation.steer","payload":payload})));
+                self.composer.clear();self.menu=false;self.notice="Steering pending durable delivery · applies at the next agent boundary".into();self.mark();return;
+            }
             if self.journal.target==Target::ReplyFirst {
                 let Some(payload)=self.development_reply_payload(&text)else{self.notice="Question changed; inspect it before answering. Draft preserved.".into();return};
                 self.intent(LiveIntent::Dialogue(serde_json::json!({"action":"development.reply","payload":payload})));self.composer.clear();self.set_target(Target::Coordinator);self.menu=false;self.mark();return;
@@ -1951,12 +2009,15 @@ impl App {
         if self.provider_settings(){self.provider_key(key);return;}
         if self.continuous_mode()&&matches!(self.modal,Modal::Queue|Modal::QuestionConfirm){
           let rows=self.queue_rows();self.queue_index=self.queue_index.min(rows.len().saturating_sub(1));
+          if self.modal==Modal::Queue&&key.code==KeyCode::Char('e'){
+            if self.restored_queue_input.is_some(){self.restore_pending_queue_input();}else if let Some(row)=rows.get(self.queue_index){self.queue_withdraw(row,true);}return;
+          }
           if self.modal==Modal::Queue&&matches!(key.code,KeyCode::Up|KeyCode::Down){self.queue_index=if key.code==KeyCode::Down{(self.queue_index+1).min(rows.len().saturating_sub(1))}else{self.queue_index.saturating_sub(1)};self.modal_action=0;self.modal_scroll=0;self.mark();return}
-          let max=if self.modal==Modal::Queue{if rows.get(self.queue_index).is_some_and(|r|r["status"]=="held")&&self.can_release_held(){3}else if rows.get(self.queue_index).is_some_and(|r|matches!(r["status"].as_str(),Some("queued"|"held"))){2}else{1}}else{self.confirmation_controls().len()};
+          let max=if self.modal==Modal::Queue{if rows.get(self.queue_index).is_some_and(|r|r["status"]=="held"&&!r["input_id"].is_string())&&self.can_release_held(){3}else if rows.get(self.queue_index).is_some_and(Self::queue_editable){2}else{1}}else{self.confirmation_controls().len()};
           if matches!(key.code,KeyCode::Tab|KeyCode::BackTab|KeyCode::Left|KeyCode::Right){self.modal_action=if matches!(key.code,KeyCode::Tab|KeyCode::Right){(self.modal_action+1)%max}else{(self.modal_action+max-1)%max};self.mark();return}
           if key.code==KeyCode::Enter{
             if self.modal_action==0{self.modal=Modal::None;}
-            else if self.modal==Modal::Queue {if let Some(row)=rows.get(self.queue_index){let payload=if self.modal_action==1{serde_json::json!({"action":"withdraw_queued","payload":{"turn_id":row["turn_id"]}})}else{serde_json::json!({"action":"continue_held","payload":{"turn_ids":[row["turn_id"]],"acknowledged_outcome":self.dialogue_state()["pause"]}})};self.intent(LiveIntent::Dialogue(payload));self.notice="Queue action pending durable acceptance".into();}}
+            else if self.modal==Modal::Queue {if let Some(row)=rows.get(self.queue_index){if self.modal_action==1{self.queue_withdraw(row,false);}else{self.intent(LiveIntent::Dialogue(serde_json::json!({"action":"continue_held","payload":{"turn_ids":[row["turn_id"]],"acknowledged_outcome":self.dialogue_state()["pause"]}})));self.notice="Queue action pending durable acceptance".into();}}}
             else if self.confirmation_current()&&self.modal_action+1==self.confirmation_controls().len() {if let Some(a)=self.question_confirmation.clone().filter(|_|self.confirmation_current()){let sha=waywr_backend::codec::canonical_sha256(&a["body"]).unwrap_or_default();self.intent(LiveIntent::Dialogue(serde_json::json!({"action":"confirm_question_disposition","payload":{"action_id":a["action_id"],"suggestion_sha256":sha,"answer":self.scope_editor.text(),"coordination_version":if self.coordination_mode(){serde_json::json!(1)}else{Value::Null}}})));self.notice="Formal decision pending durable acceptance; no call".into();self.modal=Modal::None;}}
             self.mark();return
           }
@@ -2296,6 +2357,10 @@ impl App {
                 }
                 KeyCode::Up | KeyCode::Down if self.focus == Focus::Composer && key.modifiers == KeyModifiers::NONE =>
                 {
+                    let row=self.composer.area.cursor().0;
+                    if (key.code==KeyCode::Up&&row>0)||(key.code==KeyCode::Down&&row+1<self.composer.area.lines().len()){
+                        self.composer.input(Event::Key(key));self.mark();return;
+                    }
                     if !self.input_history.is_recalling(){self.history_reply=Some(self.draft_reply.clone().unwrap_or(Value::Null));}
                     if let Some(draft) = self.input_history.recall(key.code == KeyCode::Up, self.composer.snapshot()) {
                         self.restore_recalled_input(draft);
@@ -2315,6 +2380,9 @@ impl App {
                 KeyCode::Char('l') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                     self.mark();
                     return;
+                }
+                KeyCode::Enter if key.kind==KeyEventKind::Press&&key.modifiers.contains(KeyModifiers::ALT)&&self.focus==Focus::Composer=>{
+                    self.submit_input(true);return;
                 }
                 _ => {}
             }
@@ -3061,7 +3129,7 @@ impl App {
         let editor_rect = Rect::new(2, composer_y + 1, screen.width.saturating_sub(3), editor_h);
         frame.render_widget(&self.composer.area, editor_rect);
         let toolbar_y = composer_y + composer_box_h as u16;
-        let send=format!("{}[{}]",if self.focus==Focus::Send{">"}else{""},if self.model_setup_needed(){"Use saved model"}else{"Send"});
+        let send=format!("{}[{}]",if self.focus==Focus::Send{">"}else{""},if self.model_setup_needed(){"Use saved model"}else if self.foreground_coordinator().is_some()&&self.live_steering_available(){"Steer"}else{"Send"});
         let multi = if self.composer.multiline { "on" } else { "off" };
         Self::draw_line(
             frame,
@@ -3077,11 +3145,13 @@ impl App {
             } else if self.focus == Focus::Conversation {
                 "PgUp/PgDn chat · Alt+PgUp/PgDn line · Esc composer · Enter inspect"
             } else if self.composer.multiline {
-                "Alt+↑/↓ cursor · PgUp/PgDn chat · Tab Send · Esc/Ctrl-C clear"
+                "↑/↓ cursor/history · Enter newline · Alt+Enter follow-up · Tab Send · Esc/Ctrl-C clear"
             } else if self.composer.text().is_empty() {
-                "↑/↓ history · PgUp/PgDn chat · Enter action · Esc/Ctrl-C clear · F1 help"
+                if self.foreground_coordinator().is_some(){"↑/↓ history · Enter action · Esc/Ctrl-C interrupt · Ctrl-Q leave · F1 help"}else{"↑/↓ history · PgUp/PgDn chat · Enter action · Ctrl-Q leave · F1 help"}
+            } else if self.foreground_coordinator().is_some()&&self.live_steering_available(){
+                "↑/↓ cursor/history · Enter steer · Alt+Enter follow-up · Ctrl-J newline · Esc/Ctrl-C clear · F1 help"
             } else {
-                "↑/↓ history · PgUp/PgDn chat · Enter send · Esc/Ctrl-C clear · F1 help"
+                "↑/↓ cursor/history · Enter send · Ctrl-J newline · Esc/Ctrl-C clear · F1 help"
             },
             if self.notice.is_empty() {
                 Style::default().fg(fg)
@@ -3326,7 +3396,39 @@ impl App {
         body.push_str("\nUp/Down select · Enter recall · Esc back. Chat scrolls with PageUp/PageDown.");
         ("Command history".into(), body)
     }
+    fn queue_body(&self)->(String,String){
+        let rows=self.queue_rows();let selected=self.queue_index.min(rows.len().saturating_sub(1));
+        let start=selected.saturating_sub(1).min(rows.len().saturating_sub(3));let end=(start+3).min(rows.len());
+        let mut text="Up/Down select · E restore to edit · PageUp/PageDown scroll details.\nApplied guidance cannot be withdrawn. Held messages require explicit release.\n".to_owned();
+        if rows.is_empty(){text.push_str("\nNo queued or held messages. Your unsent draft remains in the composer.");}
+        else{
+            text.push_str(&format!("Inputs {}–{} of {}\n",start+1,end,rows.len()));
+            for(i,r)in rows.iter().enumerate().take(end).skip(start){
+                let label=match r["status"].as_str(){Some("reserved")=>if r["interrupt_requested"]==true{"Stopping"}else{"Running"},Some("pending")=>"Steering pending",Some("delivering")=>"Steering entering context",Some("applied")=>"Steering applied",Some("held")=>if r["input_id"].is_string(){"Steering held"}else{"Follow-up held"},_=>"Follow-up queued"};
+                let raw=r["text"].as_str().unwrap_or("");let preview=raw.replace('\n'," ⏎ ").chars().take(64).collect::<String>();
+                text.push_str(&format!("{} {} · {}{}\n",if i==selected{"›"}else{" "},label,preview,if raw.chars().count()>64{"…"}else{""}));
+            }
+            text.push_str(&format!("\nSelected input preview (E restores complete pending text):\n{}",rows[selected]["text"].as_str().unwrap_or("")));
+        }
+        ("Conversation queue".into(),text)
+    }
+    fn status_body(&self)->(String,String){
+        let rows=self.queue_rows();
+        let usage=self.coordinator_activity_lines().iter().map(|l|l.spans.iter().map(|s|s.content.as_ref()).collect::<String>()).collect::<Vec<_>>().join("\n");
+        ("Status · current project".into(),format!("Project: {}\nConnection: {}\nSession: {}\nTopic: {}\n{}\nForeground coordinator: {}\nSteering pending/applying: {} · follow-ups queued: {}\n\n{}\n\n{}\nF7 opens queued inputs; E restores a pending input for editing.\n/interrupt stops the foreground call · /pause stops new dispatch.\nCtrl-Q leaves immediately; background work stays with the service.",
+            self.live.as_ref().map_or("scripted fixture",|l|l.project.as_str()),self.journal.connection,
+            self.live.as_ref().map_or("simulated",|l|l.phase.as_str()),self.selected_title(),
+            self.model_header_label().unwrap_or_else(||"Model: not configured".into()),
+            self.foreground_coordinator().and_then(|r|r["turn_id"].as_str()).unwrap_or("idle"),
+            rows.iter().filter(|r|r["subject_id"]==self.conversation_subject&&matches!(r["status"].as_str(),Some("pending"|"delivering"))).count(),
+            rows.iter().filter(|r|r["subject_id"]==self.conversation_subject&&r["status"]=="queued").count(),
+            if usage.is_empty(){"Usage not reported for this topic"}else{&usage},
+            if self.live_steering_available(){"Enter steers an active coordinator; Alt+Enter queues a follow-up."}else{"This service queues messages for later turns; live steering requires its next idle update."}))
+    }
     fn modal_body(&self) -> (String, String) {
+        if self.modal==Modal::Help&&self.continuous_mode(){
+            return ("Help · conversation controls".into(),format!("{}\nAlt+Enter queues a separate follow-up, including in F2 multiline mode. F7 opens the queue; arrows select, E withdraws/restores pending text to edit without sending. Applied guidance cannot be withdrawn. Interruption holds unconsumed input; reopening never replays it.\n\nUp/Down moves inside multiline input and recalls history at its first/last line. Ctrl-J or Shift+Enter adds a newline; F2 is the fallback (Enter adds a newline, Tab selects Send). Ctrl-R opens history; PageUp/PageDown scrolls chat. Paste stays literal.\n\nEscape/Ctrl-C clears nonempty main input; with empty input it interrupts the foreground coordinator. /interrupt does the same. Escape in a popup backs out one level. Ctrl-Q leaves immediately from any editor/overlay; empty-input Ctrl-D or /exit also leaves. Background work stays with the service. /pause stops new dispatch separately; /resume explicitly continues.\n\n/model and /thinking open selection; S saves, A reviews activation. /status shows current state and reported usage. F3 settings, F4 target, F6 tasks. Type / to discover commands; Tab completes. Explicit scope/policy/question actions keep their own approval boundaries. Esc returns to the draft.",if self.live_steering_available(){"Enter sends idle input or steers the foreground coordinator at its next agent boundary."}else{"Enter sends a conversation message. This service queues later turns until its next idle update adds live steering."}));
+        }
         if let Some(body)=self.dialogue_modal().filter(|_|!self.development_mode()||matches!(self.modal,Modal::Queue|Modal::QuestionConfirm)){return body}
         if self.live.is_some() { return self.live_modal_body(); }
         let review_actions = if self.candidate_read() {
@@ -3340,6 +3442,7 @@ impl App {
             String::new()
         };
         match self.modal {
+            Modal::Status=>self.status_body(),
             Modal::Help=>("Help · SIMULATED".into(),
                 "Type normally to the coordinator. F4 changes target to New task. Enter sends; Shift+Enter adds a newline when your terminal reports it distinctly. F2 toggles multiline as a fallback, then Tab to [Send]. Bracketed paste is literal. / opens commands; F6 tasks, F3 settings, F8 next scripted scene, Ctrl-Q detach. Up/Down recalls command history in the composer; Down past newest restores your draft. Alt+Up/Down moves the multiline cursor. Ctrl-R opens history. PageUp/PageDown scrolls chat eight lines; Alt+PageUp/PageDown moves one line. Escape closes this view. [Back]".into()),
             Modal::Tasks=>("Tasks · current project only".into(),format!("{} Clarify Decision Log choices · {}\n{} Manual walkthrough · {}\n\nUp/Down select. Enter returns to conversation. Tab/Escape back.\nWorkers remain labelled fake in this demonstration.",
@@ -3384,6 +3487,7 @@ impl App {
         }
     }
     fn live_modal_body(&self) -> (String,String) {
+        if self.modal==Modal::Status{return self.status_body();}
         if self.provider_settings(){return self.provider_body();}
         if self.development_mode(){let dev=self.development_view();match self.modal {
             Modal::Cancel if self.development_workflow().is_some()&& !self.queue_rows().iter().any(|r|r["status"]=="reserved")=>return ("Cancel development work?".into(),"[Back] [Cancel workflow] · Fence new assignments and request cancellation of this project's active worker/coordinator attempts. Preserve task commits, dirty worktrees, receipts and request history. Cancellation is recorded after settled execution; absent processes alone prove nothing.".into()),
@@ -3543,7 +3647,7 @@ impl App {
             Modal::History => self.input_history_body(),
             Modal::ScopeEditor=>("Edit saved scope".into(),"Use Tab to select a field, edit, save or discard. No model call.".into()),
             Modal::Queue|Modal::QuestionConfirm=>("Unavailable".into(),"Continuous conversation controls require the compatible release.".into()),
-            Modal::None=>(String::new(),String::new()),
+            Modal::None|Modal::Status=>(String::new(),String::new()),
         }
     }
     fn render_modal(
@@ -3608,7 +3712,7 @@ impl App {
         let actions = if self.modal == Modal::History {
             "[Recall entry] · Up/Down select · Enter recall · Esc back".into()
         } else if self.live.is_some() { match self.modal {
-            Modal::Queue=>{let rows=self.queue_rows();let selected=rows.get(self.queue_index);let mut controls=vec!["Back"];if selected.is_some_and(|r|matches!(r["status"].as_str(),Some("queued"|"held"))){controls.push("Withdraw message")}if selected.is_some_and(|r|r["status"]=="held")&&self.can_release_held(){controls.push("Continue selected held message")}controls.iter().enumerate().map(|(i,n)|format!("{} [{n}]",if i==self.modal_action{"›"}else{" "})).collect::<Vec<_>>().join(" ")},
+            Modal::Queue=>{let rows=self.queue_rows();let selected=rows.get(self.queue_index);let mut controls=vec!["Back"];if selected.is_some_and(Self::queue_editable){controls.push("Withdraw message")}if selected.is_some_and(|r|r["status"]=="held"&&!r["input_id"].is_string())&&self.can_release_held(){controls.push("Continue selected held message")}format!("{} · E restore to edit",controls.iter().enumerate().map(|(i,n)|format!("{} [{n}]",if i==self.modal_action{"›"}else{" "})).collect::<Vec<_>>().join(" "))},
             Modal::QuestionConfirm=>{let controls=self.confirmation_controls();controls.iter().enumerate().map(|(i,n)|format!("{} [{n}]",if i==self.modal_action{"›"}else{" "})).collect::<Vec<_>>().join(" ")},
             Modal::Scope if self.scope_mode()=>{
                 let actions=self.scope_actions();
@@ -4315,6 +4419,9 @@ mod tests {
         app.composer = Composer::from_draft(Draft { text: "Unsent\n続き".into(), row: 1, col: 2, multiline: true, literal_paste: true });
         let original = serde_json::to_value(app.composer.snapshot()).unwrap();
         app.input(key(KeyCode::Up));
+        assert_eq!(app.composer.text(),"Unsent\n続き");
+        let at_boundary=serde_json::to_value(app.composer.snapshot()).unwrap();
+        app.input(key(KeyCode::Up));
         assert_eq!(app.composer.text(), "/plan");
         assert!(!app.composer.literal_paste);
         assert!(!app.menu);
@@ -4329,7 +4436,7 @@ mod tests {
         app.input(key(KeyCode::Down));
         assert_eq!(app.composer.text(), "/plan");
         app.input(key(KeyCode::Down));
-        assert_eq!(serde_json::to_value(app.composer.snapshot()).unwrap(), original);
+        assert_eq!(serde_json::to_value(app.composer.snapshot()).unwrap(), at_boundary);
         app.input(key(KeyCode::Down));
         assert_eq!(serde_json::to_value(app.composer.snapshot()).unwrap(), original);
         assert!(app.take_intent().is_none());
@@ -5273,6 +5380,53 @@ mod tests {
         assert!(app.take_intent().is_none());
     }
     fn rows(a:&mut App,v:Value){a.live.as_mut().unwrap().conversation.as_mut().unwrap()["continuous"]["queue"]=v;}
+    #[test]
+    fn live_input_restoration_is_durable_and_does_not_reapply_an_acknowledgement(){
+        let input=json!({"source_command":"restore-one","subject_id":"discussion","text":"/exit"});
+        let mut a=continuous_app();a.restore_queue_input(input.clone());assert_eq!(a.composer.text(),"/exit");assert!(a.composer.literal_paste);
+        let saved=a.conversation_ui_state();let mut reopened=continuous_app();reopened.restore_conversation_ui(&saved).unwrap();reopened.composer.clear();reopened.restore_queue_input(input);
+        assert!(reopened.composer.text().is_empty(),"A replayed edit acknowledgement resurrected already consumed input");
+    }
+    #[test]
+    fn live_input_enter_steers_and_alt_enter_queues_a_follow_up(){
+        let mut a=continuous_app();a.live.as_mut().unwrap().conversation.as_mut().unwrap()["continuous"]["live_input_contract"]=json!(1);rows(&mut a,json!([{"turn_id":"active","subject_id":"discussion","status":"reserved"}]));
+        a.input(Event::Paste("Revise the active answer".into()));a.input(key(KeyCode::Enter));
+        let Some(LiveIntent::Dialogue(v))=a.take_intent()else{panic!("Enter queued a later turn instead of live steering")};
+        assert_eq!(v["action"],"conversation.steer");assert_eq!(v["payload"]["turn_id"],"active");assert_eq!(v["payload"]["text"],"Revise the active answer");
+        a.input(Event::Paste("Then explain the result".into()));a.input(Event::Key(KeyEvent::new(KeyCode::Enter,KeyModifiers::ALT)));
+        assert_eq!(a.take_intent(),Some(LiveIntent::SubmitTask("Then explain the result".into())));assert!(a.take_intent().is_none());
+    }
+    #[test]
+    fn live_input_editor_moves_within_multiline_before_recalling_history_and_control_j_adds_newline(){
+        let mut a=App::new_live("Fixture".into(),Draft::default());a.input_history.remember(Draft{text:"Older message".into(),..Draft::default()});
+        a.composer=Composer::from_draft(Draft{text:"first\nsecond".into(),row:1,col:3,..Draft::default()});
+        a.input(key(KeyCode::Up));assert_eq!(a.composer.text(),"first\nsecond");assert_eq!(a.composer.area.cursor().0,0);
+        a.input(key(KeyCode::Up));assert_eq!(a.composer.text(),"Older message");
+        a.input(key(KeyCode::Down));assert_eq!(a.composer.text(),"first\nsecond");
+        a.input(Event::Key(KeyEvent::new(KeyCode::Char('j'),KeyModifiers::CONTROL)));assert_eq!(a.composer.area.lines().len(),3);assert!(a.take_intent().is_none());
+    }
+    #[test]
+    fn live_input_help_explains_the_actual_editor_and_delivery_controls(){
+        let mut a=continuous_app();a.live.as_mut().unwrap().conversation.as_mut().unwrap()["continuous"]["live_input_contract"]=json!(1);a.open(Modal::Help);
+        let body=a.modal_body().1;for control in ["Alt+Enter","Ctrl-J","F7","/thinking","Ctrl-Q"]{assert!(body.contains(control),"Help omits {control}");}
+        assert!(a.take_intent().is_none());
+    }
+    #[test]
+    fn live_input_queue_keeps_selection_visible_beyond_long_previews(){
+        let mut a=continuous_app();rows(&mut a,Value::Array((0..16).map(|i|json!({"turn_id":format!("later-{i}"),"subject_id":"discussion","status":"queued","text":format!("Input number {i:02} {}", "long draft ".repeat(80))})).collect()));
+        a.input(key(KeyCode::F(7)));for _ in 0..12{a.input(key(KeyCode::Down));}
+        let mut terminal=Terminal::new(TestBackend::new(120,30)).unwrap();terminal.draw(|frame|a.render(frame,Duration::ZERO)).unwrap();
+        let screen=terminal.backend().buffer().content().iter().map(|c|c.symbol()).collect::<String>();
+        assert!(screen.contains("Input number 12"),"Queue selection scrolled outside its visible viewport");
+        a.input(key(KeyCode::Char('e')));let Some(LiveIntent::Dialogue(v))=a.take_intent()else{panic!("Missing queue edit")};assert_eq!(v["payload"]["turn_id"],"later-12");
+    }
+    #[test]
+    fn live_input_queue_can_restore_pending_follow_up_for_editing(){
+        let mut a=continuous_app();rows(&mut a,json!([{"turn_id":"later","subject_id":"discussion","status":"queued","text":"Change this later"}]));
+        a.input(key(KeyCode::F(7)));a.input(key(KeyCode::Char('e')));
+        let Some(LiveIntent::Dialogue(v))=a.take_intent()else{panic!("Queue has no edit action")};
+        assert_eq!(v["action"],"withdraw_queued");assert_eq!(v["payload"]["turn_id"],"later");assert_eq!(v["payload"]["restore_to_editor"],true);
+    }
     #[test]
     fn everyday_pause_is_separate_from_leaving(){
         let mut a=continuous_app();for ch in "/pause".chars(){a.input(key(KeyCode::Char(ch)));}a.input(key(KeyCode::Enter));

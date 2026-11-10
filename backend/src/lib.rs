@@ -15,6 +15,7 @@ pub mod local_context;
 pub mod native_policy;
 pub mod native_contract;
 pub mod conversation_store;
+pub mod live_input;
 pub mod mock_coordinator;
 pub mod static_files;
 pub mod operation;

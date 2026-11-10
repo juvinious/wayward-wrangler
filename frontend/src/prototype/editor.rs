@@ -113,6 +113,10 @@ impl Composer {
         let shift = modifiers.contains(KeyModifiers::SHIFT);
         if ctrl {
             match code {
+                KeyCode::Char('j') => {
+                    if self.text().len()>=MAX_DRAFT{return EditResult::Refused("Draft limit is 32 KiB");}
+                    self.area.insert_newline();return EditResult::Changed;
+                },
                 KeyCode::Char('z') => {
                     self.area.undo();
                     return EditResult::Changed;

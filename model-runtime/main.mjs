@@ -12,6 +12,7 @@ import {spawn} from 'node:child_process';
 import {once} from 'node:events';
 import {Writable} from 'node:stream';
 import {taskTools} from './tools.mjs';
+import {liveInput} from './live-input.mjs';
 
 const emit=value=>process.stdout.write(JSON.stringify(value)+'\n');
 const protocols={'openai-completions':openAICompletionsApi,'openai-responses':openAIResponsesApi,
@@ -75,6 +76,7 @@ async function run(input) {
   const runtime={provider:p.provider,requested_model:p.model,reported_model:null,
     model_identity:'SDK route; provider canonical identity not independently verified',usage,cost:null};
   let agent;
+  const inbox=liveInput(input.directory,input.control_scope,emit);
   const cancel=()=>agent?.abort();process.on('SIGTERM',cancel);process.on('SIGINT',cancel);
   try {
     const config=await loadConfig(input.config||profile.runtime.config),models=await registry(config,true);
@@ -93,8 +95,9 @@ async function run(input) {
     agent=new Agent({initialState:{model,thinkingLevel:thinking,systemPrompt:input.instructions+'\nFinish by calling submit_result; prose alone does not complete this operation.',
       tools:[...(worker?taskTools(p.worktree):[]),submit]},toolExecution:'sequential',identity:{attribution:null},
       streamFn:(model,context,base)=>{sent=true;return models.streamSimple(model,context,{...base,...requestOptions,signal:base.signal});},
-      finishTurn:()=>submitted!==undefined?{action:'end'}:undefined});
-    agent.subscribe(e=>{
+      finishTurn:async()=>{for(const message of await inbox.claim())agent.steer(message);}});
+    agent.subscribe(async e=>{
+      if(e.type==='message_start'&&await inbox.appliedMessage(e.message))submitted=undefined;
       if(e.type==='turn_start')emit({type:'runtime.activity',id:'model',label:'Requesting model response',status:'running'});
       if(e.type==='message_update'&&e.assistantMessageEvent.type==='text_delta')emit({type:'runtime.text',text:e.assistantMessageEvent.delta});
       if(e.type==='tool_execution_start'||e.type==='tool_execution_end')emit({type:'runtime.activity',id:e.toolCallId,
@@ -114,6 +117,7 @@ async function run(input) {
     if(last?.stopReason==='error'||last?.stopReason==='aborted')throw Error(last.errorMessage||last.stopReason);
     if(submitted===undefined)throw Error('Model finished without a structured result');
     runtime.cost=usage.cost;
+    runtime.steering_inputs=inbox.applied;
     emit({type:'runtime.completed',outcome:'completed',provider:p.provider,model:p.model,result:submitted,runtime,request_sent:sent});
   } catch(error) {
     // Do not publish provider response bodies or resolved credentials as diagnostics.
