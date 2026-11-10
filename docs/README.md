@@ -34,6 +34,10 @@ update, then the useful everyday loop. The
 Codex/Pi comparison and distinguish targets from current behavior. Complete those
 changes before another operator walkthrough. [User verification](verify-usability.md)
 remains the later use guide; ordinary task delivery and fluidity are not yet proven.
+The shared coordinator startup repair now creates its required child working
+directory; real runner fixtures cover conversation/workflow coordinators as well
+as workers. Already-recorded operator uncertainty remains unresolved and is not
+automatically replayed.
 Public download, update/uninstall and additional package channels remain incomplete.
 
 [Ordinary project workflow](ordinary-project-workflow.md), [providers](provider-selection.md)

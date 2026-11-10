@@ -121,8 +121,17 @@ fn shared_models_freeze_runtime_and_configuration_without_granting_a_changed_end
 // Real runner/SDK loop. Host permit is an isolated fixture, not a systemd proof.
 #[test]
 fn shared_models_runner_executes_two_protocols_with_tools_and_retains_usage() {
+    exercise_runner("development-worker");
+}
+#[test]
+fn shared_models_runner_starts_conversation_and_workflow_coordinators() {
+    for kind in ["conversation","development-coordinator"] {exercise_runner(kind);}
+}
+fn exercise_runner(kind:&str) {
     use std::{io::{BufRead,BufReader},path::Path,process::{Command,Stdio},thread,time::{Duration,Instant}};
     use waywr_backend::{host_attempt::Attempt,operation,systemd_host::HostStatus,execution::read};
+    let runner=std::env::var_os("WAYWR_FIXTURE_RUNNER").map(std::path::PathBuf::from)
+        .unwrap_or_else(||Path::new(env!("CARGO_BIN_EXE_waywr-runner")).to_path_buf());
     for api in ["openai-completions","anthropic-messages"] {
         let root=tempfile::tempdir().unwrap();
         let project=root.path().join("project");fs::create_dir(&project).unwrap();
@@ -145,24 +154,49 @@ fn shared_models_runner_executes_two_protocols_with_tools_and_retains_usage() {
         let execution=providers::with_client(json!({"profile":"development-profiles-v1","provider":provider,
             "binary":waywr_backend::model_runtime::node().unwrap(),"model":"model-outside-core","effort":"provider_default",
             "options":{"temperature":0.2},"transport":transport,"context_bytes":98304}));
-        let packet=json!({"schema_version":1,"development":true,"operation_kind":"development-worker","operation_id":"work",
+        let mut packet=json!({"schema_version":1,"development":true,"operation_kind":kind,"operation_id":"work",
             "run_id":"request","stage":"work","role":"implementation","provider":provider,"model":"model-outside-core",
             "worktree":tree,"git_common_dir":project.join(".git"),"assignment":{"name":"job","branch":"waywr/request/tasks/job/work"},"execution":execution});
-        let key="a".repeat(32);operation::prepare_host(&state,&directory,&packet,&key).unwrap();
-        let a=Attempt::create(&state,&directory,&key,Path::new(env!("CARGO_BIN_EXE_waywr-runner")),"fixture",7).unwrap();
+        let key="a".repeat(32);
+        if kind=="conversation"{
+            write(&state.join("state-contract.json"),&json!({"schema_version":1,"state_schema":4,
+                "execution_host":"systemd-user-v1","project_key":key}),true).unwrap();
+            let _session=Session::open(&project,&state,&key,"fixture").unwrap();
+            let database=rusqlite::Connection::open(state.join("state.sqlite")).unwrap();
+            database.execute_batch("CREATE TABLE dialogue_inputs(turn_id TEXT PRIMARY KEY,interrupt_command_id TEXT)").unwrap();
+            packet["project_context"]=json!({"project":project});packet["turn_id"]=json!("fixture-turn");
+            packet["selected_context"]=json!({"interaction":{"version":1}});
+            database.execute("INSERT INTO conversation_turns(turn_id,schema_version,project_key,message_id,binding_generation,status,packet_sha256) VALUES('fixture-turn',1,?1,'fixture-message',1,'reserved',?2)",
+                rusqlite::params![key,waywr_backend::codec::canonical_sha256(&packet).unwrap()]).unwrap();
+            database.execute("INSERT INTO dialogue_inputs(turn_id) VALUES('fixture-turn')",[]).unwrap();
+        }
+        operation::prepare_host(&state,&directory,&packet,&key).unwrap();
+        let a=Attempt::create(&state,&directory,&key,&runner,"fixture",7).unwrap();
         a.mark_maybe_sent().unwrap();
-        let mut child=Command::new(env!("CARGO_BIN_EXE_waywr-runner")).args(["host-run","--operation-dir",directory.to_str().unwrap(),"--state-dir",state.to_str().unwrap(),"--attempt-id",&a.id])
+        let mut child=Command::new(&runner).args(["host-run","--operation-dir",directory.to_str().unwrap(),"--state-dir",state.to_str().unwrap(),"--attempt-id",&a.id])
             .env("INVOCATION_ID","b".repeat(32)).env("HOME",root.path()).env("XDG_CONFIG_HOME",root.path().join("config")).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn().unwrap();
         let deadline=Instant::now()+Duration::from_secs(15);
         while !a.directory.join("claim.json").exists(){assert!(Instant::now()<deadline);thread::sleep(Duration::from_millis(10));}
         let cgroup=fs::read_to_string(format!("/proc/{}/cgroup",child.id())).unwrap().lines().find_map(|s|s.strip_prefix("0::").map(str::to_owned)).unwrap();
         a.permit(&HostStatus{name:a.unit.clone(),active:"active".into(),sub:"running".into(),invocation_id:"b".repeat(32),control_group:cgroup,
             main_pid:child.id(),result:"success".into(),restart:"no".into(),exit_type:"cgroup".into(),remain_after_exit:true,collect_mode:"inactive".into()},7).unwrap();
-        while child.try_wait().unwrap().is_none(){if Instant::now()>deadline {let _=child.kill();panic!("Runner failed to settle")};thread::sleep(Duration::from_millis(10));}
+        while child.try_wait().unwrap().is_none(){if Instant::now()>deadline {
+            let diagnostic=fs::read_to_string(a.directory.join("runner-diagnostic.log")).unwrap_or_default();
+            let _=child.kill();let _=child.wait();drop(server.stdin.take());let _=server.wait();
+            panic!("{kind} runner failed to settle: {diagnostic}")
+        };thread::sleep(Duration::from_millis(10));}
         drop(server.stdin.take());server.wait().unwrap();
-        let receipt=a.validated_receipt().unwrap().expect("Settled runner receipt");
+        let receipt=a.validated_receipt().unwrap().unwrap_or_else(||panic!("{kind} did not settle: {}",fs::read_to_string(a.directory.join("runner-diagnostic.log")).unwrap_or_default()));
         assert_eq!(receipt["status"],"completed","{}",fs::read_to_string(a.directory.join("runner-diagnostic.log")).unwrap_or_default());
-        assert_eq!(fs::read_to_string(tree.join("delivered.txt")).unwrap(),"Created by the actual SDK tool loop");
+        if kind=="development-worker" {
+            assert_eq!(fs::read_to_string(tree.join("delivered.txt")).unwrap(),"Created by the actual SDK tool loop");
+        }else{
+            assert!(a.directory.join("client-scratch").is_dir());
+            assert!(!tree.join("delivered.txt").exists(),"Coordinator must not gain worker file tools");
+            let result=read(&a.directory.join("result.json")).unwrap();
+            assert_eq!(result["assistant_text"],"HTTP fixture coordinator reply");
+        }
+        assert!(!a.directory.join("uncertain.json").exists());
         let runtime=read(&a.directory.join("runtime-result.json")).unwrap();assert!(runtime["usage"]["input"].as_u64().unwrap()>0);
         let progress=read(&a.directory.join("runtime-progress.json")).unwrap();
         assert!(progress["usage"].is_object());

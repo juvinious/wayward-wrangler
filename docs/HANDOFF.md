@@ -1,91 +1,82 @@
-# Waywr handoff — reconcile progress and finish the everyday interaction loop
+# Waywr handoff — shared coordinator child working directory
 
-Branch: `plan/usability-and-installation`. Application checkpoint: `ba229e8`.
-This checkpoint changes documentation only. The user asked what the plan has
-actually delivered, wants remaining usability changes finished before reopening,
-and asked to align normal input/interrupt/leaving behavior with Codex/Pi.
-Follow [AGENTS.md](../AGENTS.md). Local commits only; no remote delivery.
+Branch: `plan/usability-and-installation`. Base: `f97b183`; prior application was
+`ba229e8`. Follow [AGENTS.md](../AGENTS.md). Local commits only; remote delivery
+belongs to the user. This is a startup repair interrupting the accepted
+[pre-test interaction sequence](usability-plan.md#finish-before-the-next-operator-test),
+not completion of that sequence or authorization for another model trial.
 
-## Delivered versus complete
+## Observed failure and implemented repair
 
-The [reconciled progress table](usability-plan.md#reconciled-checkpoint--2026-11-10)
-is the current status. Implemented locally: shared standalone provider/tool
-libraries replacing native integrations; complete searchable provider/model and
-thinking selection; saved/active labels; direct setup from Send; conversation
-usage and worker activity; paired build/developer install/local launcher; reopen
-and idle/portable handover; whole populated snapshots; clear-buffer controls;
-scoped policy repair and reduced idle copying/polling.
+The user reported Host execution uncertain with Spawn outcome uncertain after
+dispatch reservation: No such file or directory. Read-only inspection of the
+actual conversation attempt found its Node executable and runtime entry present,
+no child record/receipt and no client-scratch directory. The shared runner used
+that directory as cwd but never created it. The old native helper had created it;
+worker fixtures used an existing checkout and missed the new coordinator path.
 
-These mechanisms do not complete daily usability. Direct interruption/leaving,
-actual SDK steering versus follow-up, busy-owner reattachment after update and
-one useful shared-runtime task remain incomplete. Workflow coordinator usage is
-not yet in the conversation summary. Public unauthenticated installation,
-update/uninstall, artifact collection and subsequent packaging remain deliverables.
-Real account/model usefulness and the substantial web-app milestone are unproven.
+The runner now creates required non-worker child working directories before
+child dispatch/spawn. This covers conversation/workflow coordinators and local
+checks without depending on a retired native helper. Workers keep their assigned
+checkout. If directory preparation fails, the runner records a settled local
+configuration failure with positive no-provider-process proof, then publishes
+its failed outcome. It never writes a dispatch, child or uncertain record for
+that preparation failure. This does not weaken uncertainty checks for a process
+that may actually have started or rewrite an older ambiguous attempt.
 
-The previous isolated release journey covered saved model/level activation from
-blocked Send, preserved/cleared drafts, populated history/usage and reopening.
-Its idle measurement was0.7% UI /2.7% service; the large-snapshot idle-tick workload
-fell from about660ms to20ms. These are bounded fixture measurements, not proof of
-performance or useful delivery on every operator project. Do not repeat broad
-completed checks merely to claim progress.
+## Verification and limits
 
-## Comparison and revised target
+The local directory-preparation regression initially reproduced an uncertain
+spawn error when the cwd name was a regular file. It now reports a settled
+failure with no child/dispatch. Existing provider preflight/nonlaunch checks pass.
+The corrected isolated host fixture includes the reserved conversation binding
+and project context required by the real host gate. Against the old paired
+runner it reproduced the user's exact ENOENT uncertainty. Against the repaired
+runner, conversation and workflow coordinators complete typed replies through
+both local OpenAI-compatible and Anthropic-compatible HTTP fixtures. Existing
+worker tool/file/usage checks also pass. Coordinators receive only submit_result,
+not worker file tools. Fixture processes/SQLite/Git worktrees are temporary;
+the host permit fixture is not proof of real systemd orchestration or account use.
 
-The [planned everyday interaction](tui-controls.md#planned-everyday-interaction)
-records current official Codex documentation and Pi documentation/source checked
-on2026-11-10. Both distinguish guidance during active work from later follow-ups.
-Pi defines separate interrupt/clear/exit actions; Codex documents contextual
-shortcuts, command discovery, model/status controls and saved-session resume.
-Adopt useful interaction principles while retaining the user's explicit
-Escape/Ctrl-C clear-buffer preference and Waywr's project-service lifecycle.
+The locked remapped release builds and source/review-bundle public-content checks
+pass. Local CI/release checks include both hosted coordinator cases and the local
+preparation refusal. Dependencies and locks are unchanged. No broad TUI/lifecycle
+rerun was needed for this child-startup change. Hosted workflows were not run.
+Real authentication, model quality and useful task delivery remain unverified.
 
-Local inspection confirms the pinned agent library supplies steer, followUp and
-abort. The Waywr runtime currently reads one input object before running, then
-only supports abort via signals. Enter currently creates later turns; relabelling
-that queue is not true active-agent steering. Existing UI interrupt/detach/exit
-routes use confirmations or acknowledgement waits. Busy-owner update still
-refuses attachment. These are concrete gaps, not completed capabilities.
+## Existing operator attempt is unresolved
 
-A task can wait without locking the application. Keep drafting, reading, topic
-selection, inspection and leaving available. Stop/settlement state belongs to the
-affected operation; it does not justify trapping the terminal. Preserve exact
-execution ownership, approved work and no-replay boundaries without forcing
-unrelated conversations through old recovery/settings menus.
+The reported attempt was inspected read-only. Its existing uncertain.json and
+spawn-committed evidence were not removed, overwritten, reclassified or replayed.
+The agent did not stop/restart the operator service, change its binding or submit
+another model call. The previous user-authorized process stop is historical; the
+new report shows the user subsequently attempted another call. Do not assume the
+operator service remains stopped or that this new build clears its parked call.
 
-## Next authorized implementation
+Existing generic spawn errors do not provide the new typed preparation proof.
+Reconcile the specific old attempt explicitly before any operator retry; missing
+processes alone are not nonlaunch proof. Keep the operator walkthrough deferred
+as requested. Old worktree disposal remains a separate unresolved scope.
 
-Finish the [pre-test sequence](usability-plan.md#finish-before-the-next-operator-test)
-one visible journey at a time:
+## Remaining planned work and next authorized action
 
-1. Direct foreground-coordinator interrupt and prompt leave, including stopping
-   or disconnected state, without whole-workflow cancellation or confirmation.
-2. Enter steering versus Alt+Enter follow-up, with truthful delivery, editable
-   queued input and an actual service/runner/runtime connection to the SDK.
-3. Inspect/control the busy owner after selecting a rebuilt application; hand
-   over only once idle, without force-stop, replay or manual project rebinding.
-4. Complete consistent editing/commands/error/model feedback. Then do one
-   authorized start → redirect → leave → return → rebuild → continue walkthrough.
+The [progress table](usability-plan.md#reconciled-checkpoint--2026-11-10) distinguishes
+implemented model/build/selection/usage mechanisms from incomplete daily use.
+Continue with direct foreground interrupt and prompt leave, including stopped or
+disconnected state; then real steering/follow-up, return to a busy owner after an
+update, and consistent editor/error/model feedback. Runtime abort already exists;
+steer/followUp are not connected through the current one-input runtime boundary.
+Current UI confirmations and old exit semantics still need the planned changes.
+A waiting operation must not trap the interface or block leaving. Preserve exact
+execution ownership and prevent replay rather than discarding unresolved evidence.
 
-The target changes exit semantics: /exit and /quit leave like /detach, with pause
-as a separate action. Current code still uses its old semantics. Reconcile their
-owners when implemented; do not imply the planned controls already work. First
-slice acceptance and exclusions are recorded in the plan. Use targeted isolated
-checks during development; the user wants one later walkthrough after this work.
+The ignored target/local-bin/waywr selects v0.4.0-local.startup, manifest below.
+It is a prepared local bundle, not an instruction to reopen/test now. Do not start
+an account call, reset operator state, publish or push without corresponding
+explicit authorization. No operator action was taken in this repair.
 
-## Operator and authority state
+Owners: [providers](provider-selection.md), [architecture](architecture.md),
+[interaction target](tui-controls.md#planned-everyday-interaction),
+[product plan](usability-plan.md), [user verification](verify-usability.md).
 
-The previous user explicitly authorized stopping their reported UI/service; the
-exact processes were stopped and the project unit confirmed inactive. This review
-did not start the application, install globally, change an operator binding,
-read credentials, call a provider, delete project work or perform a remote write.
-Earlier worktree disposal scope is unresolved and independent of process stopping.
-Preserve unfinished work unless disposal is explicitly authorized.
-
-The ignored target/local-bin/waywr still selects v0.4.0-local.unblocked, manifest
-SHA256 `33d4e295b30ed19d8a52f19f30f2e1796816de6e0a342afbce2572cf5cc9b2a5`.
-No build or runtime tests are needed for this documentation-only checkpoint.
-
-Owners: [product plan](usability-plan.md), [controls](tui-controls.md),
-[providers](provider-selection.md), [distribution](distribution.md),
-[verification](verify-usability.md), [development approach](development-approach.md).
+Review-bundle manifest SHA256: `3c4c938e39a5a3f672481450f892752574b1ee7ddd7f08b2cec6766f6c3e1890`.

@@ -4,8 +4,9 @@ The next operator walkthrough is deferred until the
 [interaction/lifecycle changes](usability-plan.md#finish-before-the-next-operator-test)
 are complete. The instructions below describe the current build and later use
 checks; they do not mean the planned interrupt/steering/exit controls are already
-implemented. The current service was stopped at the user's request and has not
-been relaunched for this documentation review.
+implemented. The shared coordinator startup-directory repair is now local, but
+an already-recorded uncertain operator attempt still requires separate
+reconciliation before another call. A prepared new bundle does not clear it.
 
 The candidate uses the shared model runtime on Linux x86_64 with a systemd user
 manager, Node >=22.19 and `flock`. Configure a provider through the SDK's explicit

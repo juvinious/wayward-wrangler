@@ -254,6 +254,23 @@ fn execute(
             ]),
         )
     };
+    let working_directory=if development&&packet["operation_kind"]=="development-worker"{
+        PathBuf::from(required(packet,"worktree")?)
+    }else if chat||development{
+        let scratch=directory.join("client-scratch");
+        if let Err(error)=fs::create_dir_all(&scratch){
+            let reason=format!("Cannot prepare child working directory {}: {error}",scratch.display());
+            // This is before dispatch or spawn, so no provider process exists.
+            // A local preparation error must not become an ambiguous invocation.
+            evidence(directory,"completion.json",&json!({"schema_version":1,
+                "provider_selection_v1":packet["execution"]["profile"]=="development-profiles-v1",
+                "category":"configuration","known_completion":true,"settled":true,
+                "capabilities_valid":true,"action_valid":false,"no_provider_process_spawned":true,
+                "reason":reason}))?;
+            return Ok(("failed".into(),None,None,Some(reason)));
+        }
+        scratch
+    }else{directory.to_path_buf()};
     if native && op["schema_version"]!=2 {
         reserve_native(directory, op)?;
     }
@@ -268,7 +285,7 @@ fn execute(
     let mut command = TokioCommand::new(&argv[0]);
     command
         .args(&argv[1..])
-        .current_dir(if development&&packet["operation_kind"]=="development-worker"{PathBuf::from(required(packet,"worktree")?)}else if chat||development{directory.join("client-scratch")}else{directory.to_path_buf()})
+        .current_dir(&working_directory)
         .env_clear()
         .envs(environment)
         .stdout(Stdio::piped())
@@ -787,6 +804,20 @@ mod tests {
 
 #[cfg(test)]mod provider_preflight_tests{
     use super::*;
+    #[test]fn unavailable_child_working_directory_is_a_local_failure_not_uncertain(){
+        let d=tempfile::tempdir().unwrap();
+        fs::write(d.path().join("client-scratch"),b"not a directory").unwrap();
+        let packet=json!({"development":true,"provider":"fake","operation_kind":"development-check","worktree":d.path()});
+        let outcome=execute(d.path(),&json!({"provider":"fake"}),&packet,&Value::Null,None);
+        assert!(outcome.is_ok(),"A local working-directory preparation failure must produce a settled failure: {outcome:?}");
+        let outcome=outcome.unwrap();assert_eq!(outcome.0,"failed");
+        let proof=read(&d.path().join("completion.json")).unwrap();
+        assert_eq!(proof["no_provider_process_spawned"],true);
+        assert_eq!(proof["settled"],true);
+        assert!(!d.path().join("dispatch.json").exists());
+        assert!(!d.path().join("child.json").exists());
+        assert!(!d.path().join("uncertain.json").exists());
+    }
     #[test]fn provider_preflight_failure_has_positive_nonlaunch_proof_and_is_not_capacity(){
         let d=tempfile::tempdir().unwrap();let packet=json!({"development":true,"provider":"claude","operation_kind":"development-worker","execution":{"profile":"development-profiles-v1","provider":"claude","binary":"/missing/client","model":"claude-sonnet-5-5","effort":"medium"}});
         let outcome=execute(d.path(),&json!({"provider":"claude"}),&packet,&Value::Null,None).unwrap();

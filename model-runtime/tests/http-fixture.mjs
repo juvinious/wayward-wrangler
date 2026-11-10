@@ -7,10 +7,19 @@ export async function fixture(api) {
     let raw='';for await(const c of req)raw+=c;
     const input=JSON.parse(raw);requests.push(input);assert.equal(input.model,'model-outside-core');
     if(api==='openai-completions')assert.equal(input.temperature,0.2);
+    const tools=input.tools||[];
+    const properties=tools.find(t=>(t.name||t.function?.name)==='submit_result');
+    const schema=properties?.input_schema||properties?.function?.parameters||{};
+    const coordinator=!!schema.properties?.assistant_text;
     const first=calls++===0;
-    const name=first?'write':'submit_result';
-    const args=first?{path:'delivered.txt',content:'Created by the actual SDK tool loop'}:
+    const name=first&&!coordinator?'write':'submit_result';
+    let args=first?{path:'delivered.txt',content:'Created by the actual SDK tool loop'}:
       {schema_version:1,summary:'HTTP fixture result',commit:'',checks:['fixture tool loop'],remaining_obligations:['No real model was called']};
+    if(coordinator){
+      assert.equal(tools.length,1,'Coordinator fixture must not receive worker tools');
+      args=schema.properties.evidence_refs?{schema_version:3,assistant_text:'HTTP fixture coordinator reply',evidence_refs:[],action:null}:
+        {schema_version:1,assistant_text:'HTTP fixture coordinator reply',action:'wait',tasks:[],units:[],checks:[],resolved_obligations:[],reason:'Fixture only'};
+    }
     res.writeHead(200,{'content-type':'text/event-stream'});
     if(api==='openai-completions'){
       const data=v=>res.write('data: '+JSON.stringify(v)+'\n\n');

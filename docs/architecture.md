@@ -136,6 +136,12 @@ reopening; this display never changes scheduling or authority. The
 and estimate semantics. Autonomous workflow coordinator operations remain outside
 this conversation summary; worker views retain their existing telemetry path.
 
+The shared runner prepares non-worker child working directories independently
+of retired native-client helpers. Preparation failures precede child dispatch and
+retain explicit local nonlaunch proof; genuine post-dispatch uncertainties keep
+their existing fences. Real runner fixtures cover conversation and workflow
+coordinator startup as well as worker tools through two local protocols.
+
 ## Durable history and context
 
 A request is identified before approval and linked across discussion, task assignments,

@@ -128,6 +128,14 @@ the model/tool loop. Waywr supplies task read/write/edit/shell tools and a typed
 submit typed decisions/evidence without arbitrary filesystem tools; workers receive
 the assigned checkout. Role restrictions do not depend on provider/model names.
 
+The runner creates each non-worker child's private working directory before
+dispatch; this includes conversation/workflow coordinators and local checks.
+Workers continue to use their assigned checkout. A directory preparation failure
+produces a settled local configuration failure with positive nonlaunch evidence,
+without a child dispatch or an uncertain-result marker. An earlier release omitted
+this directory on the shared coordinator path; its already-recorded uncertain
+attempts are not rewritten or retried by this fix.
+
 This is a trusted same-UID runtime, not an OS sandbox. The former CLI sandbox
 flags are not applied or claimed. Worktree ownership, no remote publication,
 project scope and result validation remain application contracts; model instructions

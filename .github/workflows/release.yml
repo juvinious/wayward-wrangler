@@ -47,6 +47,7 @@ jobs:
           cargo test --locked -p waywr-backend --lib discussion_switch_is_not_vetoed
           cargo test --locked -p waywr-backend --lib provider_switch
           cargo test --locked -p waywr-backend --lib current_revision_reads
+          cargo test --locked -p waywr-backend --lib provider_preflight_tests
           cargo test --locked -p waywr-backend --lib coordinator_runtime_progress
           cargo test --locked -p waywr-backend --lib oversize_response
           scripts/package-release.sh "$GITHUB_REF_NAME" /tmp/release
