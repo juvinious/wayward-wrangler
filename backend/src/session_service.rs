@@ -1789,7 +1789,7 @@ impl Service {
     async fn project_history_async(self:Arc<Self>){
         let mut projected_revision=None;
         while !self.shutting_down.load(Ordering::SeqCst){let service=self.clone();let previous=projected_revision.clone();
-            let result=tokio::task::spawn_blocking(move||->Result<Option<Value>,String>{let revision=service.session.snapshot()?["state_revision"].clone();if previous.as_ref()==Some(&revision){return Ok(previous)}
+            let result=tokio::task::spawn_blocking(move||->Result<Option<u64>,String>{let revision=service.session.current_revision()?;if previous==Some(revision){return Ok(previous)}
                 let pending=crate::request_history::project(&service.session)?;Ok(if pending{None}else{Some(revision)})
             }).await;
             match result {Ok(Ok(revision))=>projected_revision=revision,other=>{let path=self.session.workflow.state.join("history/projection-attention.json");let body=json!({"status":"attention","reason":format!("{other:?}"),"action":"Committed source events remain saved; preserve and reconcile the history projection"});let _=tokio::task::spawn_blocking(move||{if read(&path).ok().as_ref()!=Some(&body){let _=write(&path,&body,false);}}).await;}}

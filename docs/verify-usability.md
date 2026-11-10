@@ -42,6 +42,11 @@ context, then Enter. The default Keep current and Esc leave the binding alone.
 Saving alone does not activate it; activation does not resume a paused session.
 Section4 shows switch status and advanced controls. A policy exclusion still needs
 an explicit amendment in section6.
+If the active binding is retired, Send opens the saved model review directly;
+there is no need to find the Switch section. Activation returns to the unsent
+draft. An unrelated old request cannot veto a new discussion's model choice.
+Ctrl-C or Escape in the plain composer clears input and its saved draft; Escape
+inside a popup still returns one level without clearing the composer.
 
 Discuss one small useful development request. Review its scope/policy card and
 authorize it only when correct. Local delivery keeps this first verification

@@ -150,6 +150,8 @@ this runtime. Each new request and approval belongs to you.
 | `/detach` | Close the TUI while authorized work continues |
 | `/exit` | Checkpoint and pause dispatch, then close the TUI |
 
+Ctrl-C clears the main input. Escape clears it when no popup/menu is open;
+inside a popup, Escape backs out without clearing the underlying draft.
 History recall never sends or executes an entry. Modal text fields retain cursor
 movement while editing; Tab moves focus to their actions. Queue Up/Down selects a
 message, Left/Right selects its action, and page keys scroll. Closing commands open
@@ -168,6 +170,11 @@ The Thinking field lists the selected model's supported levels and saves the
 choice with its profile. F3 shows draft and active model/level separately; the
 main view shows the saved coordinator selection first and explicitly labels any
 different active binding and its readiness state.
+
+If a retired binding blocks sending, the main action reads Use saved model. Send
+opens that model's activation review directly. Confirm activation, then Enter sends
+your retained draft. An unrelated request's model policy no longer blocks a new
+discussion; that request keeps its own permissions and may need an amendment.
 
 The conversation shows its current or latest coordinator call's model, thinking
 level and reported token/cache usage. Cost and context remaining are labelled

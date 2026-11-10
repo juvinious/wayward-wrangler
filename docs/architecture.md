@@ -117,6 +117,15 @@ unchanged fingerprinted partial input can continue after positive settlement.
 Unexpected later changes remain preserved for reconciliation. There is no silent
 fallback. Process/transport/shutdown health bounds are separate.
 
+Changing the project conversation binding requires an explicit destination grant
+and settlement of existing coordinator calls. Unrelated request policies do not
+veto that choice: each request still checks its approved destination at dispatch,
+and excluded workflows cannot resume or gain authority through a model switch.
+The setup-blocked Send action opens the saved selection review with its draft intact.
+Idle TUI reads borrow the large development projection; task details refresh on
+project/task revision changes. The history projector reads a small revision
+watermark before deciding whether retained events need projection.
+
 Coordinator conversation telemetry uses `model_runtime::presentation` to project
 bounded numeric usage and selected identity/activity from the published host
 attempt into recent conversation turns. `conversation.activity` refreshes an

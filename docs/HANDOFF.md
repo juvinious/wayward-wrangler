@@ -1,84 +1,93 @@
-# Waywr handoff — coordinator conversation activity and usage
+# Waywr handoff — unblock Send, clear input and reduce idle CPU
 
-Branch: `plan/usability-and-installation`. Base: `0572e44` (Profiles activation).
+Branch: `plan/usability-and-installation`. Base: `2d4567a` (conversation telemetry).
 Follow [AGENTS.md](../AGENTS.md), [providers](provider-selection.md) and
-[protocol](contracts/session-protocol.md). Local commits only; the user handles
-remote delivery. No operator service/state/settings, installation or account was
-changed. Only the previously authorized ignored local launcher is refreshed.
+[controls](tui-controls.md). Local commits only; the user handles remote delivery.
 
 ## Current outcome
 
-The main conversation shows its current coordinator conversation call, or latest
-call with telemetry for the selected subject. It names that call's selected
-provider/model and thinking level and displays cumulative input/output/cache
-counts, cost estimates and estimated context headroom at the last response.
-It keeps unknown values explicit, separates usage from saved model preferences,
-labels disconnected or stale activity, and retains completed-call data on reopen.
-A newly reserved call never borrows the previous call's usage. Other subjects'
-telemetry is excluded. Rendering at80×24 and120×32 keeps the summary visible in
-the normal conversation viewport; existing scrolling reads earlier conversation.
+The user could not send because a saved shared-runtime model differed from the
+retired active binding. The footer still directed them through the old Switch
+section. Read-only inspection also found an unrelated attention request whose
+policy would veto activation globally, although no coordinator was running or
+uncertain. These were product usability failures.
 
-Runtime started events now retain selected identity/level in attempt progress.
-The backend projects bounded display fields from the published attempt, checking
-project/operation/attempt identity and containment. Each metadata read is capped
-at64KiB. Missing, malformed, oversized or mismatched telemetry becomes unavailable
-rather than preventing opening. Raw packets, prompts, tool output, credentials and
-extra runtime fields are not projected. Recent snapshot turns include subject and
-runtime metadata. A small read-only conversation.activity refresh polls an active
-selected-subject call once per second without reloading catalog/history; file
-progress alone creates no conversation event. Late replies cannot revive a
-completed call or replace a newer observation. No scheduling, budget, policy,
-settlement or execution authority changes. No model/provider allowlist was added.
+Setup-blocked Send now opens the saved coordinator model's activation review
+with the draft intact; the main action says Use saved model. Keep current and Esc
+return to the composer. Explicit activation also returns there with the message
+unsent; after application, Enter sends normally. F3 Profiles → S → A remains
+available. Outdated section4 instructions are replaced. Saving still does not
+grant context or invoke a model. Activation retains revision/generation checks,
+explicit context grant and reserved/uncertain-call settlement fences.
 
-F3 Profiles still offers S save → A review activation. Keep current is the default;
-explicit Activate and share project context requests the existing after-turn
-switch. Unsaved/stale targets refuse. Activation preserves pause, workers and
-request policies; it does not sign in or amend policies. Saved versus different
-active model/level labels remain distinct in the main header.
+Unrelated request policies no longer veto the project conversation choice.
+Requests keep their exact policies and cannot dispatch through an excluded model.
+Switch application leaves excluded workflow state untouched, including blocked
+attention requests; it cannot resume or amend them. A later coordinator policy
+refusal is classified as that request's provider-policy block. Workers retain
+their assignments. No model/provider allowlist was added.
+
+Ctrl-C clears the main composer. Escape clears it when no popup/menu is open;
+inside a popup/editor it still backs out one level and preserves the underlying
+draft. Clearing resets history navigation and the saved draft without erasing
+history or cancelling work. Clear controls are included in footer hints.
+
+Idle UI checks now borrow the large development projection instead of repeatedly
+cloning catalogs and retained work. Task detail refreshes follow project/task
+revision changes, rather than unconditional half-second reads. The readable
+history projector checks a small revision watermark instead of parsing a full
+historical snapshot just to detect changes. No history is truncated or removed.
 
 ## Verification and limits
 
-The initial behavioral checks reproduced absent snapshot metadata and absent
-conversation rendering. Focused checks now cover progress → snapshot, retained
-result → reopen, unknown turns, private-field filtering, bounded invalid data,
-host-attempt mismatch, subject separation, unknown values, fresh/stale updates,
-late replies and terminal viewport rendering. The locked remapped release builds.
-The real runner/SDK loop retains selection metadata and usage through two local
-HTTP protocol fixtures. A real paired-binary IPC/TUI check displays synthetic
-completed-call telemetry, rejects a foreign turn, saves/activates model/thinking
-while paused, removes the old application build, and reopens with usage, binding,
-draft, settings and populated history intact. It makes no model calls or manual
-rebinds. Fixtures prove these boundaries, not actual account/model reliability.
+Behavioral red reproduced inert blocked Send, the unrelated request veto, missing
+clear controls and slow idle ticks with1600 models and46 retained units. The
+idle-tick workload fell from about660ms to20ms. Focused checks cover direct review
+and preserved drafts, both clear keys including history recall, unchanged excluded
+requests and dispatch grants, late policy changes, generation races, uncertainty,
+workers/questions and independent revision reads. The locked remapped release
+build passes. Dependencies/locks are unchanged.
 
-Public-content checks cover source and the review bundle. Documentation owners
-and local CI/release definitions include this journey. Dependencies/locks are
-unchanged. Hosted workflows were not run by the agent. Autonomous workflow
-coordinator operations are not yet included in the conversation summary; workers
-retain their existing activity path. There is no account/subscription quota or
-billed-cost claim. Real login, model quality, useful task delivery and public
-download/update/package channels remain unverified/incomplete.
+The real isolated paired-binary IPC/TUI journey selects/saves model and thinking,
+uses Send to review activation while paused, retains the draft, clears it with
+Ctrl-C and Escape, removes the former build and reopens with ready binding,
+settings, history and conversation usage intact. No model call or manual rebind
+occurred. Idle measurement with the full catalog and populated retained-event
+history was0.7% UI /2.7% service. This fixture does not reproduce every aspect of
+the operator project or guarantee identical CPU on another machine. Source/bundle
+public-content checks pass; documentation and local CI/release definitions include
+these repairs. Hosted workflows were not run by the agent.
 
-## Pending cleanup decision
+Conversation usage remains read-only and subject-local; unknown values and
+cost/context estimates stay labelled. Autonomous workflow coordinator operations
+are not yet included in that conversation summary. Real account login, useful
+model-driven delivery and public download/update/package channels remain
+unverified/incomplete. Available readiness checks local runtime configuration,
+not authentication or model quality.
 
-The user proposed discarding old development-era state. Earlier read-only
-inspection found36 managed worktrees, one with a tracked edit and seven untracked
-entries, and nine with commits absent from the primary checkout. That inspection
-found a clean primary checkout and schema3 provider configuration. The cleanup
-scope question remains unanswered. No worktree, branch, history or state was
-deleted. Permission to continue is not disposal authority.
+## Operator action and cleanup scope
+
+The user explicitly requested killing the reported UI/service. Their supplied
+processes were verified, terminated, and the exact project systemd unit was
+stopped and confirmed inactive. The agent did not restart it, alter its binding,
+call a provider, install globally or delete project data/worktrees.
+
+Earlier inspection found36 managed worktrees, one with uncommitted content and
+nine with commits absent from the primary checkout. Disposal scope for those
+resources remains unresolved; process termination does not authorize discarding
+unfinished code. Do not restore snapshots, delete branches/worktrees or perform
+remote writes as routine cleanup.
 
 ## Next authorized action
 
-The ignored target/local-bin/waywr entry uses v0.4.0-local.usage; its manifest
-hash is recorded below. Detach and relaunch to use it. Operator binding changes,
-resume and account calls remain explicit user actions. Continue with one concrete
-ordinary-use/lifecycle interruption at a time; busy-owner attachment across an
-application update remains a lifecycle gap. Preserve its existing execution
-owner rather than force-stop/replay. Resolve cleanup scope before destructive
-work. No push, operator service changes or provider calls are authorized here.
+The ignored target/local-bin/waywr points to v0.4.0-local.unblocked, manifest hash
+below. The user can relaunch and use Send → activate the saved model → Enter to
+send the retained message. Operator launch, binding selection, resume and provider
+calls remain explicit user actions. Continue from observed ordinary-use friction;
+no further broad acceptance run is needed without a relevant change or failure.
 
 Owners: [providers](provider-selection.md), [controls](tui-controls.md),
-[distribution](distribution.md), [architecture](architecture.md),
+[architecture](architecture.md), [distribution](distribution.md),
 [user verification](verify-usability.md).
 
-Review-bundle manifest SHA256: `5908ca24383c14cfc7cd8094d9f036999f4f73b9b148958d40724035e5a693ca`.
+Review-bundle manifest SHA256: `33d4e295b30ed19d8a52f19f30f2e1796816de6e0a342afbce2572cf5cc9b2a5`.

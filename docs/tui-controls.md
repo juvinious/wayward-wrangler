@@ -14,12 +14,19 @@ and execution approvals. Browsing never grants authority or executes work.
 | Read-only content popup | Up/Down scrolls a line; PageUp/PageDown scrolls eight lines; Home/End goes to the start/end. Alt+PageUp/PageDown moves one line. |
 | Modal action row | Left/Right or Tab/Shift-Tab selects an action. Enter activates it. The initial choice stays non-destructive. |
 | Existing task, queue, question and history lists | Up/Down selects a row. Actions remain in their own action row. Page keys scroll displayed content. |
-| Main composer | Up/Down recalls history. Alt+Up/Down moves the multiline cursor. Enter sends; F2 toggles multiline. Tab/Shift-Tab changes focus. |
+| Main composer | Up/Down recalls history. Alt+Up/Down moves the multiline cursor. Ctrl-C clears input; Esc clears when no popup/menu is open. Enter sends; F2 toggles multiline. Tab/Shift-Tab changes focus. |
 
 Esc closes a popup only after its nested picker/editor has been left. Page and
 Escape handling must not bypass the focused editor. Holding navigation keys
 repeats movement; holding Enter must not advance approvals or repeatedly apply
 settings. Modal footer hints must match actual behavior, including all sections.
+
+Clearing resets history recall and the saved unsent draft without removing history
+entries or cancelling work. Escape in a popup/editor still returns one level and
+preserves the composer underneath. When a retired binding needs setup, Send opens
+the saved model activation review directly. Its Keep current and Escape actions
+return to the composer with the message intact; confirming activation also returns
+there, leaving the message unsent until the user presses Enter again.
 
 ## Settings and model selection
 

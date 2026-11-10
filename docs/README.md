@@ -39,6 +39,10 @@ Thinking selector uses per-model runtime metadata; F3 and the main header show
 the model/level, with draft and active bindings distinguished. Profiles now offers
 A to review and explicitly activate a saved selection after the current turn,
 preserving pause and existing work policies. The
+main Send action now leads directly to setup when a retired binding blocks it;
+unrelated request policies do not veto new discussions. Ctrl-C/Escape clears plain
+composer input. Idle UI reads borrow large projections, task details refresh after
+state changes, and history projection checks a small revision watermark. The
 main conversation now shows current or latest subject-local coordinator-call
 activity and reported usage, with labelled cost/context estimates and retained
 completed-call metadata. The

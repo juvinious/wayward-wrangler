@@ -13,7 +13,8 @@ it does not translate old native choices or invoke their executables. Choose the
 provider/model and thinking level, S save, then A reviews activation in Profiles.
 Choose Activate and share project context and Enter to request the switch. Saving alone
 does not replace the active binding. Existing request policies may require a
-separate amendment in section6 Policy. Old preference revisions and bindings stay
+separate amendment in section6 Policy before that request can use a new model;
+they do not veto a new discussion's model choice. Old preference revisions and bindings stay
 as evidence; no prior approval grants a newly selected destination authority.
 
 ## Runtime and model selection
@@ -62,6 +63,13 @@ F3, section1 Profiles:
   assignments, existing request policies and uncertain-call fences. It does not
   sign in or amend an existing request's policy. Section4 retains switch status,
   cancellation and explicit interruption controls.
+- When a retired binding needs setup, the main action says Use saved model.
+  Pressing Send with a draft opens the saved coordinator selection's activation
+  review directly. Keep current or Esc returns to the composer; explicit activation
+  also returns there with the message unsent. After the switch applies, Enter sends.
+  A request excluding the target keeps its policy and state and cannot dispatch
+  through that model. Changing the project conversation model does not grant or
+  resume excluded requests. Reserved/uncertain calls still fence replacement.
 - `+` duplicates a profile. Sections2–6 retain role defaults/allowed profiles,
   fallback, coordinator switching, unreserved task overrides and policy amendments.
   A new provider/destination needs the normal saved scope/policy/context grant;

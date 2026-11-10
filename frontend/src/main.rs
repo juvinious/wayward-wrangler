@@ -370,6 +370,7 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
     let mut last_coordinator_activity_fetch=Instant::now()-Duration::from_secs(2);
     let mut artifact_request_id:Option<String>=None;
     let mut detail_request_id:Option<String>=None;
+    let mut last_detail_revision:Option<u64>=None;
     let mut last_detail_fetch=Instant::now()-Duration::from_secs(1);
     let (view_tx,view_rx)=mpsc::sync_channel::<String>(2);
     let mut view_pending=false;
@@ -439,7 +440,7 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
                             let id=command_id(&mut counter);
                             if commands_tx.try_send((kind.into(),id.clone(),json!({"task_id":task_id}))).is_err(){
                                 app.notice="Request queue full; try again after responses arrive".into();
-                            }else if kind=="task.get"{detail_request_id=Some(id);last_detail_fetch=Instant::now();}
+                            }else if kind=="task.get"{detail_request_id=Some(id);last_detail_fetch=Instant::now();last_detail_revision=Some(revision.load(Ordering::SeqCst));}
                         }
                     } else if app.live.as_ref().is_some_and(|v|v.conversation.is_some()){
                         app.notice="Conversation, questions and budgets are shown in this project's Inspect panel".into();
@@ -685,7 +686,7 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
         }
         while let Ok(update)=updates_rx.try_recv() {
             let detail_reply=detail_request_id.as_deref()==Some(update.request_id.as_str());
-            if detail_reply{detail_request_id=None;}
+            if detail_reply{detail_request_id=None;if update.kind!="task.result"{last_detail_revision=None;}}
             if coordinator_activity_request_id.as_deref()==Some(update.request_id.as_str()){
                 coordinator_activity_request_id=None;
             }
@@ -786,16 +787,18 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
         }
         if detail_request_id.is_none() && last_detail_fetch.elapsed()>=Duration::from_millis(500){
             let selected=app.live.as_ref().and_then(|live|live.tasks.get(app.journal.selected_task));
-            // Scope detail includes live pending-turn/answer dependencies. A text-only
-            // completion need not change the immutable proposal or task version.
-            let stale=selected.is_some_and(|row|app.scope_mode() || (row["status"]=="awaiting-input" &&
+            // Pending-turn/answer changes advance the project revision even when
+            // the immutable task version stays the same. Idle state needs no polling.
+            let state_revision=revision.load(Ordering::SeqCst);
+            let stale=selected.is_some_and(|row|(app.scope_mode()&&last_detail_revision!=Some(state_revision)) ||
+                ((app.scope_mode()||row["status"]=="awaiting-input") &&
                 app.live.as_ref().and_then(|live|live.detail.as_ref()).is_none_or(|detail|
                     detail["task"]["task_id"]!=row["task_id"] || detail["task"]["version"]!=row["version"] ||
                     detail["task"]["state_revision"]!=row["state_revision"])));
             if stale {
                 let id=command_id(&mut counter);
                 if commands_tx.try_send(("task.get".into(),id.clone(),json!({"task_id":selected.unwrap()["task_id"]}))).is_ok(){
-                    detail_request_id=Some(id);last_detail_fetch=Instant::now();
+                    detail_request_id=Some(id);last_detail_fetch=Instant::now();last_detail_revision=Some(state_revision);
                 }
             }
         }

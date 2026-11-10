@@ -1460,7 +1460,7 @@ impl Service {
                     continue;
                 }
 
-                if crate::provider_selection::enabled(&self.session)&&(reason.contains("needs explicit provider-policy approval")||reason.starts_with("Task override includes an unapproved")){work["provider_blocked"]=json!({"kind":"policy","reason":reason});}
+                if crate::provider_selection::enabled(&self.session)&&(reason.contains("needs explicit provider-policy approval")||reason.starts_with("Task override includes an unapproved")||reason=="Coordinator binding is outside this request's approved provider policy"){work["provider_blocked"]=json!({"kind":"policy","reason":reason});}
                 if crate::provider_selection::enabled(&self.session) {
                     let boundary=work.as_object_mut().unwrap().remove("recovery_boundary").unwrap_or(json!({"cause":"application_fault"}));
                     let cause:Cause=serde_json::from_value(boundary["cause"].clone()).unwrap_or(Cause::ApplicationFault);

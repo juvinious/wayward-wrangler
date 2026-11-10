@@ -390,7 +390,7 @@ impl App {
             .unwrap_or("default");
         let mut text = format!("Revision {} · current coordinator {}\n",edit["revision"],saved["coordinator"]["profile_id"]);
         if saved["setup_required"] == true {
-            text.push_str("Provider setup required. Retired profiles cannot execute.\nChoose provider/model, S save, then 4 Switch. G explicitly grants selected project context; Enter applies the switch. Existing request policies may need approval in 6 Policy.\nThis form is an unsaved draft; opening it changes no provider settings.\n\n");
+            text.push_str("Provider setup required. Choose provider/model and thinking, S save, then A reviews activation. Sending a draft also opens that review directly.\nExisting requests keep their own policies; they do not block new discussions. Opening this form changes no settings.\n\n");
         }
         match self.provider_section {
             0 => {
@@ -519,6 +519,28 @@ mod provider_ui_tests {
             "discovery":{"providers":[{"id":"provider-a"},{"id":"provider-b"},{"id":"provider-empty"}],"models":models}}}}));
         app.input(Event::Key(KeyEvent::new(KeyCode::F(3),KeyModifiers::NONE)));
         app
+    }
+    #[test]
+    fn blocked_send_opens_saved_model_setup_with_the_draft_intact(){
+        let mut app=navigation_app();app.modal=Modal::None;app.focus=Focus::Composer;
+        let c=app.live.as_mut().unwrap().conversation.as_mut().unwrap();
+        c["binding"]=serde_json::json!({"generation":7});
+        c["chat"]=serde_json::json!({"status":"blocked","reason":"Provider setup required",
+            "profile":{"provider":"retired","model":"old-model","mode":"native"}});
+        c["development"]["providers"]["setup_required"]=serde_json::json!(true);
+        c["development"]["providers"]["coordinator"]["profile"]=serde_json::json!({"provider":"retired","model":"old-model"});
+        app.input(Event::Paste("Please document the app".into()));
+        let key=|code|Event::Key(KeyEvent::new(code,KeyModifiers::NONE));
+        app.input(key(KeyCode::Enter));
+        assert_eq!(app.modal,Modal::Settings,"Blocked Send must offer the next usable action directly");
+        assert!(app.provider_activation.is_some(),"A saved model needs a direct activation review");
+        assert_eq!(app.composer.text(),"Please document the app");
+        assert!(app.take_intent().is_none());
+        app.input(key(KeyCode::Esc));assert_eq!(app.composer.text(),"Please document the app");
+        assert_eq!(app.modal,Modal::None);app.input(key(KeyCode::Enter));
+        app.input(key(KeyCode::Right));app.input(key(KeyCode::Enter));
+        assert!(matches!(app.take_intent(),Some(LiveIntent::Dialogue(v))if v["action"]=="providers.switch"&&v["payload"]["profile_id"]=="default"));
+        assert_eq!(app.composer.text(),"Please document the app");
     }
     #[test]
     fn profile_activation_reviews_exact_saved_selection_before_granting_context(){

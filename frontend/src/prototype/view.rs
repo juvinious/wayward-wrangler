@@ -1207,7 +1207,7 @@ impl App {
         if work["status"]!="attention" || !work["question"].is_null() || !work["pending"].is_null(){return None}
         Some(serde_json::json!({"work_id":work["work_id"],"revision":work["revision"]}))
     }
-    fn development_view(&self)->Value{self.live.as_ref().and_then(|v|v.conversation.as_ref()).map_or(Value::Null,|v|v["development"].clone())}
+    fn development_view(&self)->&Value{self.live.as_ref().and_then(|v|v.conversation.as_ref()).map_or(&Value::Null,|v|&v["development"])}
     fn scope_body(&self)->(String,String){
         let Some(head)=self.current_scope()else{return ("Scope loading".into(),"Waiting for the saved revision; no decision is available.".into())};
         let p=&head["record"]["proposal"];
@@ -1313,6 +1313,7 @@ impl App {
             && self.journal.reviewed_sha256 == self.journal.candidate_sha256
     }
     fn primary(&mut self) {
+        if self.model_setup_needed(){self.open_model_setup();return;}
         if self.coordination_mode()&&self.focus==Focus::Activity&&self.coordination_card().is_some(){self.inline_card_action();return;}
         if self.coordination_mode()&&self.focus==Focus::Activity&&self.question_suggestion().is_some()&&self.card_action==1{self.confirm_inline_answer();return;}
         if self.continuous_mode(){let rows=self.queue_rows();if let Some(r)=rows.iter().find(|r|r["status"]=="reserved"&&(!self.coordination_mode()||r["subject_id"]==self.conversation_subject)){self.open(if r["interrupt_requested"]==true{Modal::Queue}else{Modal::Cancel});return}if self.question_suggestion().is_some(){self.open_question_suggestion();return}if rows.iter().any(|r|r["status"]=="held"){self.open(Modal::Queue);return}}
@@ -1579,6 +1580,7 @@ impl App {
         self.input_history.remember(self.composer.snapshot());
         if self.live.is_some() {
             let chat_resume=self.coordination_mode()&&matches!(text.trim().to_lowercase().as_str(),"resume this session"|"resume the session"|"resume session");
+            if !chat_resume&&self.model_setup_needed(){self.open_model_setup();self.mark();return;}
             if self.development_mode()&&!chat_resume&&self.live.as_ref().is_some_and(|l|l.phase!="running") {self.notice="Session paused. Say resume session or use /resume; your draft is preserved.".into();self.mark();return;}
             if let Some(chat)=self.chat(){
                 if !chat_resume&&!matches!(chat["status"].as_str(),Some("available"|"running"|"recoverable")){
@@ -2168,10 +2170,20 @@ impl App {
                     return;
                 }
                 KeyCode::Esc => {
+                    if !self.menu && self.focus==Focus::Composer {
+                        self.composer.clear();self.draft_reply=None;self.history_reply=None;
+                        self.input_history.reset_navigation();
+                        self.notice="Input cleared".into();
+                    }
                     self.menu = false;
                     self.focus = Focus::Composer;
                     self.mark();
                     return;
+                }
+                KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL)&&self.focus==Focus::Composer=>{
+                    self.composer.clear();self.draft_reply=None;self.history_reply=None;self.menu=false;
+                    self.input_history.reset_navigation();
+                    self.notice="Input cleared".into();self.mark();return;
                 }
                 KeyCode::Tab | KeyCode::BackTab if self.menu => {
                     let list = self.matches();
@@ -3007,11 +3019,7 @@ impl App {
         let editor_rect = Rect::new(2, composer_y + 1, screen.width.saturating_sub(3), editor_h);
         frame.render_widget(&self.composer.area, editor_rect);
         let toolbar_y = composer_y + composer_box_h as u16;
-        let send = if self.focus == Focus::Send {
-            ">[Send]"
-        } else {
-            "[Send]"
-        };
+        let send=format!("{}[{}]",if self.focus==Focus::Send{">"}else{""},if self.model_setup_needed(){"Use saved model"}else{"Send"});
         let multi = if self.composer.multiline { "on" } else { "off" };
         Self::draw_line(
             frame,
@@ -3027,11 +3035,11 @@ impl App {
             } else if self.focus == Focus::Conversation {
                 "PgUp/PgDn chat · Alt+PgUp/PgDn line · Esc composer · Enter inspect"
             } else if self.composer.multiline {
-                "↑/↓ commands · Alt+↑/↓ cursor · PgUp/PgDn chat · Tab to Send"
+                "Alt+↑/↓ cursor · PgUp/PgDn chat · Tab Send · Esc/Ctrl-C clear"
             } else if self.composer.text().is_empty() {
-                "↑/↓ commands · PgUp/PgDn chat · Enter send/action · F1 help"
+                "↑/↓ history · PgUp/PgDn chat · Enter action · Esc/Ctrl-C clear · F1 help"
             } else {
-                "↑/↓ commands · PgUp/PgDn chat · Enter send · F2 multiline · F1 help"
+                "↑/↓ history · PgUp/PgDn chat · Enter send · Esc/Ctrl-C clear · F1 help"
             },
             if self.notice.is_empty() {
                 Style::default().fg(fg)
@@ -3139,6 +3147,7 @@ impl App {
         }
     }
     fn action_label(&self) -> String {
+        if self.model_setup_needed(){return "Use saved model".into();}
         if self.coordination_mode(){if self.pending_conversation_question().is_some(){return "Answer in chat".into()}if self.coordination_card().is_some(){return "Proposal details / inline approval".into()}if self.current_scope().is_none(){return "Continue conversation".into()}}
         if self.continuous_mode(){let rows=self.queue_rows();if let Some(r)=rows.iter().find(|r|r["status"]=="reserved"&&(!self.coordination_mode()||r["subject_id"]==self.conversation_subject)){return if r["interrupt_requested"]==true{"Interrupt requested · inspect queue".into()}else{"Interrupt coordinator".into()};}if self.question_suggestion().is_some(){return "Record suggested formal answer".into()}if rows.iter().any(|r|r["status"]=="held"){return "View held messages".into()}}
         if self.chat().is_some_and(|v|v["status"]=="awaiting-authorization"){return "Configure coordinator".into();}
@@ -4930,6 +4939,37 @@ mod tests {
         let work=&mut app.live.as_mut().unwrap().conversation.as_mut().unwrap()["development"]["workflows"][0];
         work["question"] = Value::Null; work["status"] = json!("running");
         app.command("resume"); assert!(app.notice.contains("already running")); assert!(app.take_intent().is_none());
+    }
+    #[test]
+    fn idle_ticks_remain_responsive_with_a_full_catalog_and_retained_work(){
+        let mut app=continuous_app();app.modal=Modal::None;
+        let models=(0..1600).map(|n|json!({"provider":"fixture","model":format!("model-{n}"),
+            "name":"Model catalog metadata","context_window":128000,"thinking_levels":["low","medium","high"],
+            "capabilities":["conversation","implementation","review"]})).collect::<Vec<_>>();
+        let units=(0..46).map(|n|json!({"unit_id":format!("u-{n}"),"work_id":"old-request",
+            "status":"accepted","retained_summary":"Retained display metadata. ".repeat(1000)})).collect::<Vec<_>>();
+        app.live.as_mut().unwrap().conversation.as_mut().unwrap()["development"]=json!({
+            "workflows":[{"work_id":"t-scope","status":"attention","pending":null}],
+            "units":units,"providers":{"discovery":{"models":models}}});
+        let started=Instant::now();
+        for _ in 0..120{app.tick();}
+        assert!(started.elapsed()<Duration::from_millis(500),"An idle tick must not copy the project catalog and retained history on every iteration: {:?}",started.elapsed());
+    }
+    #[test]
+    fn escape_and_control_c_clear_the_composer_without_cancelling_work(){
+        for code in [KeyEvent::new(KeyCode::Esc,KeyModifiers::NONE),KeyEvent::new(KeyCode::Char('c'),KeyModifiers::CONTROL)]{
+            let mut app=continuous_app();app.modal=Modal::None;app.focus=Focus::Composer;
+            app.input(Event::Paste("Unsent multiline\ndraft".into()));
+            app.input(Event::Key(code));
+            assert_eq!(app.composer.text(),"","Both clear controls must empty the main input");
+            assert_eq!(app.modal,Modal::None);assert!(app.take_intent().is_none());
+            app.input_history.remember(Draft{text:"Older message".into(),..Default::default()});
+            app.input(Event::Paste("Original unsent draft".into()));
+            app.input(Event::Key(KeyEvent::new(KeyCode::Up,KeyModifiers::NONE)));
+            assert!(app.input_history.is_recalling());
+            app.input(Event::Key(code));
+            assert_eq!(app.input_history.draft_to_save(app.composer.snapshot()).text,"");
+        }
     }
     #[test]
     fn coordinator_usage_is_visible_and_scoped_without_inventing_account_quota() {

@@ -506,7 +506,7 @@ pub fn effective(s: &Session) -> Result<Value, String> {
     value["selection"] = json!({"profile_id":selected["profile_id"],"profile_sha256":selected["profile_sha256"],
         "preferences_revision":revision,"profile":selected["profile"],"role":"coordinator","source":selected["source"].as_str().unwrap_or("project coordinator binding"),"reason":"selected project binding"});
     if prefs.schema_version != 3 || !value["transport"]["entry"].is_string() {
-        value["client_error"] = json!("Provider setup required: F3 → choose shared provider/model → S save → 4 Switch; grant context explicitly when ready");
+        value["client_error"] = json!("Model setup needed: Send opens the saved model review. F3 changes the selection.");
         return Ok(value);
     }
     Ok(with_client(value))
@@ -821,17 +821,8 @@ pub fn command(s: &Session, body: &Value) -> Result<Value, String> {
                     &json!({"profile_id":name,"profile_sha256":hash,"profile":profile,"command_id":body["command_id"],"subject_id":payload["subject_id"]}),
                 )?;
             }
-            for work in s
-                .development_records("workflow")?
-                .iter()
-                .filter(|w| !matches!(w["status"].as_str(), Some("delivered" | "cancelled")))
-            {
-                if !normalized_policy(s, &work["policy"])
-                    .is_ok_and(|p| policy_allows(&p, "coordinator", &hash, &profile))
-                {
-                    return Err("Active request policy excludes this coordinator; approve a narrow provider amendment first".into());
-                }
-            }
+            // A project conversation choice does not amend request policies.
+            // Each request still checks its exact grant when preparing work.
             let generation: i64 = tx
                 .query_row(
                     "SELECT generation FROM conversation_bindings WHERE singleton=1",
@@ -1091,27 +1082,6 @@ pub fn advance_switch(s: &Session) -> Result<(), String> {
         return Ok(());
     }
     let target = value["target"].clone();
-    let excluded = works
-        .iter()
-        .filter(|w| !matches!(w["status"].as_str(), Some("delivered" | "cancelled")))
-        .any(|w| {
-            normalized_policy(s, &w["policy"]).map_or(true, |policy| {
-                !policy_allows(
-                    &policy,
-                    "coordinator",
-                    target["profile_sha256"].as_str().unwrap_or(""),
-                    &target["profile"],
-                )
-            })
-        });
-    if excluded {
-        value["status"] = json!("blocked");
-        value["reason"] = json!("Active request policy changed while switch waited; approve the selected destination before replacement");
-        put(&tx, "provider_switch", &value)?;
-        event(&tx, "providers.switch_blocked", None, &value)?;
-        tx.commit().map_err(|e| e.to_string())?;
-        return Ok(());
-    }
     let p = &target["profile"];
     tx.execute("UPDATE conversation_bindings SET generation=generation+1,provider=?1,model=?2,effort=?3 WHERE singleton=1 AND generation=?4",params![p["provider"].as_str(),p["model"].as_str(),p["effort"].as_str(),generation]).map_err(|e|e.to_string())?;
     tx.execute("UPDATE conversation_turns SET binding_generation=?1 WHERE status='queued' AND project_key=?2",params![generation+1,s.key]).map_err(|e|e.to_string())?;
@@ -1123,6 +1093,10 @@ pub fn advance_switch(s: &Session) -> Result<(), String> {
 
     // Replacement can recover known configuration/policy blocks, never substantive questions.
     for mut work in works {
+        if !normalized_policy(s,&work["policy"]).is_ok_and(|policy|policy_allows(
+            &policy,"coordinator",target["profile_sha256"].as_str().unwrap_or(""),&target["profile"])){
+            continue; // An excluded request neither resumes nor changes on a discussion switch.
+        }
         if changed
             && work["capacity_refusal"].is_object()
             && work["pending"].is_null()
@@ -1502,6 +1476,21 @@ pub(crate) mod recovery_tests {
         json!({"command_id":"switch","action":"providers.switch","payload":{"expected_revision":2,"expected_generation":1,"profile_id":"claude","mode":mode,"grant_context":true}})
     }
     #[test]
+    fn discussion_switch_is_not_vetoed_by_an_unrelated_attention_request(){
+        let (_root,s)=fixture();allow_claude(&s);
+        let mut work=json!({"work_id":"old-request","status":"attention","pending":null,
+            "question":null,"provider_blocked":{"kind":"policy"},"policy":crate::development::policy(&s).unwrap()});
+        work["policy"]["routing"]["roles"]["coordinator"]=json!([current(&s).unwrap()["profile_sha256"]]);
+        s.development_save("workflow","old-request",&work,"fixture").unwrap();
+        let mut command=switch_command("after_current_turn");command["payload"]["subject_id"]=json!("discussion");
+        assert_eq!(super::command(&s,&command).unwrap()["status"],"accepted","Unrelated historical policy must not veto a new discussion's explicit model choice");
+        advance_switch(&s).unwrap();
+        assert_eq!(current(&s).unwrap()["profile_id"],"claude");
+        assert_eq!(s.development_record("workflow","old-request").unwrap().unwrap(),work,"Changing the discussion model must not resume or rewrite excluded work");
+        assert!(execution(&s,"coordinator",&Value::Null,None,&work["policy"],"old request").unwrap_err().contains("approved provider policy"));
+        assert!(execution(&s,"coordinator",&Value::Null,None,&discussion_policy(&s).unwrap(),"new discussion").is_ok());
+    }
+    #[test]
     fn provider_switch_waits_restarts_and_applies_once_preserving_workers_and_questions() {
         let (_root, s) = fixture();
         allow_claude(&s);
@@ -1737,7 +1726,7 @@ pub(crate) mod recovery_tests {
         assert_eq!(current(&s).unwrap()["profile_id"], "codex");
     }
     #[test]
-    fn provider_switch_rechecks_policy_and_can_cancel_settled_interruption() {
+    fn provider_switch_leaves_a_later_restricted_request_unchanged() {
         let (_root, s) = fixture();
         allow_claude(&s);
         super::command(&s, &switch_command("interrupt")).unwrap();
@@ -1749,10 +1738,9 @@ pub(crate) mod recovery_tests {
         s.development_save("workflow", "request", &work, "fixture")
             .unwrap();
         advance_switch(&s).unwrap();
-        assert_eq!(switch(&s).unwrap()["status"], "blocked");
-        assert_eq!(current(&s).unwrap()["profile_id"], "codex");
-        super::command(&s, &json!({"command_id":"cancel-settled","action":"providers.cancel_switch","payload":{"expected_revision":2}})).unwrap();
-        assert_eq!(switch(&s).unwrap()["status"], "cancelled");
+        assert_eq!(switch(&s).unwrap()["status"], "applied");
+        assert_eq!(current(&s).unwrap()["profile_id"], "claude");
+        assert!(execution(&s,"coordinator",&Value::Null,None,&work["policy"],"restricted request").is_err());
         assert_eq!(
             s.development_record("workflow", "request")
                 .unwrap()

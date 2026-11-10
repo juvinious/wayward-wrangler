@@ -72,6 +72,10 @@ def main():
                         help='Explicitly activate the saved model through its F3 review while the fixture session is paused')
     parser.add_argument('--coordinator-usage', action='store_true',
                         help='Display inert retained coordinator telemetry through real IPC/TUI, including after reopening')
+    parser.add_argument('--idle-cpu', action='store_true',
+                        help='Measure real idle TUI/service CPU with the full catalog and seeded retained history')
+    parser.add_argument('--blocked-send', action='store_true',
+                        help='Use Send to activate the saved model from a retired binding and exercise both input-clear keys')
     parser.add_argument('--systemd-handover', action='store_true',
                         help='Use real uniquely keyed user units; replace a still-running idle service')
     parser.add_argument('--portable', action='store_true',
@@ -89,6 +93,10 @@ def main():
         parser.error('--activate-profile requires --provider-navigation with the direct isolated service')
     if args.coordinator_usage and args.systemd_handover:
         parser.error('--coordinator-usage uses the direct isolated service')
+    if args.blocked_send and not (args.activate_profile and args.retired_profiles):
+        parser.error('--blocked-send requires --activate-profile and --retired-profiles')
+    if args.idle_cpu and (args.systemd_handover or not args.populated_history):
+        parser.error('--idle-cpu requires --populated-history with the direct isolated service')
     binaries = args.binaries.resolve()
     source = Path(__file__).resolve().parent.parent
     for name in ['waywr', 'waywr-service', 'waywr-runner']:
@@ -232,6 +240,12 @@ def main():
                               'summary': 'Retained fixture history. ' * 4096}
                     database.execute('INSERT INTO development_records(kind,id,record_json) VALUES(?,?,?)',
                                      ('notification', record['id'], json.dumps(record)))
+                if args.idle_cpu:
+                    # Match a populated project's retained event volume, not an
+                    # empty new-project idle screen. These events admit no work.
+                    for index in range(200):
+                        database.execute("INSERT INTO session_events(schema_version,type,task_id,body) VALUES(1,'fixture.retained',NULL,?)",
+                                         (json.dumps({'summary':'Retained inert event. '*2000}),))
 
         def seed_coordinator_usage():
             # Inert completed-call fixture, not execution/settlement evidence.
@@ -311,6 +325,10 @@ def main():
                 assert all(r['summary'] == 'Retained fixture history. ' * 4096 for r in retained)
                 if catalog:
                     assert len(development['providers']['discovery']['models']) == len(catalog), 'Catalog entries were lost'
+                if args.blocked_send:
+                    chat = result['body']['conversation']['chat']
+                    assert chat['status'] in ('available','recoverable'), 'Retired binding still blocks the reopened conversation'
+                    assert chat['profile']['model'] == selected_model
 
         def unit_property(name):
             return run(['systemctl', '--user', 'show', '--property=' + name, '--value', unit]).strip()
@@ -369,6 +387,20 @@ def main():
                     assert '$0.0123' in visible and '1234' in visible and '2606' in visible, visible
                     assert 'fixture-provider/fixture-model' in visible
                     inspect_coordinator_usage()
+                if args.idle_cpu and expected_draft is None:
+                    def cpu_seconds(pid):
+                        fields = (Path('/proc') / str(pid) / 'stat').read_text().rsplit(')',1)[1].split()
+                        return (int(fields[11]) + int(fields[12])) / os.sysconf('SC_CLK_TCK')
+                    assert service is not None, '--idle-cpu uses the direct isolated service'
+                    cpu_before = [cpu_seconds(ui.pid),cpu_seconds(service.pid)]
+                    started = time.monotonic()
+                    while time.monotonic() - started < 3:
+                        if select.select([master], [], [], .1)[0]:
+                            screen.extend(os.read(master,65536))
+                    elapsed = time.monotonic() - started
+                    cpu = [(cpu_seconds(pid)-before)/elapsed for pid,before in zip([ui.pid,service.pid],cpu_before)]
+                    print(json.dumps({'idle_ui_cpu_percent':round(cpu[0]*100,1),'idle_service_cpu_percent':round(cpu[1]*100,1)}),flush=True)
+                    assert all(value < .20 for value in cpu), 'Idle application consumes more than 20% of a CPU'
                 if args.retired_profiles:
                     os.write(master, b'\x1b[13~')  # F3: setup must be reachable.
                     def setup_visible():
@@ -411,7 +443,12 @@ def main():
                                     screen.extend(os.read(master, 65536))
                             raise AssertionError(message + ': ' + screen.decode(errors='replace')[-1200:])
                         wait_for_text(rb'Preferences\s+saved', 'The form did not acknowledge its durable save')
-                        os.write(master, b'a')
+                        if args.blocked_send:
+                            os.write(master, b'\x1b')
+                            time.sleep(.2)
+                            os.write(master, b'Review this saved model\r')
+                        else:
+                            os.write(master, b'a')
                         wait_for_text(rb'Activate\s+saved\s+model', 'Profiles did not open its activation review')
                         os.write(master, b'\x1b[C\r')
                         def activation_applied():
@@ -422,10 +459,18 @@ def main():
                                         and profile.get('options', {}).get('reasoning') == selected_thinking)
                         wait_for(activation_applied, 'The explicit activation review did not change the coordinator binding')
                         assert json.loads(run([launcher, 'session', 'status']))['session']['phase'] == 'paused', 'Activation resumed a paused session'
+                        if args.blocked_send:
+                            wait_for(lambda: saved_draft() == 'Review this saved model', 'Blocked Send lost or submitted the draft')
+                            os.write(master,b'\x03')  # Ctrl-C clears, not process interruption.
+                            wait_for(lambda: saved_draft() == '', 'Ctrl-C did not clear the durable draft')
+                            os.write(master,b'Clear with Escape')
+                            wait_for(lambda: saved_draft() == 'Clear with Escape', 'Clear-key fixture input was not saved')
+                            os.write(master,b'\x1b')
+                            wait_for(lambda: saved_draft() == '', 'Escape did not clear the durable draft')
                 if args.provider_navigation and expected_draft is not None:
                     profile = json.loads((project / '.waywr/coordinator.json').read_text())['profiles']['default']
                     assert profile['options']['reasoning'] == selected_thinking, 'Thinking choice did not survive reopening'
-                if args.retired_profiles or (args.provider_navigation and expected_draft is None):
+                if (args.retired_profiles or (args.provider_navigation and expected_draft is None)) and not (args.blocked_send and expected_draft is None):
                     os.write(master, b'\x1b')
                     time.sleep(.2)
                 if expected_draft is None:
@@ -546,6 +591,7 @@ def main():
                               'thinking_level_saved_and_reopened': args.provider_navigation,
                               'model_activated_without_resuming': args.activate_profile,
                               'coordinator_usage_visible_and_reopened': args.coordinator_usage,
+                              'blocked_send_setup_and_clear_controls': args.blocked_send,
                               'populated_history_snapshot_delivered': args.populated_history,
                               'draft_settings_and_pause_preserved': True,
                               'manual_rebinds': 0, 'model_calls': 0,

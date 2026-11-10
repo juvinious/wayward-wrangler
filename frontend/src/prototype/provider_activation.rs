@@ -7,8 +7,30 @@ struct ActivationReview {
     generation: u64,
     subject: String,
     activate: bool,
+    from_composer: bool,
 }
 impl App {
+    fn model_setup_needed(&self)->bool {
+        self.development_view()["providers"]["setup_required"]==true
+    }
+    fn open_model_setup(&mut self){
+        self.open(Modal::Settings);self.provider_section=0;
+        let state=self.provider_state();
+        let names=self.provider_names();
+        self.provider_index=names.iter().position(|name|Some(name.as_str())==state["preferences"]["coordinator"].as_str()).unwrap_or(0);
+        if state["preferences"]["schema_version"]==3{
+            self.review_profile_activation();
+            if let Some(review)=self.provider_activation.as_mut(){review.from_composer=true;}
+        }else{
+            self.notice="Choose a model and thinking level, S saves, then A reviews activation. Your message is still in the composer.".into();
+        }
+    }
+    fn finish_activation_review(&mut self)->Option<ActivationReview>{
+        let review=self.provider_activation.take()?;
+        self.provider_follow=true;self.modal_scroll=0;
+        if review.from_composer{self.modal=Modal::None;self.focus=Focus::Composer;}
+        Some(review)
+    }
     fn review_profile_activation(&mut self) {
         let saved = self.provider_state();
         let Some(edit) = self.provider_edit.as_ref() else {
@@ -69,6 +91,7 @@ impl App {
             generation,
             subject: self.conversation_subject.clone(),
             activate: false,
+            from_composer: false,
         });
         self.modal_scroll = 0;
         self.notice.clear();
@@ -89,9 +112,7 @@ impl App {
             return;
         }
         if key.code == KeyCode::Esc {
-            self.provider_activation = None;
-            self.provider_follow = true;
-            self.modal_scroll = 0;
+            self.finish_activation_review();
             self.mark();
             return;
         }
@@ -131,9 +152,7 @@ impl App {
         } else if key.code == KeyCode::Enter && key.kind == KeyEventKind::Press {
             let review = self.provider_activation.as_ref().unwrap();
             if !review.activate {
-                self.provider_activation = None;
-                self.provider_follow = true;
-                self.modal_scroll = 0;
+                self.finish_activation_review();
                 self.mark();
                 return;
             }
@@ -144,7 +163,7 @@ impl App {
                 self.mark();
                 return;
             }
-            let review = self.provider_activation.take().unwrap();
+            let review = self.finish_activation_review().unwrap();
             self.intent(LiveIntent::Dialogue(serde_json::json!({"action":"providers.switch","payload":{
                 "profile_id":review.profile_id,"expected_revision":review.revision,"expected_generation":review.generation,
                 "subject_id":review.subject,"mode":"after_current_turn","grant_context":true}})));
@@ -170,7 +189,7 @@ impl App {
             serde_json::to_string(&profile["transport"]["destination"]).unwrap_or_default()
         };
         let body = format!(
-            "Use this saved model for the coordinator after the current turn. It may receive this project's discussion and already-approved coordinator context.\n\nDestination: {}\nOptions: {}\n\nWorkers keep their assignments and existing work approvals still apply. If a request excludes this model, review its Policy in section6 first.\n\nActivation does not sign in, resume paused work or interrupt an uncertain call.{}",
+            "Use this saved model for coordinator conversations after the current turn. It may receive this project's selected discussion and coordinator context.\n\nDestination: {}\nOptions: {}\n\nExisting requests keep their own policies. A restricted request needs its own policy amendment before this model can work on it; it does not block new discussions. Workers keep their assignments.\n\nYour message stays unsent. After activation, Enter sends it. Activation does not sign in, resume paused work or interrupt an uncertain call.{}",
             route,
             profile["options"],
             if current {
