@@ -229,6 +229,13 @@ atomically, and interruption holds unconsumed inputs without replay. The existin
 editor adds boundary-based multiline history, Ctrl-J and direct model/status
 actions. No new provider/model routing or execution authority is introduced.
 
+Provider sign-in is local and independent of project execution. /login and F3 G
+use SDK-advertised methods through an ephemeral child/pipe dialog. Browser
+handoffs, choices, masked key/code entry and cancellation stay outside project
+IPC, outboxes and history; the SDK stores credentials privately. The event loop
+keeps running and leaving drops the sign-in child. Static SDK OAuth registration
+keeps bundled browser flows self-contained. See [provider setup](provider-selection.md).
+
 The [conversation contract](conversational-coordination.md) owns the state9 IPC1.8
 interaction overlay. Stable request ownership is independent of task inspection.
 Frozen draft/submission targets feed saved question decisions and once-only continuation,

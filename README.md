@@ -147,6 +147,7 @@ this runtime. Each new request and approval belongs to you.
 | F7, then E | Restore a pending steering input or queued follow-up for editing; applied inputs cannot be withdrawn |
 | `/model`, `/thinking`, `/status` | Open the model picker, thinking picker, or current session/model/queue/usage summary |
 | `/discuss` | Explicitly switch chat to the inspected task’s request |
+| `/login`, or F3 → G | Sign in to a provider using its SDK methods; OAuth opens the browser, secret entry stays private |
 | `/plan` | Review the current topic's saved scope and operating policy |
 | `/output` | Read current/retained output; Left/Right switches attempts, arrows/page keys scroll |
 | `/inspect` | Inspect integration, checks, obligations and exact readable history/summary paths |

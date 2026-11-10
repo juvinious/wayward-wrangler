@@ -34,7 +34,8 @@ Ordinary provider setup and useful model execution remain unverified. The
 [pre-test interaction/lifecycle sequence](usability-plan.md#finish-before-the-next-operator-test) is implemented locally:
 direct foreground interrupt/leave/pause and compatible busy-owner attachment are
 implemented locally, along with [live steering/follow-up](live-input.md), queue
-editing, multiline/history controls and model/thinking/status shortcuts. The
+editing, multiline/history controls, model/thinking/status shortcuts and
+[in-app provider sign-in](provider-selection.md). The
 useful operator loop remains. A held local HTTP/SDK/runner/service/TUI check
 verifies interruption, draft retention, prompt leave while stopping, reattachment
 and disconnected leave. The

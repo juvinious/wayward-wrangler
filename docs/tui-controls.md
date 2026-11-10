@@ -16,6 +16,7 @@ and execution approvals. Browsing never grants authority or executes work.
 | Existing task, queue, question and history lists | Up/Down selects a row. Actions remain in their own action row. Page keys scroll displayed content. |
 | Main composer | Up/Down moves within multiline input and recalls history at its first/last line. Ctrl-J or Shift+Enter inserts a newline; F2 is the fallback. Enter sends idle input or steers an active coordinator; Alt+Enter queues a follow-up. Ctrl-C/Esc clears nonempty input or interrupts with empty input. Tab/Shift-Tab changes focus. |
 | Conversation queue | F7 opens pending/applied steering and queued/held follow-ups. Up/Down selects; E withdraws/restores a pending input for editing. Applied/claimed inputs cannot be edited. Restore never sends. |
+| Provider sign-in | /login or F3 G. Up/Down and Enter choose a provider/method or SDK choice. Private single-line editor for keys/codes. Ctrl-B reopens the browser URL; PageUp/PageDown scrolls details. Esc backs out/cancels; Ctrl-Q still leaves. Draft/history never receives credential input. |
 | Leave | Ctrl-Q from any overlay/editor; Ctrl-D with empty input; `/detach`, `/exit`, `/quit`. Save local draft and leave immediately without confirmation or settlement wait, including disconnected state. |
 | Interrupt / pause | Visible Interrupt action or `/interrupt` stops only the foreground coordinator directly. Show Stopping until settlement; typing and leaving remain available. `/pause` separately stops new dispatch; `/resume` continues it. |
 

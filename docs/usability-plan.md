@@ -22,7 +22,7 @@ their isolated evidence does not establish a fluid, useful daily workflow.
 | Plan area | Delivered | Still needed |
 | --- | --- | --- |
 | Shared model layer | Standalone pi-ai/agent-core runtime replaces the native integrations; catalogs/configuration and manual IDs stay outside core routing; two protocol/tool/runner fixtures | Real account setup and useful delivery through selected models; catalog breadth is not verified account access |
-| Selection and visibility | Full searchable provider/model pickers, runtime thinking levels, saved/active labels, direct setup from Send, worker activity and conversation-call usage/cost/context estimates | Simpler ordinary model changes and actionable authentication/errors; workflow coordinator usage is not yet in the conversation summary |
+| Selection and visibility | Full searchable provider/model pickers, runtime thinking levels, saved/active labels, direct setup from Send, worker activity, in-app SDK browser/API-key sign-in and conversation-call usage/cost/context estimates | Actual account login/refresh and useful provider use; workflow coordinator usage is not yet in the conversation summary |
 | Local iteration | Paired build/local launcher, compatible reopen, idle/portable handover, compatible busy-owner attachment, automatic renewal of obsolete/stranded sessions without old target/call reuse | Complete start → leave → return → rebuild → continue journey with useful model work; existing services predating cross-build UI attachment require their first idle transition |
 | Input and responsiveness | Contextual controls, literal paste/history, clearing/draft persistence, reduced idle CPU, direct foreground interruption, immediate leave from overlays/disconnection, separate pause, real SDK steering, durable follow-ups/editing, multiline boundaries, model/thinking/status actions | Useful operator delivery and feedback on actual model/authentication failures |
 | Isolation of blockers | Unrelated policies do not veto new discussion; stranded old sessions stop being live update dependencies | Errors and settlement waits must remain scoped while navigation, drafting, inspection and leaving stay available |
@@ -99,7 +99,11 @@ in this order. These are targets, not claims of current behavior.
    failure through isolated real UI/service components leave the draft and normal
    navigation intact. Use one focused example per changed boundary. Multiline
    cursor/history boundaries, Ctrl-J, direct /model /thinking /status and durable
-   queue restoration now have focused regressions. Real account setup and the
+   queue restoration now have focused regressions. In-app SDK sign-in now handles
+   method choices, browser handoff and masked private entry without leaving the
+   application. An isolated actual TUI/service/SDK check saves a dummy key, cancels
+   another input and preserves the draft with no key in project data; OAuth module
+   loading/prompt cancellation are checked without an account request. Real account setup and the
    useful operator walkthrough remain unverified; no account call is inferred.
 
 After1–4, do one operator walkthrough: a useful bounded task, interrupt/redirect,

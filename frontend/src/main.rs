@@ -15,6 +15,7 @@ mod rust_maintenance;
 mod rust_migrate;
 mod rust_session;
 mod cli_schema;
+mod auth_login;
 
 struct TerminalGuard;
 impl TerminalGuard {
@@ -389,7 +390,10 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
     let mut last_detail_fetch=Instant::now()-Duration::from_secs(1);
     let (view_tx,view_rx)=mpsc::sync_channel::<String>(2);
     let mut view_pending=false;
+    let mut login:Option<auth_login::Login>=None;
     loop {
+        let mut auth_events=Vec::new();if let Some(client)=&login{for _ in 0..32{let Some(event)=client.poll()else{break;};auth_events.push(event);}}
+        for event in auth_events{if event["type"]=="auth.completed"{login=None;}app.auth_update(event);}
         app.tick();
         if app.dirty || app.effects_running() && last_draw.elapsed()>=Duration::from_millis(34) {
             let elapsed=last_draw.elapsed();
@@ -399,7 +403,7 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
         }
         if event::poll(Duration::from_millis(34))? { app.input(event::read()?); }
         while let Some(intent)=app.take_intent() {
-            if !mutations_allowed.load(Ordering::SeqCst) && !matches!(intent,LiveIntent::Detach) {
+            if !mutations_allowed.load(Ordering::SeqCst) && !matches!(&intent,LiveIntent::Detach|LiveIntent::ProviderLogin{..}|LiveIntent::AuthAnswer{..}|LiveIntent::AuthCancel|LiveIntent::AuthBrowser(_)) {
                 if matches!(&intent,LiveIntent::Dialogue(v) if v["action"]=="cancel_conversation"){app.interrupt_not_sent();}
                 if matches!(intent,LiveIntent::SubmitTask(_))||matches!(&intent,LiveIntent::Dialogue(v) if v["action"]=="conversation.steer"){if let Some(draft)=app.submission_draft.take(){app.composer=Composer::from_draft(draft);}}
                 if matches!(&intent,LiveIntent::Dialogue(v) if matches!(v["action"].as_str(),Some("coordination.present"|"candidate.present"))){app.presentation_delivery_failed();}
@@ -409,6 +413,15 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
             let row=app.live.as_ref().and_then(|v|v.tasks.get(app.journal.selected_task)).cloned();
             let task_id=row.as_ref().and_then(|v|v["task_id"].as_str()).map(str::to_owned);
             match intent {
+                LiveIntent::ProviderLogin{provider,method}=>{
+                    save_editor_draft(&draft_path,&app.composer.snapshot())?;
+                    if app.continuous_mode(){waywr_backend::execution::write(&subject_path,&app.conversation_ui_state(),false).map_err(io::Error::other)?;}
+                    login=None;
+                    match auth_login::Login::start(&provider,&method){Ok(client)=>login=Some(client),Err(_)=>app.auth_update(json!({"type":"auth.completed","status":"failed"}))}
+                },
+                LiveIntent::AuthAnswer{id,value}=>{if login.as_ref().is_none_or(|client|client.answer(id,value).is_err()){login=None;app.auth_update(json!({"type":"auth.completed","status":"failed"}));}},
+                LiveIntent::AuthCancel=>{login=None;},
+                LiveIntent::AuthBrowser(url)=>{if auth_login::open_browser(&url).is_err(){app.auth_update(json!({"type":"auth.event","event":{"message":"Browser could not be opened. Use the displayed URL, or Ctrl-B to try again."}}));}},
                 LiveIntent::Dialogue(value)=>{
                     let id=command_id(&mut counter);let action=value["action"].as_str().unwrap_or("");
                     let original=if action=="conversation.steer"{app.submission_draft.take()}else{None};

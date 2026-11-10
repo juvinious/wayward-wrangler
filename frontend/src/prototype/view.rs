@@ -26,6 +26,7 @@ pub enum Modal {
     None,
     Help,
     Status,
+    Login,
     Tasks,
     Scope,
     ScopeEditor,
@@ -71,6 +72,7 @@ struct Command {
 }
 const COMMANDS: &[Command] = &[
     Command { name:"resume",description:"Resume this paused session",shortcut:"" },
+    Command {name:"login",description:"Sign in to a model provider",shortcut:"F3 G"},
     Command {name:"model",description:"Choose a model from the full catalog",shortcut:""},
     Command {name:"thinking",description:"Choose the model's thinking level",shortcut:""},
     Command {name:"status",description:"Inspect session, model, queue and usage",shortcut:""},
@@ -189,6 +191,7 @@ const COMMANDS: &[Command] = &[
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LiveIntent {
+    ProviderLogin{provider:String,method:String}, AuthAnswer{id:String,value:String}, AuthCancel, AuthBrowser(String),
     Dialogue(Value), SaveScope(Value), AuthorizeScope(Value), ContinueAnswer, SubmitTask(String), Plan, Inspect, Authorize, Consult, ApplySteering, ReplaceCoordinator, Answer(String), Approve,
     Reject(String), OpenArtifact, OpenArtifactNext, OpenFile(String), Output, HerdrView, Cancel, Pause, Detach,
 }
@@ -284,6 +287,7 @@ pub struct App {
     scope_step:usize,
     pub conversation_subject:String,
     pub queue_index:usize,
+    login:Option<LoginView>,
     restored_queue_input:Option<Value>,
     last_queue_restore:Option<String>,
     pub conversation_revision_request:bool,
@@ -360,7 +364,7 @@ impl App {
             live,
             pending_primary_task: None,
             submission_draft: None,
-            scope_edit:None,scope_editor:Composer::default(),scope_field:1,scope_ack:None,scope_step:0,conversation_subject:"discussion".into(),queue_index:0,restored_queue_input:None,last_queue_restore:None,conversation_revision_request:false,question_confirmation:None,project_edit:None,provider_edit:None,provider_section:0,provider_index:0,provider_row:0,provider_field:0,provider_typing:false,provider_grant:false,provider_interrupt:false,provider_picker:None,provider_follow:true,provider_activation:None,
+            scope_edit:None,scope_editor:Composer::default(),scope_field:1,scope_ack:None,scope_step:0,conversation_subject:"discussion".into(),queue_index:0,login:None,restored_queue_input:None,last_queue_restore:None,conversation_revision_request:false,question_confirmation:None,project_edit:None,provider_edit:None,provider_section:0,provider_index:0,provider_row:0,provider_field:0,provider_typing:false,provider_grant:false,provider_interrupt:false,provider_picker:None,provider_follow:true,provider_activation:None,
         };
         if app.live.is_none() { app.schedule(); }
         if app.journal.effects == "subtle" {
@@ -1575,6 +1579,7 @@ impl App {
                     self.provider_index=names.iter().position(|n|n==&coordinator).unwrap_or(0);
                     self.open_catalog(if name=="thinking"{CatalogScope::Thinking}else{CatalogScope::Models(None)});
                 },
+                "login"=>self.open_login(None),
                 "status"=>self.open(Modal::Status),
                 "help" => self.open(Modal::Help),
                 "tasks" => self.open(Modal::Tasks),
@@ -2187,6 +2192,7 @@ impl App {
             (k.code==KeyCode::Char('q') || (k.code==KeyCode::Char('d')&&self.modal==Modal::None&&self.composer.text().is_empty())){
             self.detach_now();return;
         }
+        if self.modal==Modal::Login{self.login_key(event);return;}
         if self.coordination_mode()&&self.modal==Modal::None&&self.focus==Focus::Composer&&(self.draft_reply.is_none()||self.composer.text().is_empty()){
             let kind=match &event{Event::Paste(_)=>Some("paste"),Event::Key(k) if k.kind!=KeyEventKind::Release&&matches!(k.code,KeyCode::Char(_))&&!k.modifiers.intersects(KeyModifiers::CONTROL|KeyModifiers::ALT)=>Some("typed"),_=>None};
             if let Some(kind)=kind{self.draft_reply=Some(self.coordination_context(kind));}
@@ -2776,11 +2782,11 @@ impl App {
                 .unwrap_or(("Activity", safe.as_str()));
             lines.push(Line::from(vec![
                 Span::styled(
-                    format!("• {} · {label} · ", Self::activity_time(m.at, waywr_backend::execution::now())),
+                    format!("• {} · {label}{}", Self::activity_time(m.at, waywr_backend::execution::now()),if heading==label{""}else{" · "}),
                     Style::default().fg(color).add_modifier(Modifier::BOLD),
                 ),
                 Span::styled(
-                    heading.to_owned(),
+                    if heading==label{String::new()}else{heading.to_owned()},
                     Style::default().fg(tone.text).add_modifier(Modifier::BOLD),
                 ),
             ]));
@@ -3426,8 +3432,9 @@ impl App {
             if self.live_steering_available(){"Enter steers an active coordinator; Alt+Enter queues a follow-up."}else{"This service queues messages for later turns; live steering requires its next idle update."}))
     }
     fn modal_body(&self) -> (String, String) {
+        if self.modal==Modal::Login{return self.login_body();}
         if self.modal==Modal::Help&&self.continuous_mode(){
-            return ("Help · conversation controls".into(),format!("{}\nAlt+Enter queues a separate follow-up, including in F2 multiline mode. F7 opens the queue; arrows select, E withdraws/restores pending text to edit without sending. Applied guidance cannot be withdrawn. Interruption holds unconsumed input; reopening never replays it.\n\nUp/Down moves inside multiline input and recalls history at its first/last line. Ctrl-J or Shift+Enter adds a newline; F2 is the fallback (Enter adds a newline, Tab selects Send). Ctrl-R opens history; PageUp/PageDown scrolls chat. Paste stays literal.\n\nEscape/Ctrl-C clears nonempty main input; with empty input it interrupts the foreground coordinator. /interrupt does the same. Escape in a popup backs out one level. Ctrl-Q leaves immediately from any editor/overlay; empty-input Ctrl-D or /exit also leaves. Background work stays with the service. /pause stops new dispatch separately; /resume explicitly continues.\n\n/model and /thinking open selection; S saves, A reviews activation. /status shows current state and reported usage. F3 settings, F4 target, F6 tasks. Type / to discover commands; Tab completes. Explicit scope/policy/question actions keep their own approval boundaries. Esc returns to the draft.",if self.live_steering_available(){"Enter sends idle input or steers the foreground coordinator at its next agent boundary."}else{"Enter sends a conversation message. This service queues later turns until its next idle update adds live steering."}));
+            return ("Help · conversation controls".into(),format!("{}\nAlt+Enter queues a separate follow-up, including in F2 multiline mode. F7 opens the queue; arrows select, E withdraws/restores pending text to edit without sending. Applied guidance cannot be withdrawn. Interruption holds unconsumed input; reopening never replays it.\n\nUp/Down moves inside multiline input and recalls history at its first/last line. Ctrl-J or Shift+Enter adds a newline; F2 is the fallback (Enter adds a newline, Tab selects Send). Ctrl-R opens history; PageUp/PageDown scrolls chat. Paste stays literal.\n\nEscape/Ctrl-C clears nonempty main input; with empty input it interrupts the foreground coordinator. /interrupt does the same. Escape in a popup backs out one level. Ctrl-Q leaves immediately from any editor/overlay; empty-input Ctrl-D or /exit also leaves. Background work stays with the service. /pause stops new dispatch separately; /resume explicitly continues.\n\n/login signs in to a provider; F3 G signs in for the selected profile. /model and /thinking open selection; S saves, A reviews activation. /status shows current state and reported usage. F3 settings, F4 target, F6 tasks. Type / to discover commands; Tab completes. Explicit scope/policy/question actions keep their own approval boundaries. Esc returns to the draft.",if self.live_steering_available(){"Enter sends idle input or steers the foreground coordinator at its next agent boundary."}else{"Enter sends a conversation message. This service queues later turns until its next idle update adds live steering."}));
         }
         if let Some(body)=self.dialogue_modal().filter(|_|!self.development_mode()||matches!(self.modal,Modal::Queue|Modal::QuestionConfirm)){return body}
         if self.live.is_some() { return self.live_modal_body(); }
@@ -3483,7 +3490,7 @@ impl App {
             Modal::History => self.input_history_body(),
             Modal::ScopeEditor=>("Edit saved scope".into(),"Use Tab to select a field, edit, save or discard. No model call.".into()),
             Modal::Queue|Modal::QuestionConfirm=>("Unavailable".into(),"This bound release does not expose continuous conversation controls.".into()),
-            Modal::None=>(String::new(),String::new()),
+            Modal::None|Modal::Login=>(String::new(),String::new()),
         }
     }
     fn live_modal_body(&self) -> (String,String) {
@@ -3647,7 +3654,7 @@ impl App {
             Modal::History => self.input_history_body(),
             Modal::ScopeEditor=>("Edit saved scope".into(),"Use Tab to select a field, edit, save or discard. No model call.".into()),
             Modal::Queue|Modal::QuestionConfirm=>("Unavailable".into(),"Continuous conversation controls require the compatible release.".into()),
-            Modal::None|Modal::Status=>(String::new(),String::new()),
+            Modal::None|Modal::Status|Modal::Login=>(String::new(),String::new()),
         }
     }
     fn render_modal(
@@ -3709,7 +3716,9 @@ impl App {
             let edit_rect=Rect::new(content.x,content.y+hint_h,content.width,content.height.saturating_sub(hint_h));
             self.scope_editor.area.set_style(base);self.scope_editor.area.set_cursor_style(if self.modal_action==1{base.add_modifier(Modifier::REVERSED)}else{base});frame.render_widget(&self.scope_editor.area,edit_rect);
         }else{frame.render_widget(paragraph.scroll((self.modal_scroll, 0)), content);}
-        let actions = if self.modal == Modal::History {
+        let actions = if self.modal==Modal::Login{
+            "Up/Down choose · Enter continue · Ctrl-B browser · Esc cancel/back · Ctrl-Q leave".into()
+        }else if self.modal == Modal::History {
             "[Recall entry] · Up/Down select · Enter recall · Esc back".into()
         } else if self.live.is_some() { match self.modal {
             Modal::Queue=>{let rows=self.queue_rows();let selected=rows.get(self.queue_index);let mut controls=vec!["Back"];if selected.is_some_and(Self::queue_editable){controls.push("Withdraw message")}if selected.is_some_and(|r|r["status"]=="held"&&!r["input_id"].is_string())&&self.can_release_held(){controls.push("Continue selected held message")}format!("{} · E restore to edit",controls.iter().enumerate().map(|(i,n)|format!("{} [{n}]",if i==self.modal_action{"›"}else{" "})).collect::<Vec<_>>().join(" "))},
@@ -3727,7 +3736,7 @@ impl App {
             Modal::Question=>"[Back] · No question pending".into(),
             Modal::Consultation if self.pending_consultation().is_some()=>format!("{} [Back] {} [Authorize consultation]",if self.modal_action==0{">"}else{" "},if self.modal_action==1{">"}else{" "}),
             Modal::Steering if self.pending_steering().is_some()=>format!("{} [Back] {} [Apply steering]",if self.modal_action==0{">"}else{" "},if self.modal_action==1{">"}else{" "}),
-            Modal::Settings if self.provider_settings()=>"1–6 section · S save · L reload · R local refresh · Esc back".into(),
+            Modal::Settings if self.provider_settings()=>"1–7 section · S save · G sign in · L reload · R local refresh · Esc back".into(),
             Modal::Settings if self.native_dialogue_blocked()=>"[Back] · Native admission unavailable".into(),
             Modal::Settings if self.chat().is_some()=>format!("{} [Back] {} [{}]",if self.modal_action==0{">"}else{" "},if self.modal_action==1{">"}else{" "},if self.chat().is_some_and(|v|v["authorized"]==true){"Allowance already saved"}else if self.scope_mode(){"Authorize six conversation calls"}else{"Authorize three conversation calls"}),
             Modal::Settings if self.live.as_ref().is_some_and(|v|v.conversation.is_some())=>format!("{} [Back] {} [Replace mock binding]",if self.modal_action==0{">"}else{" "},if self.modal_action==1{">"}else{" "}),
@@ -3779,7 +3788,7 @@ impl App {
                 inner.width,
                 1,
             ),
-            if self.chat().is_some(){"PROJECT SERVICE · conversation and decisions are durable"}else if self.live.is_some(){"SIMULATED SERVICE · actions go through durable project IPC"}else{"SIMULATED DEMO · actions affect this isolated journal only"},
+            if self.modal==Modal::Login{"PRIVATE SIGN-IN · credentials stay outside project state"}else if self.chat().is_some(){"PROJECT SERVICE · conversation and decisions are durable"}else if self.live.is_some(){"SIMULATED SERVICE · actions go through durable project IPC"}else{"SIMULATED DEMO · actions affect this isolated journal only"},
             base,
         );
     }
@@ -5509,6 +5518,7 @@ mod tests {
     #[test]fn ordinary_reply_failure_names_response_problem_and_preserves_input(){
         let mut a=continuous_app();a.apply_event(&json!({"seq":100,"type":"conversation.turn_stopped","body":{"status":"format","reason":"Provider result malformed","recoverable":true}}));
         let text=&a.journal.messages.last().unwrap().text;assert!(text.contains("Reply unavailable · Provider result malformed"));assert!(text.contains("Message saved"));assert!(!text.contains("scope"));assert!(!text.contains("Call counted"));
+        let rendered=a.message_text(a.journal.messages.last().unwrap(),120);let heading=rendered.lines[0].to_string();assert_eq!(heading.matches("Reply unavailable").count(),1,"Failure heading repeats its status: {heading}");assert!(rendered.to_string().contains("Provider result malformed"));assert!(rendered.to_string().contains("Message saved"));
     }
     #[test]fn continuous_failure_event_supplies_exact_recovery_ack_before_snapshot(){
         let mut a=continuous_app();rows(&mut a,json!([{"turn_id":"failed","status":"reserved"},{"turn_id":"old","status":"queued"}]));a.live.as_mut().unwrap().conversation.as_mut().unwrap()["chat"]["status"]=json!("running");let pause=json!({"generation":3,"outcome_sha256":"exact-outcome","hard":false,"active":true,"recoverable":true});a.apply_event(&json!({"seq":100,"type":"conversation.turn_stopped","body":{"turn_id":"failed","status":"format","recoverable":true,"pause":pause}}));assert_eq!(a.message_payload("Deliberate new Send")["acknowledged_outcome"],pause);assert_eq!(a.queue_rows()[0]["status"],"held");assert_eq!(a.action_label(),"View held messages");a.input(Event::Paste("Deliberate new Send".into()));a.input(key(KeyCode::Enter));assert_eq!(a.take_intent(),Some(LiveIntent::SubmitTask("Deliberate new Send".into())));
@@ -5641,3 +5651,5 @@ include!("coordination_view.rs");
 include!("project_view.rs");
 
 include!("candidate_view.rs");
+
+include!("login_view.rs");

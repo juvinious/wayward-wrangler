@@ -249,6 +249,7 @@ impl App {
                     .position(|n| n == &id)
                     .unwrap_or(0);
             }
+            KeyCode::Char('g') if self.provider_section==0=>{let provider=self.provider_edit.as_ref().unwrap()["preferences"]["profiles"][&name]["provider"].as_str().map(str::to_owned);self.open_login(provider);}
             KeyCode::Char('c') if self.provider_section==0=>{let provider=self.provider_edit.as_ref().unwrap()["preferences"]["profiles"][&name]["provider"].as_str().map(str::to_owned);self.open_catalog(CatalogScope::Models(provider));}
             KeyCode::Char('f'|'/') if self.provider_section==0=>self.open_catalog(CatalogScope::Models(None)),
             KeyCode::Char('v') if self.provider_section==0=>self.open_catalog(CatalogScope::Providers),
@@ -405,7 +406,7 @@ impl App {
                         self.thinking_label(v)
                     ));
                 }
-                text.push_str("\n←/→ profile · + duplicate · V providers · C provider models · F all models\n");
+                text.push_str("\n←/→ profile · + duplicate · G sign in · V providers · C provider models · F all models\n");
                 for (i, field) in PROVIDER_FIELDS
                     .iter()
                     .enumerate()
@@ -519,6 +520,37 @@ mod provider_ui_tests {
             "discovery":{"providers":[{"id":"provider-a"},{"id":"provider-b"},{"id":"provider-empty"}],"models":models}}}}));
         app.input(Event::Key(KeyEvent::new(KeyCode::F(3),KeyModifiers::NONE)));
         app
+    }
+    #[test]
+    fn provider_login_from_settings_uses_sdk_methods_and_keeps_the_draft(){
+        let mut app=navigation_app();app.composer.area.insert_str("Unsent work");
+        app.live.as_mut().unwrap().conversation.as_mut().unwrap()["development"]["providers"]["discovery"]["providers"][0]["login_methods"]=serde_json::json!(["oauth","apiKey"]);
+        app.provider_key(KeyEvent::new(KeyCode::Char('g'),KeyModifiers::NONE));
+        assert!(app.modal_body().0.contains("Sign in"),"Settings offers no provider sign-in");assert!(app.take_intent().is_none());
+        app.input(Event::Key(KeyEvent::new(KeyCode::Enter,KeyModifiers::NONE)));
+        assert!(app.modal_body().1.contains("oauth"));app.input(Event::Key(KeyEvent::new(KeyCode::Enter,KeyModifiers::NONE)));
+        let intent=app.take_intent().expect("Explicit method did not start login");assert!(format!("{intent:?}").contains("provider-a"));
+        assert_eq!(app.composer.text(),"Unsent work");
+        app.auth_update(serde_json::json!({"type":"auth.prompt","id":"private-prompt","prompt":{"type":"secret","message":"Enter key"}}));
+        app.input(Event::Paste("fixture-private-value".into()));
+        app.input(Event::Key(KeyEvent::new(KeyCode::Home,KeyModifiers::NONE)));app.input(Event::Key(KeyEvent::new(KeyCode::Char('x'),KeyModifiers::NONE)));
+        assert!(!app.modal_body().1.contains("fixture-private-value"));assert!(!app.conversation_ui_state().to_string().contains("fixture-private-value"));
+        app.input(Event::Key(KeyEvent::new(KeyCode::Enter,KeyModifiers::NONE)));
+        assert!(matches!(app.take_intent(),Some(LiveIntent::AuthAnswer{id,value}) if id=="private-prompt"&&value=="xfixture-private-value"));
+        app.auth_update(serde_json::json!({"type":"auth.event","event":{"type":"auth_url","url":"https://example.invalid/authorize"}}));
+        assert_eq!(app.take_intent(),Some(LiveIntent::AuthBrowser("https://example.invalid/authorize".into())));
+        app.input(Event::Key(KeyEvent::new(KeyCode::Esc,KeyModifiers::NONE)));assert_eq!(app.take_intent(),Some(LiveIntent::AuthCancel));assert_eq!(app.composer.text(),"Unsent work");
+    }
+    #[test]
+    fn provider_login_callback_returns_without_replay_and_repeated_enter_cannot_start_it(){
+        let mut app=navigation_app();app.live.as_mut().unwrap().conversation.as_mut().unwrap()["development"]["providers"]["discovery"]["providers"][0]["login_methods"]=serde_json::json!(["oauth"]);
+        app.open_login(Some("provider-a".into()));app.input(Event::Key(KeyEvent::new(KeyCode::Enter,KeyModifiers::NONE)));
+        app.input(Event::Key(KeyEvent::new_with_kind(KeyCode::Enter,KeyModifiers::NONE,KeyEventKind::Repeat)));assert!(app.take_intent().is_none());
+        app.input(Event::Key(KeyEvent::new(KeyCode::Enter,KeyModifiers::NONE)));assert!(matches!(app.take_intent(),Some(LiveIntent::ProviderLogin{..})));
+        app.auth_update(serde_json::json!({"type":"auth.prompt","id":"redirect","prompt":{"type":"manual_code","message":"Optional redirect"}}));app.input(Event::Paste("private-redirect".into()));
+        app.auth_update(serde_json::json!({"type":"auth.prompt_cancelled","id":"redirect"}));assert!(!app.modal_body().1.contains("Optional redirect"));
+        app.auth_update(serde_json::json!({"type":"auth.completed","status":"authenticated"}));assert!(app.modal_body().1.contains("held messages will not retry"));assert!(app.take_intent().is_none());
+        app.input(Event::Key(KeyEvent::new(KeyCode::Enter,KeyModifiers::NONE)));assert_eq!(app.modal,Modal::Settings);
     }
     #[test]
     fn direct_model_thinking_and_status_commands_open_their_controls_without_execution(){

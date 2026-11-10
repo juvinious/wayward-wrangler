@@ -124,6 +124,37 @@ concurrent provider updates. Actual account login/token refresh is not verified
 by the fixture checks. Providers needing additional ambient environment setup
 retain their SDK requirements; catalog presence is not authentication proof.
 
+Use `/login` inside Waywr, or G in F3 Profiles to start with that profile's
+provider selected. Choose a provider, then one of the interactive methods reported
+by the SDK. Provider/account credentials serve its models; selecting a new model
+does not inherently require a separate login. Some providers use API keys or
+ambient/cloud setup and do not offer browser login. Environment-only custom
+endpoints retain their configured auth_env; no interactive flow is invented.
+
+OAuth URL/device-code notifications open the local browser through xdg-open;
+Ctrl-B retries opening, and the URL remains available for manual/headless use.
+SDK callback or code-entry handling completes the flow. Secret/API-key and manual
+code entry are masked in a separate ephemeral editor. Esc cancels and returns to
+the prior view; Ctrl-Q leaves promptly. Draft, service work and model/scope choices
+remain unchanged. Signing in never retries a message or releases held input.
+
+The sign-in child speaks private stdin/stdout events directly to the UI, outside
+project IPC/outboxes/history. Keys, codes and OAuth notifications are not persisted
+as project data. The SDK writes tokens to the private credential store; raw SDK
+exchange/refresh errors are suppressed because they may include response bodies. The
+SDK's own complete static OAuth registration helper is included in the single-file
+runtime so its dynamic flow imports do not depend on installed node_modules.
+No provider/model allowlist was added. Actual account consent/token exchange and
+refresh remain operator verification; local API-key fixtures and OAuth prompt/
+cancellation checks do not establish successful account access.
+
+For the built-in Anthropic provider, run `waywr models login anthropic --method oauth`
+for its subscription login flow or `waywr models login anthropic --method apiKey`
+for an API key. With the project-local candidate, use `./target/local-bin/waywr`
+in place of `waywr` from this checkout. A missing-credentials reply does not retry
+automatically: sign in, then deliberately send again. Older queued inputs remain
+held. To use another provider, choose it in /model, save and review activation.
+
 Never place actual keys/tokens in model options or tracked configuration. Runtime
 options cannot override credentials, headers, endpoint, signal or process identity.
 Credentials remain outside project preferences, packets and readable projections.

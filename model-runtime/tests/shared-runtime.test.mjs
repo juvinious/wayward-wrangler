@@ -19,6 +19,8 @@ test('catalog exposes per-model thinking choices and default from runtime capabi
     let text='';child.stdout.on('data',c=>text+=c);child.stderr.resume();child.stdin.end(JSON.stringify({config}));
     assert.equal(await new Promise(done=>child.on('close',done)),0);
     const data=JSON.parse(text),model=data.models.find(m=>m.provider==='thinking-fixture'&&m.model==='reasoning-model');
+    assert.deepEqual(data.providers.find(p=>p.id==='anthropic').login_methods,['apiKey','oauth']);
+    assert.deepEqual(data.providers.find(p=>p.id==='thinking-fixture').login_methods,[],'Environment-only providers must not advertise an interactive login');
     assert.deepEqual(model.thinking_levels,['low','medium','high','xhigh']);
     assert.equal(model.thinking_default,'low');
     assert.deepEqual(data.models.find(m=>m.provider==='thinking-fixture'&&m.model==='plain-model').thinking_levels,['off']);

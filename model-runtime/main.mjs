@@ -13,6 +13,13 @@ import {once} from 'node:events';
 import {Writable} from 'node:stream';
 import {taskTools} from './tools.mjs';
 import {liveInput} from './live-input.mjs';
+import {loginUI} from './login-ui.mjs';
+import {registerBunOAuthFlows as registerBundledOAuthFlows} from '@earendil-works/pi-ai/bun-oauth';
+
+// The SDK's static registration helper embeds all of its OAuth flows. Without
+// this, esbuild's single-file output cannot resolve the SDK's variable imports.
+// The registered flows use standard Node APIs; no Bun runtime is required.
+registerBundledOAuthFlows();
 
 const emit=value=>process.stdout.write(JSON.stringify(value)+'\n');
 const protocols={'openai-completions':openAICompletionsApi,'openai-responses':openAIResponsesApi,
@@ -67,7 +74,9 @@ async function describe(input) {
     authentication:'not checked',capabilities:['conversation','coordinator','implementation','review']}));
   const first=config.defaults||{provider:list[0]?.provider,model:list[0]?.model};
   emit({protocol:1,catalog_version:2,providers:models.getProviders().map(p=>({id:p.id,name:p.name,authentication:'not checked',
-    methods:Object.entries(p.auth).filter(([,v])=>v).map(([k])=>k)})),models:list,default:first,
+    methods:Object.entries(p.auth).filter(([,v])=>v).map(([k])=>k),
+    login_methods:Object.entries(p.auth).filter(([,v])=>typeof v?.login==='function').map(([k])=>k),
+    login_method_labels:Object.fromEntries(Object.entries(p.auth).filter(([,v])=>typeof v?.login==='function').map(([k,v])=>[k,v.name||k]))})),models:list,default:first,
     configured_providers:(config.providers||[]).map(p=>p.id),inference:false});
 }
 async function run(input) {
@@ -88,7 +97,12 @@ async function run(input) {
     if(typeof thinking!=='string'||(knownModel&&!getSupportedThinkingLevels(model).includes(thinking)))throw Error('Selected thinking level is unsupported for this model; choose one of its runtime-advertised levels');
     runtime.requested_thinking_level=thinking;runtime.thinking_capabilities=knownModel?'runtime metadata':'unverified manual model';
     const {reasoning:requestedReasoning,...requestOptions}=options;
-    if(!await models.getAuth(model))throw Error(`Provider ${p.provider} needs credentials; use waywr models login or its SDK environment variable`);
+    let authenticated;
+    try{authenticated=await models.getAuth(model);}catch{
+      // OAuth refresh errors may contain token-exchange response bodies.
+      throw Error(`Provider ${p.provider} credentials could not be loaded or refreshed; open /login in Waywr to sign in again`);
+    }
+    if(!authenticated)throw Error(`Provider ${p.provider} needs credentials; open /login in Waywr, use waywr models login, or configure its SDK environment variable`);
     const submit={name:'submit_result',label:'Submit result',description:'Finish this assigned operation with the exact required structured result.',parameters:input.schema,
       execute:async(_id,value)=>{if(submitted!==undefined)throw Error('Result already submitted');submitted=value;return {content:[{type:'text',text:'Result recorded for application validation'}],details:{},terminate:true};}};
     const worker=p.operation_kind==='development-worker';
@@ -130,13 +144,20 @@ async function login(provider,type='oauth') {
   let muted=false;
   const output=new Writable({write(chunk,_encoding,done){if(!muted)process.stderr.write(chunk);done();}});output.isTTY=process.stderr.isTTY;
   const models=await registry({},true),rl=createInterface({input:process.stdin,output,terminal:!!process.stdin.isTTY});
-  try{await models.login(provider,type,{prompt:async p=>{process.stderr.write(p.message+' ');muted=p.type==='secret';try{return await rl.question('');}finally{muted=false;process.stderr.write('\n');}},notify:e=>{
+  try{await models.login(provider,type,{prompt:async p=>{process.stderr.write(p.message+' ');
+    if(p.type==='select'){
+      for(const [i,o] of p.options.entries())process.stderr.write(`\n${i+1}. ${o.label}`);
+      const answer=await rl.question('\nChoice [1]: ');const option=p.options[Number(answer||'1')-1]||p.options.find(o=>o.id===answer);
+      if(!option)throw Error('Invalid login choice');return option.id;
+    }
+    muted=p.type==='secret';try{return await rl.question('');}finally{muted=false;process.stderr.write('\n');}},notify:e=>{
     if(e.url)process.stderr.write(e.url+'\n');else if(e.verificationUri)process.stderr.write(e.verificationUri+' '+e.userCode+'\n');else if(e.message)process.stderr.write(e.message+'\n');}});
     process.stderr.write('Credentials saved in the private Waywr runtime store.\n');}finally{rl.close();}
 }
 try {
   const action=process.argv[2];
-  if(action==='login')await login(process.argv[3],process.argv[4]);
+  if(action==='login-ui')await loginUI(await registry({},true),process.argv[3],process.argv[4],{emit});
+  else if(action==='login')await login(process.argv[3],process.argv[4]);
   else {let text='';for await(const chunk of process.stdin){text+=chunk;if(text.length>8*1024*1024)throw Error('Runtime input too large');}
     const input=JSON.parse(text||'{}');if(action==='describe')await describe(input);else if(action==='run')await run(input);else throw Error('Expected describe, run or login');}
 }catch(error){process.stderr.write(String(error.message).slice(0,500)+'\n');process.exitCode=3;}
