@@ -169,6 +169,11 @@ choice with its profile. F3 shows draft and active model/level separately; the
 main view shows the saved coordinator selection first and explicitly labels any
 different active binding and its readiness state.
 
+The conversation shows its current or latest coordinator call's model, thinking
+level and reported token/cache usage. Cost and context remaining are labelled
+estimates when available; missing data stays unknown. Completed-call totals remain
+visible after reopening. This reports conversation-call usage, not an account quota.
+
 Development activity labels follow saved event status and review disposition, so
 prose about failed-save tests cannot mark a passing review as failed. A completed
 review is separate from combined checks and delivery. Once a new topic owns a scope,

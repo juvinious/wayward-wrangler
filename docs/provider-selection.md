@@ -140,12 +140,24 @@ not change that route. Filesystem/tool effects are adopted only through the exis
 host settlement, scope, exact commit/review and receipt checks.
 
 Activity and usage are carried into existing worker views and retained evidence.
+The main conversation also shows its current coordinator conversation call, or
+the most recent call with telemetry for the selected subject. It names that
+call's selected provider/model and thinking level, separate from saved preferences.
+Active calls refresh through a small read-only telemetry request once per second;
+missing refreshes and disconnected views are labelled. Completed-call totals remain
+visible after reopening. Starting a new call does not borrow the previous totals.
+This summary covers conversation calls; autonomous workflow coordinator operations
+are not yet included in it. Existing worker activity remains separate.
 Token totals are cumulative per attempt; repeated UI refreshes do not add them.
-Context remaining is a labelled estimate when capacity/usage exist. Missing usage,
+Input/output and cache read/write counts stay separate. Context remaining uses
+the last response's usage and catalog capacity, labelled as an estimate rather
+than a prediction of the next prompt or subscription quota. Missing usage,
 cost or capacity remains unknown. SDK cost may be estimated from catalog prices;
 no subscription quota or billed-account balance is inferred. The provider's canonical
 model identity is not independently attested; records distinguish the selected SDK
 route from a provider-reported identity. Hidden reasoning is not projected.
+Only bounded numeric usage and selected identity/activity fields enter this
+projection. Raw prompts, tool output and extra runtime fields remain outside it.
 
 Lost/ambiguous post-send completion remains uncertain even after local process exit.
 Cancellation fences adoption and settles owned local processes; it does not prove

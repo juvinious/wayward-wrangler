@@ -70,6 +70,8 @@ def main():
                         help='Use real F3 terminal input to select a model at the end of the catalog and save it in the fixture')
     parser.add_argument('--activate-profile', action='store_true',
                         help='Explicitly activate the saved model through its F3 review while the fixture session is paused')
+    parser.add_argument('--coordinator-usage', action='store_true',
+                        help='Display inert retained coordinator telemetry through real IPC/TUI, including after reopening')
     parser.add_argument('--systemd-handover', action='store_true',
                         help='Use real uniquely keyed user units; replace a still-running idle service')
     parser.add_argument('--portable', action='store_true',
@@ -85,6 +87,8 @@ def main():
         parser.error('--previous-binaries requires --systemd-handover and --populated-history')
     if args.activate_profile and (not args.provider_navigation or args.systemd_handover):
         parser.error('--activate-profile requires --provider-navigation with the direct isolated service')
+    if args.coordinator_usage and args.systemd_handover:
+        parser.error('--coordinator-usage uses the direct isolated service')
     binaries = args.binaries.resolve()
     source = Path(__file__).resolve().parent.parent
     for name in ['waywr', 'waywr-service', 'waywr-runner']:
@@ -229,6 +233,49 @@ def main():
                     database.execute('INSERT INTO development_records(kind,id,record_json) VALUES(?,?,?)',
                                      ('notification', record['id'], json.dumps(record)))
 
+        def seed_coordinator_usage():
+            # Inert completed-call fixture, not execution/settlement evidence.
+            turn = 'fixture-usage-call'
+            attempt = 'd' * 32
+            directory = state / 'session/coordinator' / turn / 'call-v1'
+            evidence = directory / 'attempts' / attempt
+            evidence.mkdir(parents=True)
+            records = {
+                directory / 'operation.json': {'schema_version': 2, 'project_key': key,
+                    'operation_id': turn, 'packet_sha256': 'e' * 64,
+                    'provider': 'fixture-provider', 'model': 'fixture-model'},
+                directory / 'active-host-attempt.json': {'attempt_id': attempt, 'unit': 'fixture-no-process.service'},
+                evidence / 'intent.json': {'attempt_id': attempt, 'unit': 'fixture-no-process.service',
+                    'project_key': key, 'operation_id': turn, 'packet_sha256': 'e' * 64},
+                evidence / 'runtime-result.json': {'model_identity': 'SDK route fixture',
+                    'requested_thinking_level': 'high', 'private': 'PRIVATE FIXTURE FIELD',
+                    'usage': {'input': 1234, 'output': 56, 'cacheRead': 200, 'cacheWrite': 0,
+                              'cost': 0.0123, 'context_tokens': 1490, 'context_window': 4096}},
+            }
+            for path, record in records.items():
+                path.write_text(json.dumps(record))
+            with sqlite3.connect(state / 'state.sqlite') as database:
+                database.execute("INSERT INTO conversation_turns(turn_id,schema_version,project_key,message_id,binding_generation,status) VALUES(?,1,?,?,1,'completed')",
+                                 (turn, key, 'fixture-usage-message'))
+                database.execute("INSERT INTO dialogue_inputs(turn_id,subject_id) VALUES(?,'discussion')", (turn,))
+
+        def inspect_coordinator_usage():
+            with socket.socket(socket.AF_UNIX) as peer:
+                peer.settimeout(5)
+                peer.connect(str(ipc))
+                stream = peer.makefile('rwb', buffering=0)
+                def send(kind, body):
+                    stream.write(json.dumps({'v': 1, 'kind': kind, 'request_id': kind, 'body': body}).encode() + b'\n')
+                    return json.loads(stream.readline())
+                owner = json.loads((state / 'supervision/owner.json').read_text())
+                assert send('hello', {'protocol': {'major': 1, 'minor': 10}, 'release_id': owner['release_id'],
+                                     'project_key': key, 'client_id': 'fixture-reader', 'channel': 'command'})['body']['accepted']
+                result = send('conversation.activity', {'turn_id': 'fixture-usage-call'})
+                assert result['kind'] == 'conversation.activity_result', result
+                assert result['body']['runtime']['usage']['input'] == 1234
+                assert 'PRIVATE' not in json.dumps(result)
+                assert send('conversation.activity', {'turn_id': 'foreign-turn'})['kind'] == 'error'
+
         def prove_old_snapshot_closes():
             with socket.socket(socket.AF_UNIX) as peer:
                 peer.settimeout(5)
@@ -313,6 +360,15 @@ def main():
                 assert ready_text in screen, (
                     'Normal launch failed before the composer opened: ' +
                     screen.decode(errors='replace')[-1200:])
+                if args.coordinator_usage:
+                    deadline = time.monotonic() + 10
+                    while '$0.0123' not in terminal_text(screen, rows, columns) and time.monotonic() < deadline:
+                        if select.select([master], [], [], .1)[0]:
+                            screen.extend(os.read(master, 65536))
+                    visible = terminal_text(screen, rows, columns)
+                    assert '$0.0123' in visible and '1234' in visible and '2606' in visible, visible
+                    assert 'fixture-provider/fixture-model' in visible
+                    inspect_coordinator_usage()
                 if args.retired_profiles:
                     os.write(master, b'\x1b[13~')  # F3: setup must be reachable.
                     def setup_visible():
@@ -444,9 +500,12 @@ def main():
                                   'old_build_removed': True, 'model_calls': 0}))
                 return
             start_service(releases[0])
-            if args.populated_history:
+            if args.populated_history or args.coordinator_usage:
                 stop_service()
-                seed_history()
+                if args.populated_history:
+                    seed_history()
+                if args.coordinator_usage:
+                    seed_coordinator_usage()
                 start_service(releases[0])
             if args.activate_profile:
                 run([launcher, 'session', 'stop'])
@@ -486,6 +545,7 @@ def main():
                               'catalog_navigation_saved_and_reopened': args.provider_navigation,
                               'thinking_level_saved_and_reopened': args.provider_navigation,
                               'model_activated_without_resuming': args.activate_profile,
+                              'coordinator_usage_visible_and_reopened': args.coordinator_usage,
                               'populated_history_snapshot_delivered': args.populated_history,
                               'draft_settings_and_pause_preserved': True,
                               'manual_rebinds': 0, 'model_calls': 0,

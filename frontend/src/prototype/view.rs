@@ -2471,6 +2471,52 @@ impl App {
         spans.push(Span::styled(format!("{} · /output inspect", elapsed.map(|time| format!(" ({time})")).unwrap_or_default()), Style::default().fg(tone.muted)));
         Some(Line::from(spans))
     }
+    pub fn coordinator_activity_request(&self)->Option<Value>{
+        let c=self.live.as_ref()?.conversation.as_ref()?;
+        c["turns"].as_array()?.iter().find(|t|t["status"]=="reserved"&&
+            (!self.coordination_mode()||t["subject_id"]==self.conversation_subject))
+            .map(|t|serde_json::json!({"turn_id":t["turn_id"]}))
+    }
+    pub fn apply_coordinator_activity(&mut self,body:&Value){
+        if let Some(turn)=self.live.as_mut().and_then(|l|l.conversation.as_mut())
+            .and_then(|c|c["turns"].as_array_mut()).and_then(|a|a.iter_mut().find(|t|
+                t["turn_id"]==body["turn_id"]&&t["status"]==body["status"])){
+            let previous=turn["runtime"]["observed_at"].as_f64().unwrap_or(0.);
+            if body["runtime"].is_null() || body["runtime"]["observed_at"].as_f64().is_some_and(|at|at>=previous){
+                turn["runtime"]=body["runtime"].clone();self.dirty=true;
+            }
+        }
+    }
+    fn coordinator_activity_lines(&self) -> Vec<Line<'static>> {
+        let Some(live)=self.live.as_ref() else{return Vec::new();};
+        let Some(turns)=live.conversation.as_ref().and_then(|c|c["turns"].as_array()) else{return Vec::new();};
+        let in_subject=|t:&&Value|!self.coordination_mode()||t["subject_id"]==self.conversation_subject;
+        // A pending call must not borrow the previous call's totals or model.
+        let turn=turns.iter().filter(in_subject).find(|t|t["status"]=="reserved")
+            .or_else(||turns.iter().filter(in_subject).find(|t|t["runtime"].is_object()));
+        let Some(turn)=turn else{return Vec::new();};
+        let runtime=&turn["runtime"];
+        let tone=Tone::for_theme(&self.journal.theme);
+        let status=turn["status"].as_str().unwrap_or("unknown");
+        let observed=if self.journal.connection=="connected"{"Coordinator call"}else{"Last observed coordinator call"};
+        if !runtime.is_object(){return vec![Line::styled(format!("{observed} · {status} · usage not reported yet"),Style::default().fg(tone.muted))];}
+        let stale=status=="reserved"&&runtime["observed_at"].as_f64().is_none_or(|at|waywr_backend::execution::now()-at>5.);
+        let activity=if stale{"Activity refresh unavailable"}else if status=="reserved"{runtime["activity"]["label"].as_str().unwrap_or("Activity unavailable")}else{""};
+        let usage=&runtime["usage"];
+        let count=|key:&str|usage[key].as_u64().map(|n|n.to_string()).unwrap_or_else(||"unknown".into());
+        let cost=usage["cost"].as_f64().filter(|n|n.is_finite()&&*n>=0.).map(|n|format!("${n:.4} (estimate)")).unwrap_or_else(||"unknown".into());
+        let context=match (usage["context_window"].as_u64().filter(|n|*n>0),usage["context_tokens"].as_u64()){
+            (Some(window),Some(used))=>format!("~{} / {} tokens left (estimate at last response)",window.saturating_sub(used),window),
+            _=>"remaining unknown".into(),
+        };
+        vec![
+            Line::styled(Self::safe(&format!("{observed} · {status} · {}/{} · thinking {}{}",
+                runtime["provider"].as_str().unwrap_or("unknown"),runtime["model"].as_str().unwrap_or("unknown"),
+                runtime["thinking"].as_str().unwrap_or("unknown"),if activity.is_empty(){String::new()}else{format!(" · {activity}")})),Style::default().fg(tone.muted)),
+            Line::styled(format!("Tokens in {} · out {} · cache read {} / write {} · cost {}",count("input"),count("output"),count("cacheRead"),count("cacheWrite"),cost),Style::default().fg(tone.muted)),
+            Line::styled(format!("Context {context} · account quota unavailable"),Style::default().fg(tone.muted)),
+        ]
+    }
     fn conversation_text(&self, width: u16) -> Text<'static> {
         let mut lines: Vec<Line<'static>> = Vec::new();
         if self
@@ -2511,6 +2557,7 @@ impl App {
             lines.extend(self.worker_activity_lines());
             lines.push(Line::from(""));
         }
+        lines.extend(self.coordinator_activity_lines());
         Text::from(lines)
     }
     fn user_row(value: &str, width: u16, background: Color, foreground: Color) -> Line<'static> {
@@ -4883,6 +4930,64 @@ mod tests {
         let work=&mut app.live.as_mut().unwrap().conversation.as_mut().unwrap()["development"]["workflows"][0];
         work["question"] = Value::Null; work["status"] = json!("running");
         app.command("resume"); assert!(app.notice.contains("already running")); assert!(app.take_intent().is_none());
+    }
+    #[test]
+    fn coordinator_usage_is_visible_and_scoped_without_inventing_account_quota() {
+        let mut app = continuous_app();
+        app.live.as_mut().unwrap().conversation.as_mut().unwrap()["turns"] = json!([{
+            "turn_id":"call-one","subject_id":"discussion","status":"completed",
+            "runtime":{"provider":"custom-protocol","model":"model-outside-core","thinking":"high",
+                "activity":{"label":"Submitting result"},
+                "usage":{"input":1234,"output":56,"cacheRead":200,"cacheWrite":0,
+                    "cost":0.0123,"context_tokens":1490,"context_window":4096}}
+        }]);
+        let text = app.conversation_text(100).lines.iter().map(ToString::to_string).collect::<Vec<_>>().join("\n");
+        assert!(text.contains("custom-protocol/model-outside-core"), "Coordinator usage must name the actual call's model");
+        assert!(text.contains("1234") && text.contains("56") && text.contains("$0.0123"));
+        assert!(text.contains("2606") && text.contains("estimate"));
+        assert!(text.contains("completed"));
+        assert!(app.take_intent().is_none());
+        for (width,height) in [(80,24),(120,32)] {
+            let backend=TestBackend::new(width,height);let mut terminal=Terminal::new(backend).unwrap();
+            terminal.draw(|f|app.render(f,Duration::ZERO)).unwrap();
+            let buffer=terminal.backend().buffer();
+            let display=(0..height).map(|y|(0..width).map(|x|buffer[(x,y)].symbol()).collect::<String>()).collect::<Vec<_>>().join("\n");
+            assert!(display.contains("1234") && display.contains("$0.0123"),"Usage must be visible in the normal terminal viewport");
+            if let Ok(dir)=std::env::var("WAYWR_UI_SNAPSHOT_DIR") {
+                std::fs::create_dir_all(&dir).unwrap();
+                std::fs::write(std::path::Path::new(&dir).join(format!("coordinator-usage-{width}x{height}.txt")),display).unwrap();
+            }
+        }
+        app.live.as_mut().unwrap().conversation.as_mut().unwrap()["coordination"] = json!({"version":1});
+        app.conversation_subject="another-request".into();
+        assert!(app.coordinator_activity_lines().is_empty(),"Another subject's usage must not appear in this conversation");
+        app.conversation_subject="discussion".into();
+        app.journal.connection="reconnecting".into();
+        assert!(app.coordinator_activity_lines()[0].to_string().contains("Last observed"));
+        app.journal.connection="connected".into();
+        app.live.as_mut().unwrap().conversation.as_mut().unwrap()["turns"][0]["runtime"]["usage"] = json!({});
+        let text = app.conversation_text(100).lines.iter().map(ToString::to_string).collect::<Vec<_>>().join("\n");
+        assert!(text.contains("unknown") && !text.contains("$0.0000"));
+        app.live.as_mut().unwrap().conversation.as_mut().unwrap()["turns"].as_array_mut().unwrap().insert(0,json!({
+            "turn_id":"call-two","subject_id":"discussion","status":"reserved","runtime":null}));
+        let text=app.coordinator_activity_lines().iter().map(ToString::to_string).collect::<Vec<_>>().join("\n");
+        assert!(text.contains("not reported yet") && !text.contains("1234"));
+        assert_eq!(app.coordinator_activity_request().unwrap()["turn_id"],"call-two");
+        let response=json!({"turn_id":"call-two","status":"reserved","runtime":{
+            "observed_at":waywr_backend::execution::now(),"provider":"custom-protocol","model":"model-two",
+            "activity":{"label":"Requesting model response"},"usage":{"input":42,"output":5}}});
+        app.apply_coordinator_activity(&response);
+        let text=app.coordinator_activity_lines().iter().map(ToString::to_string).collect::<Vec<_>>().join("\n");
+        assert!(text.contains("model-two") && text.contains("42") && text.contains("Requesting model response"));
+        let mut older=response.clone();older["runtime"]["observed_at"]=json!(1.);older["runtime"]["model"]=json!("stale-model");
+        app.apply_coordinator_activity(&older);
+        assert!(!app.coordinator_activity_lines()[0].to_string().contains("stale-model"));
+        app.live.as_mut().unwrap().conversation.as_mut().unwrap()["turns"][0]["runtime"]["observed_at"]=json!(1.);
+        assert!(app.coordinator_activity_lines()[0].to_string().contains("refresh unavailable"));
+        app.live.as_mut().unwrap().conversation.as_mut().unwrap()["turns"][0]["status"]=json!("completed");
+        app.apply_coordinator_activity(&response);
+        assert_eq!(app.live.as_ref().unwrap().conversation.as_ref().unwrap()["turns"][0]["status"],"completed");
+        assert!(app.coordinator_activity_request().is_none());
     }
     #[test]
     fn activity_timestamps_use_local_today_or_date_without_inventing_missing_time() {

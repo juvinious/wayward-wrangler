@@ -366,6 +366,8 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
     let mut last_output_fetch=Instant::now()-Duration::from_secs(1);
     let mut operation_request_id:Option<String>=None;
     let mut last_operation_fetch=Instant::now()-Duration::from_secs(2);
+    let mut coordinator_activity_request_id:Option<String>=None;
+    let mut last_coordinator_activity_fetch=Instant::now()-Duration::from_secs(2);
     let mut artifact_request_id:Option<String>=None;
     let mut detail_request_id:Option<String>=None;
     let mut last_detail_fetch=Instant::now()-Duration::from_secs(1);
@@ -654,6 +656,14 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
             }
             app.dirty=true;
         }
+        if coordinator_activity_request_id.is_none()&&last_coordinator_activity_fetch.elapsed()>=Duration::from_secs(1){
+            if let Some(body)=app.coordinator_activity_request(){
+                let id=command_id(&mut counter);
+                if commands_tx.try_send(("conversation.activity".into(),id.clone(),body)).is_ok(){
+                    coordinator_activity_request_id=Some(id);last_coordinator_activity_fetch=Instant::now();
+                }
+            }
+        }
         if (app.modal==Modal::Worker || app.has_active_workers()) && operation_request_id.is_none() &&
             last_operation_fetch.elapsed()>=Duration::from_secs(1){
             if let Some(task_id)=app.live.as_ref().and_then(|live|live.tasks.get(app.journal.selected_task))
@@ -676,6 +686,9 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
         while let Ok(update)=updates_rx.try_recv() {
             let detail_reply=detail_request_id.as_deref()==Some(update.request_id.as_str());
             if detail_reply{detail_request_id=None;}
+            if coordinator_activity_request_id.as_deref()==Some(update.request_id.as_str()){
+                coordinator_activity_request_id=None;
+            }
             if operation_request_id.as_deref()==Some(update.request_id.as_str()){
                 operation_request_id=None;
             }
@@ -719,6 +732,7 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
                 },
                 "task.plan_result"=>app.apply_plan(update.body),
                 "operation.list_result"=>app.apply_operation_list(&update.body),
+                "conversation.activity_result"=>app.apply_coordinator_activity(&update.body),
                 "operation.output.page"=>{
                     let text=update.body["page"]["segments"].as_array()
                         .ok_or_else(||io::Error::other("Output page lacks segments"))

@@ -32,6 +32,10 @@ Choose Thinking in the profile form to select one of that model's advertised
 levels before saving. F3 labels draft and active selections; the main header
 shows the saved coordinator model/level first and any different active binding
 with its readiness state.
+After a coordinator conversation call, the conversation also shows that call's
+model/level, token/cache counts and any cost/context estimate. During a call it
+refreshes read-only activity; after completion and reopening it retains the latest
+subject-local call. Missing telemetry stays unknown and account quota is unavailable.
 For an existing project, use A in Profiles after saving a different coordinator.
 Review the model, thinking level and destination, select Activate and share project
 context, then Enter. The default Keep current and Esc leave the binding alone.

@@ -305,6 +305,8 @@ impl Service {
             },
             "conversation.read"=>if self.conversation{Ok(("conversation.result",self.session.conversation_snapshot()?))}
                 else{Ok(("error",json!({"code":"capability_unavailable","message":"Conversation requires schema 4"})))},
+            "conversation.activity"=>if self.conversation{Ok(("conversation.activity_result",self.session.conversation_activity(body["turn_id"].as_str().ok_or("missing turn ID")?)?))}
+                else{Ok(("error",json!({"code":"capability_unavailable","message":"Conversation requires schema 4"})))},
             "events_read"=>{
                 let after=body["after_seq"].as_u64().ok_or("invalid event cursor")?;
                 let limit=body["limit"].as_u64().ok_or("invalid event limit")?;

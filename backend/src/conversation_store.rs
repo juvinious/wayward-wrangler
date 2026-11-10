@@ -284,7 +284,9 @@ impl Session {
             r.get::<_,Option<String>>(2)?,r.get::<_,Option<String>>(3)?)))
             .map_err(|e|e.to_string())?{
             let (id,status,bucket,reason)=row.map_err(|e|e.to_string())?;
-            turns.push(json!({"turn_id":id,"status":status,"budget_bucket":bucket,"reason":reason,
+            let subject:Option<String>=if self.continuous(){tx.query_row("SELECT subject_id FROM dialogue_inputs WHERE turn_id=?1",[&id],|r|r.get(0)).optional().map_err(|e|e.to_string())?}else{Some("discussion".into())};
+            let runtime=self.conversation_runtime(&id);
+            turns.push(json!({"turn_id":id,"status":status,"subject_id":subject,"runtime":runtime,"budget_bucket":bucket,"reason":reason,
                 "execution_record":if self.conversation_native(){json!(format!("session/coordinator/{id}/call-v1/"))}else{Value::Null}}));
         }
         let stream:Option<String>=tx.query_row("SELECT value FROM session_metadata WHERE name='claude_chat_stream_v1'",[],|r|r.get(0)).optional().map_err(|e|e.to_string())?;
@@ -293,6 +295,18 @@ impl Session {
             "binding":binding,"budgets":budget,"actions":actions,"turns":turns,"scope_enabled":self.scope_enabled(),"continuous":if self.continuous(){self.dialogue_state()?}else{Value::Null},"history_truncated":history_truncated,"execution_available":self.development()||!self.conversation_native(),"development":if self.development(){self.development_snapshot()?}else{Value::Null},
             "coordination":if crate::coordination::enabled(self){crate::coordination::snapshot(self)?}else{Value::Null},"chat":chat,
             "provisional":stream.and_then(|s|serde_json::from_str::<Value>(&s).ok())}))
+    }
+    fn conversation_runtime(&self,turn:&str)->Option<Value>{
+        let directory=if self.development(){self.development_chat_attempt(turn).ok().flatten()}else{
+            Some(self.workflow.state.join("session/coordinator").join(turn).join("call-v1"))};
+        directory.and_then(|d|crate::model_runtime::presentation(&self.workflow.state,&d,&self.key))
+    }
+    /// Read-only telemetry refresh; it changes neither turn state nor authority.
+    pub fn conversation_activity(&self,turn:&str)->Result<Value,String>{
+        let status:Option<String>=self.workflow.connection()?.query_row(
+            "SELECT status FROM conversation_turns WHERE turn_id=?1 AND project_key=?2",
+            params![turn,self.key],|r|r.get(0)).optional().map_err(|e|e.to_string())?;
+        Ok(json!({"turn_id":turn,"status":status.ok_or("Turn not found in this project")?,"runtime":self.conversation_runtime(turn)}))
     }
     pub fn conversation_handoff(&self)->Result<Value,String>{
         if !self.conversation_enabled()?{return Err("Conversation unavailable on this project schema".into());}
@@ -1252,6 +1266,60 @@ mod tests {
             .conversation_submit(&json!({"command_id":id,"action":"submit_message",
             "expected_state_revision":rev,"payload":{"text":text}}))
             .unwrap()
+    }
+    #[test]
+    fn coordinator_runtime_progress_reaches_snapshot_without_private_payloads() {
+        let (_root, s) = fixture("abababababababababababababababab");
+        let accepted = submit(&s, "message", 0, "Discuss a project");
+        let turn = accepted["turn_id"].as_str().unwrap();
+        let call_root = s.workflow.state.join("session/coordinator").join(turn);
+        assert!(s.conversation_snapshot().unwrap()["turns"][0]["runtime"].is_null());
+        assert!(!call_root.exists(), "Reading telemetry must not create operation directories");
+        crate::execution::write(&s.workflow.state.join("supervision/owner.json"),
+            &json!({"generation":1,"project_key":s.key}), true).unwrap();
+        let directory = s.workflow.state.join("session/coordinator").join(turn).join("call-v1");
+        crate::operation::prepare_host(&s.workflow.state, &directory,
+            &json!({"schema_version":1,"operation_kind":"conversation","operation_id":format!("c-{turn}"),
+                "provider":"custom-protocol","model":"model-outside-core","execution":{"options":{"reasoning":"high"}},
+                "secret":"PRIVATE PACKET"}), &s.key).unwrap();
+        let attempt = crate::host_attempt::Attempt::create(&s.workflow.state, &directory, &s.key,
+            &std::env::current_exe().unwrap(), &s.release, 1).unwrap();
+        crate::model_runtime::progress(&attempt.directory, &json!({"type":"runtime.started",
+            "provider":"custom-protocol","model":"model-outside-core","thinking_level":"high"})).unwrap();
+        crate::model_runtime::progress(&attempt.directory, &json!({"type":"runtime.activity",
+            "label":"Requesting model response","status":"running","text":"PRIVATE TEXT"})).unwrap();
+        crate::model_runtime::progress(&attempt.directory, &json!({"type":"runtime.usage",
+            "usage":{"input":1234,"output":56,"cost":0.0123,"context_tokens":1490,"context_window":4096,
+                "secret":"PRIVATE USAGE"}})).unwrap();
+        let snapshot = s.conversation_snapshot().unwrap();
+        let runtime = &snapshot["turns"][0]["runtime"];
+        assert_eq!(runtime["provider"], "custom-protocol", "Attempt metadata must reach the ordinary project snapshot");
+        assert_eq!(runtime["usage"]["input"], 1234);
+        assert_eq!(runtime["thinking"], "high");
+        assert_eq!(runtime["attempt_id"], attempt.id);
+        assert!(!runtime.to_string().contains("PRIVATE"));
+        assert_eq!(snapshot["turns"][0]["subject_id"], "discussion");
+        assert_eq!(s.conversation_activity(turn).unwrap()["runtime"]["usage"]["input"],1234);
+        assert!(s.conversation_activity("another-project-turn").is_err());
+        crate::execution::write(&attempt.directory.join("runtime-result.json"), &json!({
+            "model_identity":"SDK route","requested_thinking_level":"high",
+            "usage":{"input":2345,"output":78,"cacheRead":100,"cacheWrite":0,"cost":0.0234,
+                "context_tokens":2523,"context_window":4096,"secret":"PRIVATE RESULT"}}), true).unwrap();
+        s.workflow.connection().unwrap().execute("UPDATE conversation_turns SET status='completed' WHERE turn_id=?1",[turn]).unwrap();
+        let reopened = Session::open_existing(&s.project, &s.workflow.state, &s.key, &s.release).unwrap();
+        let snapshot = reopened.conversation_snapshot().unwrap();
+        assert_eq!(snapshot["turns"][0]["runtime"]["usage"]["input"],2345);
+        assert_eq!(snapshot["turns"][0]["status"],"completed");
+        assert!(!snapshot["turns"][0]["runtime"].to_string().contains("PRIVATE"));
+        let mut pointer=crate::execution::read(&directory.join("active-host-attempt.json")).unwrap();
+        pointer["unit"]=json!("different-attempt.service");
+        crate::execution::write(&directory.join("active-host-attempt.json"),&pointer,false).unwrap();
+        assert!(s.conversation_activity(turn).unwrap()["runtime"].is_null(), "Mismatched host attempts must not supply telemetry");
+        pointer["unit"]=json!(attempt.unit);
+        crate::execution::write(&directory.join("active-host-attempt.json"),&pointer,false).unwrap();
+        fs::write(attempt.directory.join("runtime-progress.json"), vec![b'x'; 64*1024+1]).unwrap();
+        fs::write(attempt.directory.join("runtime-result.json"), b"invalid json").unwrap();
+        assert!(s.conversation_snapshot().unwrap()["turns"][0]["runtime"].is_null(), "Invalid or oversized telemetry is unavailable, not a project-open failure");
     }
     #[test]
     fn discussion_is_not_a_task_and_replay_is_once() {

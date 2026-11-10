@@ -34,6 +34,21 @@ their original task-submission meaning. Clients must use the negotiated schema
 and capability before issuing a command. A view channel has attempt-bound read grants
 and cannot submit workflow mutations.
 
+Current paired applications add `conversation.activity` with `{turn_id}` and
+reply `conversation.activity_result` containing the project-local turn ID, its
+stored status and an optional `runtime` display projection. The same projection
+and subject ID appear on recent `snapshot.conversation.turns` entries. It contains
+the published host attempt ID, observation time, selected provider/model/thinking,
+a bounded activity label and numeric usage/cost/context fields. Each telemetry
+file read is limited to64KiB; malformed, oversized or unavailable telemetry
+becomes unavailable rather than preventing opening. Project/operation/attempt
+identity and containment are checked. There is no raw packet/event/tool output.
+The TUI polls active selected-subject calls once per second because file progress
+does not itself create conversation events. Telemetry cannot change turn status,
+scope, budget, settlement or execution authority; stale replies cannot replace a
+newer observation or revive a completed call. Unknown turn IDs refuse. This is an
+additive read for paired applications, not a new mutation or storage schema.
+
 IPC 1.5 / `continuous_scope_v1` is documented in the
 [continuous coordinator contract](continuous-coordinator-contract.md).
 New schema-7 services advertise continuous_scope_v1 and require minor-5 clients.

@@ -41,10 +41,12 @@ jobs:
           cargo test --locked -p waywr --bin waywr handover_checks
           cargo test --locked -p waywr --lib protocol::tests
           cargo test --locked -p waywr --lib provider_ui_tests
+          cargo test --locked -p waywr --lib coordinator_usage
+          cargo test --locked -p waywr-backend --lib coordinator_runtime_progress
           cargo test --locked -p waywr-backend --lib oversize_response
           scripts/package-release.sh "$GITHUB_REF_NAME" /tmp/release
           python3 scripts/test-packaged-install.py "/tmp/release/waywr-$GITHUB_REF_NAME-linux-x86_64-gnu.tar.gz"
-          python3 scripts/test-project-reopen.py --retired-profiles --provider-navigation --populated-history --activate-profile
+          python3 scripts/test-project-reopen.py --retired-profiles --provider-navigation --populated-history --activate-profile --coordinator-usage
           python3 scripts/test-dev-install.py
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

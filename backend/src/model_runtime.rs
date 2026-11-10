@@ -130,10 +130,55 @@ pub fn finish(events:&[Value],packet:&Value,code:Option<i32>)->Result<(Value,Val
     Ok((final_["result"].clone(),final_["runtime"].clone()))
 }
 pub fn progress(directory:&Path,event:&Value)->Result<(),String>{
-    if matches!(event["type"].as_str(),Some("runtime.activity"|"runtime.usage")){
+    if matches!(event["type"].as_str(),Some("runtime.started"|"runtime.activity"|"runtime.usage")){
         let file=directory.join("runtime-progress.json");
         let mut value=read(&file).unwrap_or(json!({}));
-        if event["type"]=="runtime.activity"{value["activity"]=event.clone()}else{value["usage"]=event["usage"].clone()}
+        match event["type"].as_str() {
+            Some("runtime.started")=>value["selection"]=json!({"provider":event["provider"],"model":event["model"],"thinking":event["thinking_level"]}),
+            Some("runtime.activity")=>value["activity"]=event.clone(),
+            _=>value["usage"]=event["usage"].clone(),
+        }
         write(&file,&value,false)?;
     } Ok(())
+}
+
+/// Bounded display metadata from one published host attempt, never raw events,
+/// packet content or authority. Missing/unreadable telemetry cannot block opening.
+pub(crate) fn presentation(state:&Path,directory:&Path,key:&str)->Option<Value> {
+    fn small_json(path:&Path)->Option<Value> {
+        use std::io::Read;
+        let mut data=Vec::new();
+        std::fs::File::open(path).ok()?.take(64*1024+1).read_to_end(&mut data).ok()?;
+        if data.len()>64*1024{return None;}
+        serde_json::from_slice(&data).ok()
+    }
+    let state=state.canonicalize().ok()?;
+    let directory=directory.canonicalize().ok()?;
+    if !directory.starts_with(&state){return None;}
+    let op=small_json(&directory.join("operation.json"))?;
+    if op["schema_version"]!=2 || op["project_key"]!=key{return None;}
+    let pointer=small_json(&directory.join("active-host-attempt.json"))?;
+    let attempt=pointer["attempt_id"].as_str()?;
+    if attempt.len()!=32 || !attempt.bytes().all(|b|b.is_ascii_hexdigit()&&!b.is_ascii_uppercase()){return None;}
+    let actual=directory.join("attempts").join(attempt).canonicalize().ok()?;
+    if !actual.starts_with(&directory){return None;}
+    let intent=small_json(&actual.join("intent.json"))?;
+    if intent["attempt_id"]!=attempt || !intent["unit"].is_string() || intent["unit"]!=pointer["unit"] ||
+        intent["project_key"]!=key || intent["operation_id"]!=op["operation_id"] ||
+        intent["packet_sha256"]!=op["packet_sha256"]{return None;}
+    let progress=small_json(&actual.join("runtime-progress.json")).unwrap_or(Value::Null);
+    let result=small_json(&actual.join("runtime-result.json")).unwrap_or(Value::Null);
+    // Native-era evidence has its own format and remains in Inspect.
+    if progress.is_null() && result["model_identity"].is_null(){return None;}
+    let usage=if result["usage"].is_object(){&result["usage"]}else{&progress["usage"]};
+    let mut summary=json!({"schema_version":1,"attempt_id":attempt,"observed_at":crate::execution::now(),
+        "provider":op["provider"],"model":op["model"],
+        "thinking":result.get("requested_thinking_level").unwrap_or(&progress["selection"]["thinking"]),
+        "activity":{"label":progress["activity"]["label"].as_str().map(|s|s.chars().filter(|c|!c.is_control()).take(200).collect::<String>())},
+        "usage":{}});
+    for field in ["input","output","cacheRead","cacheWrite","context_tokens","context_window"]{
+        summary["usage"][field]=usage[field].as_u64().map(Value::from).unwrap_or(Value::Null);
+    }
+    summary["usage"]["cost"]=usage["cost"].as_f64().filter(|n|n.is_finite()&&*n>=0.).map(Value::from).unwrap_or(Value::Null);
+    Some(summary)
 }

@@ -164,6 +164,10 @@ fn shared_models_runner_executes_two_protocols_with_tools_and_retains_usage() {
         assert_eq!(receipt["status"],"completed","{}",fs::read_to_string(a.directory.join("runner-diagnostic.log")).unwrap_or_default());
         assert_eq!(fs::read_to_string(tree.join("delivered.txt")).unwrap(),"Created by the actual SDK tool loop");
         let runtime=read(&a.directory.join("runtime-result.json")).unwrap();assert!(runtime["usage"]["input"].as_u64().unwrap()>0);
-        assert!(read(&a.directory.join("runtime-progress.json")).unwrap()["usage"].is_object());
+        let progress=read(&a.directory.join("runtime-progress.json")).unwrap();
+        assert!(progress["usage"].is_object());
+        assert_eq!(progress["selection"]["provider"],provider);
+        assert_eq!(progress["selection"]["model"],"model-outside-core");
+        assert!(progress["selection"]["thinking"].is_string());
     }
 }

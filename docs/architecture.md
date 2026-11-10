@@ -117,6 +117,16 @@ unchanged fingerprinted partial input can continue after positive settlement.
 Unexpected later changes remain preserved for reconciliation. There is no silent
 fallback. Process/transport/shutdown health bounds are separate.
 
+Coordinator conversation telemetry uses `model_runtime::presentation` to project
+bounded numeric usage and selected identity/activity from the published host
+attempt into recent conversation turns. `conversation.activity` refreshes an
+active call without reloading the full catalog/history. The main conversation
+shows current or latest subject-local telemetry, including completed calls after
+reopening; this display never changes scheduling or authority. The
+[provider contract](provider-selection.md#execution-results-and-usage) owns usage
+and estimate semantics. Autonomous workflow coordinator operations remain outside
+this conversation summary; worker views retain their existing telemetry path.
+
 ## Durable history and context
 
 A request is identified before approval and linked across discussion, task assignments,
