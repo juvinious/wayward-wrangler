@@ -20,6 +20,9 @@ build that created them. Public binary release publication and CLI update/uninst
 incomplete. Use [source installation](#build-and-install-from-source) today;
 see [distribution](docs/distribution.md) and the [roadmap](docs/roadmap.md).
 
+See the [changelog](CHANGELOG.md) for user-visible changes and the
+[release guide](docs/releases.md) for tagged builds and publication.
+
 Waywr is [MIT licensed](LICENSE). See the [security policy](SECURITY.md) for trust
 boundaries and private reporting, and the
 [security audit](docs/reports/security-audit-2026-11-08.md) for dated findings.

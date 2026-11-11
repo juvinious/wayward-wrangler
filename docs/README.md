@@ -11,6 +11,7 @@
 | [TUI controls](tui-controls.md) | Keyboard, mouse, editing, interrupt, leave and pause |
 | [Daily-use walkthrough](verify-usability.md) | Work on a project, leave, rebuild and return |
 | [Project layout](project-layout.md) | Project data, worktrees and supported migration |
+| [Changelog](../CHANGELOG.md) | Terse user-visible changes by version |
 | [Roadmap](roadmap.md) | Product direction and remaining work |
 | [Security policy](../SECURITY.md) | Private reporting, privacy and trust boundaries |
 
@@ -18,6 +19,7 @@
 
 | Reference | Subject |
 | --- | --- |
+| [Release process](releases.md) | Version tags, changelog preparation and automated publication |
 | [Architecture](architecture.md) | Components, ownership and runtime boundaries |
 | [Provider architecture decision](execution-adapter-decision.md) | Why the shared model layer uses independent Pi libraries |
 | [Ordinary project workflow](ordinary-project-workflow.md) | Setup, source selection, candidates, checks and completion |

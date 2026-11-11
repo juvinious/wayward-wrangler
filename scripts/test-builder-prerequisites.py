@@ -14,8 +14,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def bootstrap(path):
     # The bootstrap precedes checkout, so it intentionally stays inline in YAML.
-    text = path.read_text().split('      - uses: actions/checkout@', 1)[0]
-    line = re.search(r'^      - (?:name:.*\n        )?run: (.*)$', text, re.M)
+    text = path.read_text()
+    line = re.search(r'^      - name: Builder prerequisites\n        run: (.*)$', text, re.M)
     assert line, path
     if line[1] != '|':
         return line[1]

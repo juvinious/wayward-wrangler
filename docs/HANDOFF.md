@@ -1,30 +1,30 @@
 # Waywr handoff
 
-Branch: `plan/usability-and-installation`; parent checkpoint `cafc725`.
-Current slice: public installer implemented and checked locally. The user owns
-remote delivery and has deferred merge until distribution is ready. Read
-[AGENTS](../AGENTS.md); load task notes/reports selectively.
+Branch: `plan/usability-and-installation`; parent `b37a818` (public installer).
+Current checkpoint prepares tag-release automation and a terse CHANGELOG.
+The user owns remote delivery and has deferred merge until distribution is ready.
+Read [AGENTS](../AGENTS.md); task reports are selective, not startup context.
 
-## Completed
+## Implemented locally
 
-Public installation now uses HTTPS without gh/login, defaults to latest stable,
-and accepts an exact version. Node/Git/flock preflight, checksum/asset/archive/
-bundle verification and atomic selection remain. Bash PATH guidance replaces
-per-project upgrade instructions. Private gh access requires explicit `--private`.
+Version tags validate main ancestry, exact frontend version and dated changelog
+notes. Package/audit use the same frozen commit; publish checks tag identity again
+and uses those notes. Preview tags never replace latest. Local metadata/Git/
+publisher regressions and actionlint pass; no tag, remote run or publication.
+Details: [release report](reports/release-pipeline-2026-11-11.md).
 
-The real isolated archive/install/CLI/service/TUI check passes, including piped
-input and failed-download preservation. HTTPS transport alone is a fixture; no
-account, operator installation/service or remote change occurred. Exact evidence
-and limits: [installer report](reports/public-installer-2026-11-11.md).
-The ignored local-bin candidate was not refreshed by this installer task.
+Public HTTPS latest/exact installation was already checked through a real isolated
+archive/CLI/service/TUI journey; only transport was a fixture. See the
+[installer report](reports/public-installer-2026-11-11.md). No operator install or
+local-bin candidate refresh occurred. Node remains external.
 
 ## Next review
 
-The user deferred items 1, 3 and 4 until this fix: hosted bundle-build DNS failure,
-CLI update/uninstall, then first published release and package channels. No work
-on those items or publication is implied. Security passed on pushed revision `717d2a4`;
-[security report](reports/security-audit-2026-11-08.md) records the inspected runs.
+CHANGELOG currently has Unreleased only. A first tag needs a reviewed release
+commit with matching frontend/Cargo.lock version and dated entry. The known
+hosted builder DNS failure remains unresolved; update/uninstall, first published
+download and package channels remain. No remote write is implied.
 
-For the next slice, read [implementation scope](agents/usability-plan.md) and
-[distribution notes](agents/distribution.md). Human instructions are in
-[distribution](distribution.md); Node remains an external runtime prerequisite.
+Use [release notes](agents/releases.md) or [distribution notes](agents/distribution.md)
+for the next relevant task. Human guidance is in [releases](releases.md) and
+[distribution](distribution.md). Keep changes local for user review/delivery.

@@ -19,9 +19,11 @@ Current authority and next action come from [AGENTS](../../AGENTS.md) and
   hash and safe extraction before existing bundle-install. No gh/auth fallback;
   `--private` explicitly opts into gh. Node/Git/flock are checked before download.
   The success message gives Bash PATH guidance and no per-project upgrade command.
-- `.github/workflows/ci.yml` builds a PR bundle. `release.yml` packages version
-  tags and publishes through a separate contents-write job. PR artifacts are
-  not public release assets. The tag-release path remains unverified.
+- `.github/workflows/ci.yml` builds a PR bundle. `release.yml` validates version/
+  changelog/main ancestry, freezes the source for packaging and a reusable security
+  audit, then publishes those notes/assets through a separate contents-write job.
+  [Release notes](releases.md) own this wiring. PR artifacts are not public releases;
+  the hosted tag path remains unverified.
 - CLI update/uninstall, saved update repository metadata, artifact collection,
   first published release and private Node provisioning remain missing. These
   are separate from the completed public installer fix. Public trust uses HTTPS

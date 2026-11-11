@@ -1,5 +1,11 @@
 name: Security checks
 on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Exact source commit supplied by a release caller
+        type: string
+        required: false
   pull_request:
   push:
     branches: [main]
@@ -14,6 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ inputs.ref || github.sha }}
           fetch-depth: 0
           persist-credentials: false
       - name: Pinned audit tools

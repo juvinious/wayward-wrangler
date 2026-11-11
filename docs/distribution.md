@@ -52,13 +52,18 @@ checkout, then reopen the project. No per-project application upgrade is needed.
 
 The release workflow is configured to perform this sequence:
 
-1. A maintainer publishes a version tag such as `v1.2.3` after reviewing the code
-   and passing the required checks. This version is illustrative.
-2. GitHub Actions compiles the Linux application and model runtime, checks the
-   bundle, and creates `waywr-v1.2.3-linux-x86_64-gnu.tar.gz` plus `SHA256SUMS`.
-3. The publish job attaches those files to a GitHub Release for the tag.
+1. A maintainer prepares a matching application version and dated
+   [changelog entry](../CHANGELOG.md), reviews the commit through main, then pushes
+   a version tag such as `v1.2.3` (illustrative).
+2. GitHub Actions validates the tag/version/notes, pins the build and security audit
+   to the same commit, and creates the Linux archive plus `SHA256SUMS`.
+3. After all checks pass, the publish job verifies the tag still names that commit
+   and creates a GitHub Release using the matching changelog notes. Preview tags
+   are prereleases and do not replace latest stable.
 4. The installer downloads the archive and checksums, verifies them, then installs
    the complete application and selects it for subsequent launches.
+
+The [release guide](releases.md) covers cadence, preparation and exact tag commands.
 
 An Actions build artifact alone is not a published release. The downloadable files
 must exist on the GitHub Release before the release installer can work.

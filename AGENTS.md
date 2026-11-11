@@ -124,6 +124,10 @@ Keep documentation separated by audience:
 - Keep HANDOFF short: checkpoint, unresolved blocker, next action and links to
   individual notes/reports. Do not paste those reports into startup context.
 
+Keep terse user-visible changes under `CHANGELOG.md` Unreleased; internal test/
+refactor-only work needs no bullet. Release preparation dates a section matching
+the tag and frontend version; follow [the release guide](docs/releases.md).
+
 Before committing or handing off, reassess docs against current task and source.
 This includes routine checkpoints and task transitions, not just new branches.
 It does not require another planning phase or a full historical acceptance matrix.

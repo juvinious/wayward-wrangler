@@ -8,6 +8,7 @@ This index is not an instruction to load every document.
 | --- | --- |
 | [Development approach](development-approach.md) | Implementing a behavior change through an observable acceptance example and focused TDD |
 | [Implementation plan](usability-plan.md) | Checking the current slice, acceptance example, exclusions and product order |
+| [Release notes](releases.md) | Changing tag/version/changelog validation or release workflow wiring |
 | [Distribution notes](distribution.md) | Changing installers, packaging, lifecycle or release validation |
 | [Interaction references](interaction-reference.md) | Revisiting control design or the prior Codex/Pi comparison |
 

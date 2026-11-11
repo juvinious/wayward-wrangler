@@ -45,6 +45,8 @@ jobs:
       - name: Focused product checks
         run: |
           python3 scripts/test-builder-prerequisites.py
+          python3 scripts/release-notes.py --check
+          python3 scripts/test-release-pipeline.py
           python3 scripts/check-public-content.py
           python3 tests/session_schema_consistency.py
           python3 scripts/test-release-installer.py
