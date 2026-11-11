@@ -6,6 +6,7 @@ checkpoint is [HANDOFF](../HANDOFF.md); [agent guidance](../agents/README.md) is
 
 | Report | Scope |
 | --- | --- |
+| [Public installer](public-installer-2026-11-11.md) | Authentication-free latest/exact downloads, real package installation and refusal/preservation checks |
 | [Security audit and remediation](security-audit-2026-11-08.md) | Source/history privacy, dependency findings and dated follow-up checks |
 | [Ordinary-project verification](ordinary-project-verification.md) | October18 package/IPC/HTTP evidence and its limits; predates the shared runtime |
 | [Repository cleanup](repository-cleanup-2026-10-18.md) | Historical branch/tree proof and retained references |

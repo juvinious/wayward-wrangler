@@ -10,8 +10,8 @@ conversation state stay in each project's `.waywr` directory.
 | Method or command | Availability |
 | --- | --- |
 | Build and install this checkout | Available: `sh scripts/dev-install.sh` |
-| Download a public binary release | Not ready: the existing installer still uses the old private-release download path |
-| Public curl installer with latest-version selection | Planned |
+| Public release installer | Implemented over HTTPS without GitHub login; published installer and binary release assets are still needed |
+| Latest stable or an exact version | Supported by `scripts/install.sh`; omit `--version` for latest stable |
 | `waywr update` and `waywr uninstall` | Planned |
 | Debian, npm or Homebrew packages | Not provided |
 
@@ -63,41 +63,46 @@ The release workflow is configured to perform this sequence:
 An Actions build artifact alone is not a published release. The downloadable files
 must exist on the GitHub Release before the release installer can work.
 
-The current installer was built for the former private repository. It always
-uses authenticated GitHub CLI and requires an exact version, even when the
-repository is public. Public repositories do not require that login; the script
-has not yet been changed to use public HTTPS downloads. Its archive validation
-and staged installation can be reused while replacing that download path.
+## Install a public binary release
 
-## Planned public installation
-
-The target is a single command that downloads the installer from the release
-repository and installs the latest stable release without a GitHub account or
-source checkout. This example describes the planned interface; it does not work
-with today's installer. Replace `OWNER/REPO` with the release repository:
+The installer downloads public releases over HTTPS. It does not require GitHub
+CLI, a GitHub account, Rust, Python or npm. The updated installer and release
+assets must be published before the following download command can be used.
+Replace `OWNER/REPO` with the release repository:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/OWNER/REPO/main/scripts/install.sh | sh -s -- --repo OWNER/REPO
+curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/OWNER/REPO/main/scripts/install.sh | sh -s -- --repo OWNER/REPO
 ```
 
-The installer must choose the correct supported archive, verify the download and
-all bundled files, then make the stable `waywr` command available. Users who need
-a particular release can pass `--version v1.2.3`; `--prefix` chooses an alternative
-installation directory. The repository is saved at installation so updates do not
-require it again. A failed download or validation must leave the working version
-selected. A first install must print the exact PATH command if one is needed.
+This selects the repository's latest published stable release. To install an exact
+version from a saved installer instead:
 
-The initial target is Linux x86_64 with glibc2.39 or newer, a systemd user manager,
-Git, `/bin/sh`, Node >=22.19 and util-linux `flock`. Binary users do not need Rust,
-Python or npm. Node is currently an external prerequisite; the public installer
-must check it before reporting success. Automatic installation of a private Node
-runtime is not implemented. Other platforms need separate release builds.
-See [Linux requirements](linux-sandbox-setup.md) for the execution trust boundary.
+```bash
+sh install.sh --repo OWNER/REPO --version v1.2.3
+```
+
+Use an actually published version in place of `v1.2.3`. `--prefix /absolute/path`
+changes the application directory; `--no-select-default` installs a release
+without switching the current application. `WAYWR_REPOSITORY` can supply the
+repository instead of `--repo`. Private release access is an explicit option,
+`--private`, which uses GitHub CLI's saved login; the default public path never
+uses it or silently falls back to it.
+
+Before downloading, the installer checks Linux x86_64, glibc2.39+, Node >=22.19,
+Git and util-linux `flock`. Install those prerequisites first; Node is not bundled
+or automatically installed. The download also needs curl, GNU tar, gzip and
+sha256sum. See [Linux requirements](linux-sandbox-setup.md).
+
+The installer verifies GitHub's SHA256SUMS asset digest, the archive checksum,
+safe archive contents and the complete paired bundle. A failed download or
+validation leaves the working version selected. After installation it prints
+the stable launcher path and a Bash PATH command when needed. Open your project
+and run `waywr`; no per-project application upgrade is required.
 
 ## Updates
 
-Today, updating means rebuilding from source or installing another exact binary
-release through the current installer. The planned command is:
+Today, updating means rebuilding from source or installing another binary
+release through the public installer. The planned command is:
 
 ```bash
 waywr update

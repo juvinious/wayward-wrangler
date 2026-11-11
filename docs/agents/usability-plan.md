@@ -15,25 +15,27 @@ of completed ordinary use.
 3. Coordination through a substantial application. Use actual task delivery across
    selected models to improve it; catalog coverage and fixtures are insufficient.
 
-## Current slice: public installation
+## Completed local slice: public installation
 
-- **Outcome:** a clean Linux user environment installs from a public release,
-  runs the stable waywr command and needs no source checkout, Rust, Python or gh login.
-- **Present failure:** scripts/install.sh requires an exact version and
-  authenticated gh transport; no public latest-release route or hosted release
-  availability is established.
-- **Acceptance:** use an isolated HOME, real archive/install/CLI components and
-  fixture only the download transport. Verify version/help and launcher resolution;
-  corrupt downloads must leave an existing working install selected. Resolve
-  Node availability and the public artifact/checksum trust model explicitly.
-- **Exclusions:** operator/global installation, remote publication/settings,
-  cross-platform expansion, another provider framework and package-manager channels.
+- **Outcome:** public HTTPS downloads need neither gh nor login, select the latest
+  stable release by default and accept an explicit version. A real isolated
+  archive installs through the stable launcher and opens the CLI/service/TUI.
+- **Original failure:** exact-version installation called authenticated gh;
+  installation without a version was rejected before download. Both behavioral
+  failures were observed before changing the installer.
+- **Acceptance:** actual archive/install/CLI components in isolated HOME pass;
+  only HTTPS transport is a fixture. Corrupt/missing downloads preserve an
+  existing selected release. Unit checks retain digest/archive validation and
+  explicit private opt-in. Node >=22.19, Git and flock are checked before download.
+- **Limits:** no public release download has occurred; Node remains external.
+  No operator installation, account call, remote change or publication occurred.
 
-[Distribution notes](distribution.md) identify existing owners, precise checks and
-limits. Finish this user journey before expanding scope. Then implement update
-and owned-file uninstall through the same bundle/lifecycle. Reuse existing busy
-attachment/idle handover; no per-project application rebind or execution replay.
-Debian packaging follows, with other channels deferred until that route works.
+See the [installer report](../reports/public-installer-2026-11-11.md) for exact
+scope/artifacts. The user deferred the next items for review: hosted builder DNS,
+CLI update/uninstall, then first release/publication and Debian packaging. Do not
+silently include these in the completed authentication fix. Update-source metadata
+and artifact collection belong with update/uninstall. No global/private Node
+provisioning or cross-platform expansion was added.
 
 ## Preserve while implementing
 

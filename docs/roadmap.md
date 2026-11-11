@@ -23,8 +23,9 @@ separate interrupt, leave and pause actions, live steering, editable follow-ups,
 model controls and mouse-wheel scrolling. See [controls](tui-controls.md) and the
 [daily-use walkthrough](verify-usability.md).
 
-The next delivery is [public installation](distribution.md#planned-public-installation)
-without a source checkout or GitHub login. Update and uninstall must use the same
+The [public installer](distribution.md#install-a-public-binary-release) now supports
+latest-stable/exact-version HTTPS downloads without GitHub login. Publication of
+the updated installer and first binary release remains. Update and uninstall must use the same
 application bundle, preserve project data and require no per-project application
 upgrade. Debian packaging follows a working install/update/uninstall route;
 additional channels come later. More platforms require their own release builds.

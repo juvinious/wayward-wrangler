@@ -81,6 +81,6 @@ automatic cleanup and uninstall commands are subsequent work.
 
 The success criterion is completing useful work, rebuilding Waywr and continuing
 in that project without repair commands. Report concrete steps and the visible
-failure when that loop is interrupted. Public curl installation, `waywr update` /
-`uninstall` and additional package channels are not implemented by this increment;
-no hosted binary release has been published.
+failure when that loop is interrupted. The public installer is implemented; its first published release download remains
+unverified. `waywr update`, `waywr uninstall` and additional package channels
+remain unimplemented.

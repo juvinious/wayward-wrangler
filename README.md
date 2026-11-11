@@ -16,8 +16,8 @@ Pi's terminal application is not used. See [provider setup](docs/provider-select
 Waywr remains experimental. Provider availability depends on credentials and
 model capabilities; catalog entries do not guarantee access or task quality.
 Compatible projects reopen with the selected application without requiring the
-build that created them. Public binary installation and CLI update/uninstall are
-still planned. Use [source installation](#build-and-install-from-source) today;
+build that created them. Public binary release publication and CLI update/uninstall remain
+incomplete. Use [source installation](#build-and-install-from-source) today;
 see [distribution](docs/distribution.md) and the [roadmap](docs/roadmap.md).
 
 Waywr is [MIT licensed](LICENSE). See the [security policy](SECURITY.md) for trust
@@ -236,14 +236,22 @@ input, freshness and presentation behavior.
 
 ## Versioned binary installation
 
-Public binary installation is not ready yet. Use the
+The public release installer is implemented, but the updated installer and first
+binary release assets still need publishing. Use the
 [one-command source installation](#build-and-install-from-source) today.
 
-The existing `scripts/install.sh` was written for private GitHub releases and
-still requires authenticated GitHub CLI plus an exact version. That is legacy
-behavior to replace, not a requirement for public users. The public installer
-will download the latest stable release over HTTPS without GitHub CLI or login.
-See [distribution](docs/distribution.md) for the release flow and remaining work.
+Once published, install the latest stable release without GitHub CLI or login
+(replace `OWNER/REPO` with the release repository):
+
+```bash
+curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/OWNER/REPO/main/scripts/install.sh | sh -s -- --repo OWNER/REPO
+```
+
+A saved installer also accepts `--version v1.2.3` for an exact published version
+and `--prefix /absolute/path` for a custom directory. It checks runtime prerequisites
+and release/bundle integrity before selecting the application. See
+[distribution](docs/distribution.md#install-a-public-binary-release) for requirements,
+file locations and optional private access.
 
 ## Build and install from source
 

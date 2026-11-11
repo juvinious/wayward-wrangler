@@ -14,17 +14,20 @@ Current authority and next action come from [AGENTS](../../AGENTS.md) and
   local ID and staged installation. Failed builds retain the selected version.
   Its printed PATH hint still favors Fish; make installer guidance Bash-first
   while implementing this slice, with other shells as optional notes.
-- `scripts/install.sh`: private/authenticated gh transport, exact version,
-  tag/checksum-asset digest/archive hash checks and safe extraction. The final
-  printed per-project upgrade instructions are obsolete and need correction in
-  the installer slice; current normal startup does not require rebinding.
+- `scripts/install.sh`: public curl HTTPS transport, latest stable/exact version,
+  metadata parsing through the existing Node runtime, checksum-asset digest/archive
+  hash and safe extraction before existing bundle-install. No gh/auth fallback;
+  `--private` explicitly opts into gh. Node/Git/flock are checked before download.
+  The success message gives Bash PATH guidance and no per-project upgrade command.
 - `.github/workflows/ci.yml` builds a PR bundle. `release.yml` packages version
   tags and publishes through a separate contents-write job. PR artifacts are
   not public release assets. The tag-release path remains unverified.
-- Public unauthenticated/latest-stable installation, saved update repository,
-  CLI update/uninstall, artifact collection and private Node provisioning are
-  missing. Define public checksum/asset trust before replacing gh transport;
-  there is no independent signing/attestation trust root today.
+- CLI update/uninstall, saved update repository metadata, artifact collection,
+  first published release and private Node provisioning remain missing. These
+  are separate from the completed public installer fix. Public trust uses HTTPS
+  to the selected GitHub repository and its asset digest; no independent signing/
+  attestation root was added. Public curl ignores user curlrc/auth configuration.
+
 
 ## Build and attribution
 
@@ -71,7 +74,7 @@ account. Use the relevant existing example instead of repeating all campaigns.
 
 | Harness | What it establishes | Boundary |
 | --- | --- | --- |
-| `scripts/test-packaged-install.py ARCHIVE` | Real archive, shell installer, staged install, hashes, damage refusal and installed CLI/service/TUI startup outside checkout without Rust | Only gh transport is mocked; isolated HOME; direct service, no systemd bootstrap or account |
+| `scripts/test-packaged-install.py ARCHIVE` | Real archive, shell installer, staged install, hashes, damage refusal and installed CLI/service/TUI startup outside checkout without Rust | Only HTTPS transport is mocked; isolated HOME; direct service, no systemd bootstrap or account |
 | `scripts/test-project-reopen.py` | Draft/pause/settings survive selecting a second bundle and deleting the first; invalid identity/storage refused | Same paired binaries under different IDs; direct services, not arbitrary version compatibility |
 | `test-project-reopen.py --systemd-handover` | Exact idle service replacement and retained draft; existing owner kept during pending delivery/uncertain execution | Real uniquely keyed fixture user unit; not active-model resumption |
 | Above with `--portable` | Same lifecycle through a temporary local-bin symlink after removal of old bundle | Temporary paired layout; no global installation |
@@ -87,12 +90,21 @@ That result does not establish current hosted checks or public release availabil
 Security fixes and the later mirror/DNS failure are in the
 [security report](../reports/security-audit-2026-11-08.md#hosted-security-follow-up--2026-11-11).
 
-## Next implementation acceptance
+## Public installation evidence and next review
 
-A clean isolated HOME without gh credentials must install the public release,
-run `waywr --version` and `--help`, and resolve the stable launcher. Start with
-this behavioral failure against the existing installer. Exercise a real archive
-and real install components; fixture only the download transport. Include a
-corrupt download that leaves an existing working version selected. Settle Node
-handling and public artifact trust explicitly, then implement update/uninstall
-through the same path. Additional package channels follow this complete journey.
+The [public installer report](../reports/public-installer-2026-11-11.md) records
+behavioral red, final checks and archive/manifest hashes. The package harness now
+exercises piped shell input, default latest-stable and explicit version, then
+corrupt/missing download refusal with the working application still selected.
+Its helper blocks gh in public mode and fixtures only HTTPS transport; all paired
+executables are real. Runtime tracing reports no source-checkout access.
+
+The user deferred hosted build/DNS, update/uninstall and publication/packaging
+for subsequent review. No remote rerun, global install or account call is implied.
+The remaining dev-install Fish-only PATH hint can be standardized when its output
+is next changed; documentation already uses Bash by default.
+
+API reference: [GitHub release metadata](https://docs.github.com/en/rest/releases/releases#get-the-latest-release)
+and [release asset digest/downloads](https://docs.github.com/en/rest/releases/assets#get-a-release-asset).
+Public endpoints allow unauthenticated access. Metadata URLs and asset download
+URLs are built from validated repo/tag values; returned URLs are not evaluated.
