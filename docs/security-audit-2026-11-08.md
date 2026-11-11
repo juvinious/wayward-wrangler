@@ -16,7 +16,7 @@ five retained Actions logs; and four build artifacts. All remote non-tree object
 were included in the local complete-object scan. Comments/reviews returned no
 additional records; releases, wiki and Pages were absent.
 
-Gitleaks8.30.1 scans included complete files, patches, commit/tag text, decoding
+Gitleaks 8.30.1 scans included complete files, patches, commit/tag text, decoding
 and binary printable strings. Two unique matches were project identities rather
 than credentials. Supplemental checks covered private-key headers, credential
 URLs, assignments, home paths and contact identities. No confirmed credential,
@@ -134,3 +134,28 @@ use an obvious repeated-character ID. `.gitleaksignore` records only the exact
 immutable historical fingerprint from `fc5bffd`; no rule, file or path wildcard
 is excluded. The pinned scanner remains active for current source and introduced
 history. Local history scanning passes with that documented false positive.
+
+## Local branch review — 2026-11-11
+
+The operator reports the current application behavior looks good. The pre-push
+review at application checkpoint cb094be checks 459 current source paths and all
+changed blobs/paths in 28 commits since the locally recorded origin/main. The
+privacy gate reports zero issues for these sources/history, the three release
+binaries and the paired 19-file bundle. Checksum-verified Gitleaks 8.30.1 reports
+zero source/history findings, retaining only the exact previously documented
+synthetic-project-ID fingerprint exclusion. No runtime credential store or
+operator-state file was found in the scanned source snapshot.
+
+Commit author/committer metadata was checked separately: 21 application commits
+use public GitHub username/noreply attribution; seven use neutral example
+attribution. No private email, machine address or personal-home path was found
+there. Public GitHub authorship is repository attribution, separate from the
+application's neutral paths/configuration. No authors or Git history were rewritten.
+This checkpoint adds documentation only after those application checks.
+
+This was local review, without fetching, pushing or querying hosted settings.
+Latest hosted Rust/npm/Python advisories, secret scanning, build and CodeQL results
+remain PR gates before merge; earlier dated advisory results are not presented as
+fresh checks. The historical private archive remains a separate publication
+boundary. Public installer/update/uninstall and broader product use are subsequent
+work, not additional local publication blockers identified in this review.

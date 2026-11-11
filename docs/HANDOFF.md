@@ -1,6 +1,7 @@
 # Waywr handoff — mouse-wheel scrolling
 
-Branch: `plan/usability-and-installation`. Base: `5ebbb15` (live-update recovery).
+Branch: `plan/usability-and-installation`. Application checkpoint: `cb094be`
+(mouse wheel); current checkpoint records the pre-push review on 2026-11-11.
 Follow [AGENTS.md](../AGENTS.md). Local commits only; the user handles remote
 writes. No operator project/service/binding/provider configuration/credentials,
 global installation or remote Git state was changed. No account/model call.
@@ -58,12 +59,25 @@ renewable obsolete sessions and compatible busy-owner attachment remain. Preserv
 source/Git/worktrees, exact execution ownership, approval boundaries and no replay;
 keep model/provider catalogs/options outside core routing.
 
-Next is the user's normal walkthrough after reopening the refreshed local launcher:
-scroll retained output and continue useful work, interrupt/redirect, leave/return,
-rebuild and continue. Account access was reported/observed for the selected route,
-not all models/accounts; quality/useful delivery/refresh remain to assess. Public
-installer/update/uninstall, workflow-wide usage and the substantial application
-remain later work. Do not infer permission for account calls or global installs.
+The user reports the current application looks good. No further local usability
+audit fix is outstanding before branch review. Pre-push privacy checks cover the
+current 459 source paths, changed blobs/paths in 28 commits since the locally
+recorded origin/main, the three release binaries and19 bundle files. Gitleaks 8.30.1
+reports zero source/history findings with the existing exact synthetic-fixture
+fingerprint exclusion. Commit metadata contains public GitHub username/noreply
+attribution or neutral example attribution; no private email/machine address was
+found. Public GitHub attribution remains repository metadata and is
+not compiled application content. [Audit record](security-audit-2026-11-08.md)
+records scope and limits. The application candidate remains the tested cb094be;
+this checkpoint changes documentation only.
+
+Next: the user pushes this branch and opens/reviews its PR. Hosted build, current
+dependency-advisory, secret and CodeQL checks must pass before merge; they have
+not been queried or run remotely by the agent. The local origin/main reference
+was inspected without fetching. No new publication/global installation or paid
+feature is implied. Useful task delivery, broader account/model quality/refresh,
+public installer/update/uninstall, workflow-wide usage and the substantial
+application remain later product work, not a reason to defer this branch review.
 
 Owners: [controls](tui-controls.md), [live input](live-input.md),
 [providers](provider-selection.md), [plan](usability-plan.md),

@@ -82,6 +82,9 @@ remains experimental; no additional demonstration or acceptance program is presc
 [Current local build/verification record](ordinary-project-verification.md) separates
 automated fixtures and hashes from native/GitHub behavior awaiting ordinary use.
 
+The 2026-11-11 local pre-push review found no source/history secret or privacy
+blocker; public GitHub noreply attribution is retained. Hosted PR gates remain.
+
 [Public-source audit/remediation](security-audit-2026-11-08.md) records patched
 dependencies, generalized public source/docs, MIT licensing, bundle notices and
 privacy/security checks. The independent public repository has its own required
