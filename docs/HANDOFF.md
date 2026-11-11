@@ -1,30 +1,29 @@
 # Waywr handoff
 
-Branch: `plan/usability-and-installation`; parent `b37a818` (public installer).
-Current checkpoint prepares tag-release automation and a terse CHANGELOG.
-The user owns remote delivery and has deferred merge until distribution is ready.
-Read [AGENTS](../AGENTS.md); task reports are selective, not startup context.
+Branch: `plan/usability-and-installation`; source checkpoint `813b4fa`.
+Current task: prepare a significant real proposal → coordinator → workers →
+working outcome before release. The user owns all remote delivery; no release yet.
+Read [AGENTS](../AGENTS.md), then only task-relevant notes.
 
-## Implemented locally
+## Current preparation
 
-Version tags validate main ancestry, exact frontend version and dated changelog
-notes. Package/audit use the same frozen commit; publish checks tag identity again
-and uses those notes. Preview tags never replace latest. Local metadata/Git/
-publisher regressions and actionlint pass; no tag, remote run or publication.
-Details: [release report](reports/release-pipeline-2026-11-11.md).
+[Workboard brief](../examples/release-acceptance-brief.md) proposes a real local web
+app with login/roles, persistent tasks/comments, filtering/export and run instructions.
+[Acceptance notes](agents/release-acceptance.md) define the ordinary flow and pass
+criteria. No application implementation or model result is being substituted.
+A fresh paired build is prepared; role/model choices and permission to use the
+provider login are pending. Human approval of the actual presented scope remains.
+No model call or operator project/service/configuration change has occurred.
 
-Public HTTPS latest/exact installation was already checked through a real isolated
-archive/CLI/service/TUI journey; only transport was a fixture. See the
-[installer report](reports/public-installer-2026-11-11.md). No operator install or
-local-bin candidate refresh occurred. Node remains external.
+## Next action
 
-## Next review
+Prepare the isolated project/candidate and record its identity privately. Once
+native-run permission/model choices are provided, use Waywr's normal setup and
+proposal path; let the human approve the card. Real workers must implement and
+review/check/deliver; inspect the actual app and record any manual intervention.
+Do not call the test passed or tag a release before the whole journey succeeds.
 
-CHANGELOG currently has Unreleased only. A first tag needs a reviewed release
-commit with matching frontend/Cargo.lock version and dated entry. The known
-hosted builder DNS failure remains unresolved; update/uninstall, first published
-download and package channels remain. No remote write is implied.
-
-Use [release notes](agents/releases.md) or [distribution notes](agents/distribution.md)
-for the next relevant task. Human guidance is in [releases](releases.md) and
-[distribution](distribution.md). Keep changes local for user review/delivery.
+Tag automation/changelog and public installer are implemented locally; their
+[release](reports/release-pipeline-2026-11-11.md) and
+[installer](reports/public-installer-2026-11-11.md) reports retain evidence.
+Hosted builder DNS, update/uninstall and first published download remain separate.

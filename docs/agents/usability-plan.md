@@ -15,6 +15,16 @@ of completed ordinary use.
 3. Coordination through a substantial application. Use actual task delivery across
    selected models to improve it; catalog coverage and fixtures are insufficient.
 
+## Current priority: significant real workflow before release
+
+The user requires a proposal → coordinator → workers → working outcome before
+release. [Acceptance notes](release-acceptance.md) define the proposed Workboard
+run, evidence and failure rules. Prepare a fresh isolated project/candidate; do
+not build the app outside Waywr or count fixture replies as useful delivery.
+Model roles and permission to use provider authentication are pending user input.
+The actual presented scope/policy still requires human approval in Waywr.
+Release automation is prepared, not permission to publish before this journey.
+
 ## Completed local slice: public installation
 
 - **Outcome:** public HTTPS downloads need neither gh nor login, select the latest

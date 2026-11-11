@@ -19,6 +19,17 @@ These are examples, not published releases. Non-preview 0.x releases remain
 experimental; the release channel does not change the application's readiness.
 Versions follow [Semantic Versioning](https://semver.org/).
 
+## First-release readiness
+
+Before the first release, complete a significant real Waywr journey: proposal,
+human approval, coordinator decomposition, delegated implementation, exact review,
+combined checks, browser inspection and accepted local delivery. The
+[Workboard brief](../examples/release-acceptance-brief.md) defines the proposed app.
+Working model replies or passing simulated transports do not establish this outcome.
+Record the delivered app revision and any manual repair; an unfinished or broken
+journey is not release readiness. Expected human approvals and normal review/rework
+are part of the process. CI does not run paid provider calls on behalf of this check.
+
 ## Prepare the release commit
 
 1. Keep a few user-visible bullets under `[Unreleased]` in

@@ -32,11 +32,14 @@ additional channels come later. More platforms require their own release builds.
 
 ## Coordination through a substantial application
 
-Useful task delivery across selected models remains to be established. A proposed
-reference workload is a project-management web application with authentication,
-roles, persistent projects/tasks/comments, search, an API, migrations, background
-export and a documented local run command.
+Useful task delivery across selected models remains to be established. Before the
+first release, a significant app must go through proposal, human scope approval,
+coordinator delegation, worker implementation, exact review/checks and accepted
+local delivery without manual repair of the orchestration.
 
-Begin with one useful persisted increment, then use actual task results to refine
-coordination. Model quality, review accuracy and recovery must be assessed from
-work and evidence, not the number of catalog entries or passing fixtures.
+The proposed [Workboard acceptance brief](../examples/release-acceptance-brief.md)
+covers a local web app with login/roles, persistent projects/tasks/comments,
+search/filtering, CSV export and a documented run path. It requires useful
+connected software, not a model reply or UI mockup. Normal review/rework is part
+of the journey; provider quality and application correctness are judged from
+the delivered work and evidence. The run has not yet been performed.
