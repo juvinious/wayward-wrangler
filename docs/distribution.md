@@ -10,7 +10,7 @@ conversation state stay in each project's `.waywr` directory.
 | Method or command | Availability |
 | --- | --- |
 | Build and install this checkout | Available: `sh scripts/dev-install.sh` |
-| Download a published binary release | Installer exists, but requires GitHub CLI login, a repository and an exact version; no published binary release is recorded yet |
+| Download a public binary release | Not ready: the existing installer still uses the old private-release download path |
 | Public curl installer with latest-version selection | Planned |
 | `waywr update` and `waywr uninstall` | Planned |
 | Debian, npm or Homebrew packages | Not provided |
@@ -18,13 +18,17 @@ conversation state stay in each project's `.waywr` directory.
 ## Install from source now
 
 Install the [source-build prerequisites](../README.md#build-and-install-from-source),
-then run these commands from the Waywr checkout. Examples use Fish:
+then run these commands from the Waywr checkout. Examples use Bash:
 
-```fish
+```bash
 sh scripts/dev-install.sh
-fish_add_path "$HOME/.local/share/wayward-wrangler/bin"
+export PATH="$HOME/.local/share/wayward-wrangler/bin:$PATH"
 waywr --version
 ```
+
+The PATH change applies to this terminal. Add the same `export PATH` line to
+`~/.bashrc` to keep it for future Bash sessions. Fish users can instead run
+`fish_add_path "$HOME/.local/share/wayward-wrangler/bin"`.
 
 The script compiles the application, builds the model runtime, checks the result
 and installs all components together. It prints the installed version and launcher
@@ -32,7 +36,7 @@ path. No sudo is needed. A failed build leaves the previous installation selecte
 
 To use it in another project:
 
-```fish
+```bash
 cd PROJECT
 waywr
 ```
@@ -59,11 +63,11 @@ The release workflow is configured to perform this sequence:
 An Actions build artifact alone is not a published release. The downloadable files
 must exist on the GitHub Release before the release installer can work.
 
-The current installer takes `--repo OWNER/REPO` and `--version VERSION`, downloads
-through authenticated GitHub CLI, and installs without compiling on the user's
-machine. [Versioned binary installation](../README.md#versioned-binary-installation)
-shows its current commands. It does not yet provide the public installation flow
-below.
+The current installer was built for the former private repository. It always
+uses authenticated GitHub CLI and requires an exact version, even when the
+repository is public. Public repositories do not require that login; the script
+has not yet been changed to use public HTTPS downloads. Its archive validation
+and staged installation can be reused while replacing that download path.
 
 ## Planned public installation
 
@@ -72,7 +76,7 @@ repository and installs the latest stable release without a GitHub account or
 source checkout. This example describes the planned interface; it does not work
 with today's installer. Replace `OWNER/REPO` with the release repository:
 
-```fish
+```bash
 curl -fsSL https://raw.githubusercontent.com/OWNER/REPO/main/scripts/install.sh | sh -s -- --repo OWNER/REPO
 ```
 
@@ -95,7 +99,7 @@ See [Linux requirements](linux-sandbox-setup.md) for the execution trust boundar
 Today, updating means rebuilding from source or installing another exact binary
 release through the current installer. The planned command is:
 
-```fish
+```bash
 waywr update
 ```
 
@@ -109,7 +113,7 @@ Updating must not silently stop or repeat a model call.
 
 There is no supported uninstall command yet. The planned command is:
 
-```fish
+```bash
 waywr uninstall
 ```
 

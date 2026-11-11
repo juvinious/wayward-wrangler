@@ -14,11 +14,11 @@ Existing request policy amendments remain explicit. See [provider setup](provide
 
 ## Install and use
 
-From this Waywr checkout, in Fish:
+From this Waywr checkout, in Bash:
 
-```fish
+```bash
 sh scripts/dev-install.sh
-fish_add_path "$HOME/.local/bin" # once, if needed
+export PATH="$HOME/.local/bin:$PATH" # if needed in this terminal
 waywr --version
 ```
 

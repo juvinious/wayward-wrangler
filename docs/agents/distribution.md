@@ -12,6 +12,8 @@ Current authority and next action come from [AGENTS](../../AGENTS.md) and
   directory; an existing release ID cannot be reused with different contents.
 - `scripts/dev-install.sh`: remapped locked build, notices/privacy checks, fresh
   local ID and staged installation. Failed builds retain the selected version.
+  Its printed PATH hint still favors Fish; make installer guidance Bash-first
+  while implementing this slice, with other shells as optional notes.
 - `scripts/install.sh`: private/authenticated gh transport, exact version,
   tag/checksum-asset digest/archive hash checks and safe extraction. The final
   printed per-project upgrade instructions are obsolete and need correction in

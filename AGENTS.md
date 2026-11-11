@@ -12,7 +12,8 @@ startup reading list. `CLAUDE.md` points here as the canonical working policy.
   only for substantive conflicts, unsafe actions or concrete blockers.
 - Work only in this checkout. Do not modify another checkout,
   shared Herdr/tmux infrastructure, provider configuration or credentials without
-  explicit authorization. Use Fish-compatible user examples.
+  explicit authorization. Use Bash for documentation examples; mention other
+  shells only as optional notes.
 - Reuse the accepted Rust/Ratatui TUI and Rust service components. Inspect current
   implementation before adding another architecture or abstraction.
 - Use isolated projects for runtime checks. Authenticated calls, operator service
@@ -98,7 +99,7 @@ Do not use temporary `CARGO_HOME`/`RUSTUP_HOME` overrides.
 For distributable binaries, use `sh scripts/build-release.sh` to remap builder
 paths; packaging runs the public-content and notice checks.
 
-```fish
+```bash
 cargo build --locked --release --bin waywr --bin waywr-service --bin waywr-runner
 cargo test --locked -p waywr-backend TEST_FILTER
 cargo test --locked -p waywr TEST_FILTER

@@ -1,15 +1,16 @@
 # Waywr handoff
 
 Branch: `plan/usability-and-installation`. Security checkpoint: `5937110`.
-This checkpoint separates documentation audiences; application code is unchanged.
+Documentation checkpoint: `717d2a4`, pushed by the user. This checkpoint makes
+Bash the documentation default; application code is unchanged.
 The user handles remote delivery and has deferred merge until distribution is ready.
 Read [AGENTS](../AGENTS.md); task details are selective, not a startup reading list.
 
 ## Current state
 
-- SQLite/rustix security fixes are committed locally. Local strict Rust/Python/npm
-  audits and the remapped release build passed. New hosted checks await the user's
-  push; the earlier build failed on Ubuntu mirror DNS. See the
+- Security checks passed on pushed revision `717d2a4`. The bundle job still fails before
+  checkout on Ubuntu mirror DNS after all retries; CodeQL was in progress when
+  inspected. Local advisory/build evidence and exact run IDs are in the
   [security report](reports/security-audit-2026-11-08.md#hosted-security-follow-up--2026-11-11).
 - The user reports responsive controls, sign-in/model requests and wheel scrolling.
   Useful coordinated application delivery remains unproven.
@@ -26,5 +27,5 @@ writes, operator installation or account calls are implied.
 Read the [implementation slice](agents/usability-plan.md) and
 [distribution notes](agents/distribution.md) for this task. The human-facing
 [distribution guide](distribution.md) describes current methods and planned commands.
-Documentation checks cover references, privacy and diffs; application tests are
-not needed for this documentation-only checkpoint.
+Documentation checks cover Bash syntax, references, privacy and diffs; no
+application tests or operator changes are needed for this documentation checkpoint.

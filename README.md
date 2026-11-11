@@ -28,7 +28,7 @@ boundaries and private reporting, and the
 
 With a compatible paired Rust release installed and `waywr` on your `PATH`:
 
-```fish
+```bash
 cd PROJECT
 waywr init .
 waywr
@@ -66,7 +66,7 @@ New projects select a default from runtime configuration/catalog data, not a mod
 constant in Rust. Configure authentication explicitly, then choose a provider/model
 in F3 before requesting work:
 
-```fish
+```bash
 waywr models list --search MODEL_OR_PROVIDER
 waywr models login PROVIDER --method oauth # or --method apiKey when supported
 ```
@@ -236,31 +236,14 @@ input, freshness and presentation behavior.
 
 ## Versioned binary installation
 
-No GitHub binary release has been published or verified yet. Use the
-[one-command local source installation](#build-and-install-from-source) now.
-After the user publishes a version release, the existing hosted installer can be
-used from Fish:
+Public binary installation is not ready yet. Use the
+[one-command source installation](#build-and-install-from-source) today.
 
-```fish
-set waywr_version v0.4.0 # choose an actually published version
-set waywr_repo OWNER/REPO # select the repository hosting that release
-set waywr_installer (mktemp)
-gh auth login # once, with read access to the private repository
-gh api -H 'Accept: application/vnd.github.raw+json' "repos/$waywr_repo/contents/scripts/install.sh?ref=$waywr_version" > "$waywr_installer"
-and sh "$waywr_installer" --version "$waywr_version" --repo "$waywr_repo"
-rm -f "$waywr_installer"
-fish_add_path "$HOME/.local/bin"
-waywr --project /absolute/path/to/project
-```
-
-Binary prerequisites: Linux x86_64/glibc2.39+, GitHub CLI, Git, GNU tar, gzip,
-sha256sum, Node >=22.19 and normal systemd/provider execution prerequisites below. Rust is only
-needed for source builds. The installer validates GitHub asset/checksum identity
-and archive safety before the existing staged bundle install. It selects a new
-user-local default while preserving project data. Compatible projects reopen
-with that application; see [Existing projects](#existing-projects-upgrade-versus-migration).
-[Distribution contract](docs/distribution.md) explains trust, platform limits,
-packaging and publication steps still required.
+The existing `scripts/install.sh` was written for private GitHub releases and
+still requires authenticated GitHub CLI plus an exact version. That is legacy
+behavior to replace, not a requirement for public users. The public installer
+will download the latest stable release over HTTPS without GitHub CLI or login.
+See [distribution](docs/distribution.md) for the release flow and remaining work.
 
 ## Build and install from source
 
@@ -279,7 +262,7 @@ Prerequisites:
 
 From the Waywr checkout, build and select the paired application with one command:
 
-```fish
+```bash
 sh scripts/dev-install.sh
 ```
 
@@ -290,10 +273,10 @@ an installed runtime dependency. A failed build leaves the working installation
 selected. Project settings/history and older artifacts are preserved; shell
 configuration, provider settings and services are not changed by installation.
 
-If needed, add the launcher to Fish's PATH once, then use it normally:
+If needed, add the launcher to PATH for this Bash session, then use it normally:
 
-```fish
-fish_add_path "$HOME/.local/bin"
+```bash
+export PATH="$HOME/.local/bin:$PATH"
 waywr --version
 cd PROJECT
 waywr
@@ -327,7 +310,8 @@ and does not publish a release.
 | `PROJECT/.waywr/release.json` | Retained initial/legacy installation metadata; ordinary opening does not pin a build |
 | `PROJECT/.waywr/{state,worktrees,history}/` | Project-owned execution, task worktrees and readable history |
 
-`fish_add_path` persists the installer's bin directory for future Fish sessions.
+To keep the PATH change across Bash sessions, add the same `export PATH` line
+to `~/.bashrc`. Fish users can use `fish_add_path "$HOME/.local/bin"` instead.
 Check resolution with `type -a waywr`. The default installer creates a
 `~/.local/bin/waywr` link to its stable launcher under `PREFIX/bin`.
 An alternative prefix exposes `PREFIX/bin/waywr`. No sudo is needed.
@@ -366,9 +350,9 @@ artifacts; ordinary reopening does not depend on them.
 For a legacy `.wayward-wrangler` layout, invoke the new installed release's
 migration command instead of renaming directories or upgrading the binding first:
 
-```fish
-set waywr_project /absolute/path/to/legacy-project
-set waywr_prefix "$HOME/.local/share/wayward-wrangler"
+```bash
+waywr_project=/absolute/path/to/legacy-project
+waywr_prefix="$HOME/.local/share/wayward-wrangler"
 "$waywr_prefix/current/bin/waywr" --project "$waywr_project" session migrate
 ```
 

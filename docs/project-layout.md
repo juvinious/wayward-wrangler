@@ -40,7 +40,7 @@ Explicit maintenance/layout migrations retain their separate constraints below.
 
 For a legacy project, use a current installed release:
 
-```fish
+```bash
 waywr --project PROJECT session migrate
 ```
 

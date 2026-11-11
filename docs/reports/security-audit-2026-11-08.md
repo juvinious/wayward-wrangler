@@ -200,3 +200,12 @@ for the inspected repository/PR refs. These hosted results describe 911c53a,
 not the local fixes. The user must push the new checkpoint and obtain passing
 hosted checks; the agent did not push, rerun Actions, merge, publish or change
 settings. The user has explicitly deferred merge until distribution is addressed.
+
+## Post-push checks — 2026-11-11, revision717d2a4
+
+Read-only inspection confirmed security run `43046503293` passed on the pushed
+revision, including the dependency fixes. Bundle run `43046503089` failed in Builder
+prerequisites before checkout: all three index-update attempts could not resolve
+archive.ubuntu.com/security.ubuntu.com. Retries correctly reported failure; hosted
+DNS recovery is not established. CodeQL run `43046502703` was still in progress at
+inspection. No job was rerun and no remote setting was changed.
