@@ -1,3 +1,11 @@
+# Superseded implementation plan
+
+Snapshot before the documentation audience split. Original location: `docs/usability-plan.md`.
+Relative links in the snapshot describe that original location. Session status and
+permissions here are historical; use AGENTS and HANDOFF for current work.
+
+---
+
 # Usability and installation plan
 
 Status: accepted implementation target on `plan/usability-and-installation`.

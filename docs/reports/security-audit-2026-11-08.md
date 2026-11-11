@@ -96,8 +96,8 @@ manifest SHA256 is
 `8cf854747b4d57cfd5d30d52475f97a6d73e4a75fa9f3d5ed94d0249bf465218`.
 No authenticated model, operator upgrade, public push, release, destructive history
 rewrite or shared infrastructure change occurred. Experimental workflow, native
-reliability and portability limits remain in [README](../README.md#current-readiness).
-The [Linux setup](linux-sandbox-setup.md) still records the sandbox/preflight gap.
+reliability and portability limits remain in [README](../../README.md#current-readiness).
+The [Linux setup](../linux-sandbox-setup.md) still records the sandbox/preflight gap.
 
 ## Publication boundary
 
@@ -118,12 +118,12 @@ state. Main requires PR/build/security checks with squash merge and topic-branch
 deletion; maintainer approval is the decision to merge after passing checks.
 The expanded privacy gate additionally checks new-commit blobs, contact addresses
 and the account identifier supplied by GitHub's event metadata. Required upstream
-attribution remains intact. See [SECURITY.md](../SECURITY.md) for the current policy.
+attribution remains intact. See [SECURITY.md](../../SECURITY.md) for the current policy.
 
 Raw reports and original copies remain in private temporary storage outside Git.
 No machine-specific audit storage location or real operator identifier is needed
-in the public source. See [SECURITY.md](../SECURITY.md) for reporting and ongoing
-privacy boundaries; [distribution](distribution.md) owns packaging requirements.
+in the public source. See [SECURITY.md](../../SECURITY.md) for reporting and ongoing
+privacy boundaries; [distribution](../distribution.md) owns packaging requirements.
 
 ## Local iteration follow-up
 

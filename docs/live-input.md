@@ -62,15 +62,3 @@ Owners: [service inbox](../backend/src/live_input.rs),
 [runtime inbox](../model-runtime/live-input.mjs) and
 [agent loop](../model-runtime/main.mjs); the existing Ratatui composer/queue.
 No extra daemon, provider wrapper or dependency was added.
-
-## Verification boundary
-
-The actual SDK tool loop against local OpenAI-compatible and Anthropic-compatible
-HTTP fixtures receives steering before its next request and ignores duplicate
-publication. The real isolated TUI/systemd/service/runner journey exercises Enter,
-Alt+Enter, multiline arrows, queue edit/requeue, distinct completed results and
-reopen without replay. The held-stream interruption fixture covers unconsumed
-steering/follow-ups, prompt leave and recovery. Focused checks cover exact topic,
-durable commands, withdrawal versus claim, context exclusion and restored-input
-acknowledgement replay. These are real local transports/components, not actual
-provider accounts, model quality or useful application delivery.

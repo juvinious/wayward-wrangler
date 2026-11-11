@@ -1,6 +1,6 @@
 # Acceptance-driven development
 
-Accepted working approach. [AGENTS.md](../AGENTS.md) owns the operational policy;
+Accepted working approach. [AGENTS.md](../../AGENTS.md) owns the operational policy;
 the [usability plan](usability-plan.md) owns the product target. This approach
 applies to subsequent implementation, maintenance and bug fixes.
 
@@ -14,18 +14,18 @@ TDD drives correctness inside that journey. Ordinary use determines whether the
 experience is fluid. Passing internal checks alone does not establish usefulness.
 Documentation-only work uses reference/diff checks, not manufactured red tests.
 
-The [narrowed product direction](usability-plan.md#narrowed-product-direction)
+The [narrowed product direction](usability-plan.md#product-order)
 sets the next order: extensible execution/model selection, lifecycle fluidity,
 then coordination through a substantial real application. Development constraints
 are not runtime agent capability limits. Evaluate restrictions against concrete
 failure boundaries; do not equate model-independent architecture with equal model
 quality or make a model-specific coordinator to pass the reference workload.
 Model support must remain broad throughout the project: use the
-[shared layer](execution-adapter-decision.md), keep model catalogs/options out of
+[shared layer](../execution-adapter-decision.md), keep model catalogs/options out of
 coordinator code, and demonstrate multiple provider identities through the same
 path. A model list or single-client wrapper is not completion. Existing hardcoded
 integration/profile compatibility is waived; preserving project work remains
-required. Pi is a reference, not a presumed dependency.
+required. Pi's application is a reference; the selected independent libraries supply the shared runtime.
 
 ## Slice agreement
 

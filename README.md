@@ -13,20 +13,16 @@ models, searchable in F3; custom model IDs, endpoints and SDK options are data.
 The independent `pi-ai`/`pi-agent-core` libraries supply APIs and the tool loop;
 Pi's terminal application is not used. See [provider setup](docs/provider-selection.md).
 
-Waywr remains experimental. Local HTTP fixtures exercise two provider protocols
-through the actual runner/tool loop, including worker edits, structured results and
-usage. Installed TUI/reopening checks use isolated projects. These establish those
-boundaries, not account login, all-model reliability or unassisted useful delivery.
-Existing native profiles require reconfiguration; project files/history are retained.
-Stopped compatible projects reopen without their old build. Public download,
-update/uninstall and active-work update fluidity remain later increments. Follow the
-[product plan](docs/usability-plan.md), [development approach](docs/development-approach.md)
-and [handoff](docs/HANDOFF.md). No binary release has been published by this work.
+Waywr remains experimental. Provider availability depends on credentials and
+model capabilities; catalog entries do not guarantee access or task quality.
+Compatible projects reopen with the selected application without requiring the
+build that created them. Public binary installation and CLI update/uninstall are
+still planned. Use [source installation](#build-and-install-from-source) today;
+see [distribution](docs/distribution.md) and the [roadmap](docs/roadmap.md).
 
-The [public-source audit and remediation](docs/security-audit-2026-11-08.md) cover
-credential scans, patched dependencies, generalized public documentation, build-path
-privacy and security checks. The application is [MIT licensed](LICENSE). The original
-Git/GitHub history is retained in a separate private, read-only historical archive.
+Waywr is [MIT licensed](LICENSE). See the [security policy](SECURITY.md) for trust
+boundaries and private reporting, and the
+[security audit](docs/reports/security-audit-2026-11-08.md) for dated findings.
 
 ## Ordinary use
 
@@ -53,9 +49,9 @@ no Codex/Claude executable is required. The model runtime is trusted same-UID co
 not an OS sandbox. Herdr remains optional explicit read-only inspection. Both closing commands preserve your work:
 
 - `/detach` closes the TUI while authorized work continues in the background.
-- `/exit` checkpoints and pauses the session, then closes the TUI. Active permitted
-  work may finish while it drains; no new work is dispatched. Reopen with `waywr`
-  to inspect, or use `waywr resume` (or `/resume`) when ready to continue.
+- `/exit` also saves the draft and closes the TUI promptly while service-owned
+  work continues. Use `/pause` before leaving to stop new dispatch; `/resume`
+  explicitly continues a paused session.
 
 ## Development workflow
 
@@ -114,8 +110,8 @@ clear uncertainty or expand authority. Unknown execution and source edits stay p
 Python caches can be retained with a manifest during supported recovery. See the
 [recovery contract](docs/coordinator-recovery.md) for limits. No request is seeded.
 See the [conversation contract](docs/conversational-coordination.md) for exact routing,
-approval, continuation and repair semantics and the [handoff](docs/HANDOFF.md) for
-installation and ordinary-use verification limits.
+approval, continuation and repair semantics, and
+[distribution](docs/distribution.md) for installation and update behavior.
 
 There is no mandatory call, repair or task-time ceiling. Capacity refusals wait by
 default. Explicitly configured and approved alternatives permit settled-capacity
@@ -125,9 +121,8 @@ status, cancellation and explicit interruption controls. Preference edits
 apply to future attempts; reserved profiles and useful work remain intact.
 
 See [provider/role controls](docs/provider-selection.md) for complete F3 controls,
-capabilities, configuration and policy amendments. The earlier human-led Codex/Claude
-delivery is historical evidence for the retired integrations, not verification of
-this runtime. Each new request and approval belongs to you.
+capabilities, configuration and policy amendments. New development requests and
+scope approvals remain explicit user actions.
 
 ## TUI controls and activity
 
@@ -239,15 +234,6 @@ outcomes and closeout are in `.waywr/history/`, with short timestamp/hash filena
 and adjacent summaries. The [TUI contract](docs/contracts/tui-contract.md) owns detailed
 input, freshness and presentation behavior.
 
-## Prior delivery evidence
-
-[Recorded taskings and outcomes](docs/archive/conversational-coordination/2026-10-17-verified-checkpoint.md)
-distinguish human-led development from the original agent-prepared example.
-[Historical application instructions](docs/archive/product-workflow/2026-10-18-readiness-and-example.md)
-are retained as evidence, not a request to run another demonstration. New work belongs
-to the user in their chosen project. [Project layout](docs/project-layout.md) owns
-canonical state and supported migration.
-
 ## Versioned binary installation
 
 No GitHub binary release has been published or verified yet. Use the
@@ -342,10 +328,9 @@ and does not publish a release.
 | `PROJECT/.waywr/{state,worktrees,history}/` | Project-owned execution, task worktrees and readable history |
 
 `fish_add_path` persists the installer's bin directory for future Fish sessions.
-Check resolution with `type -a waywr`. This workspace's existing
-`~/.local/bin/waywr` link may keep pointing into the same installation; the
-installer itself creates aliases under `PREFIX/bin`. The absolute stable command
-for this example is `~/.local/share/wayward-wrangler/bin/waywr`. No sudo is needed.
+Check resolution with `type -a waywr`. The default installer creates a
+`~/.local/bin/waywr` link to its stable launcher under `PREFIX/bin`.
+An alternative prefix exposes `PREFIX/bin/waywr`. No sudo is needed.
 
 ## Existing projects: upgrade versus migration
 
@@ -373,8 +358,8 @@ renewal journal live under `.waywr`; see [project layout](docs/project-layout.md
 
 Installing a bundle does not convert every older storage format or authorize
 work. Explicit `session upgrade`/`rollback` commands remain advanced maintenance
-for their supported guarded migrations, including state8 provider import; see
-[provider upgrade](docs/provider-selection.md#upgrade-and-verification-boundary).
+for their supported guarded migrations; see
+[project layout](docs/project-layout.md).
 These maintenance paths still validate their source/target records and installed
 artifacts; ordinary reopening does not depend on them.
 
@@ -397,5 +382,6 @@ compatibility aliases and limits. Argument references are also available through
 `waywr bundle-build --help`, `waywr bundle-install --help` and
 `waywr session upgrade --help`.
 
-Development reading order: [AGENTS](AGENTS.md) → [handoff](docs/HANDOFF.md) →
-[architecture](docs/architecture.md). [Documentation index](docs/README.md).
+See the [documentation index](docs/README.md) for user guides and engineering
+references. Repository agents use [AGENTS](AGENTS.md) and the separate
+[agent documentation](docs/agents/README.md).

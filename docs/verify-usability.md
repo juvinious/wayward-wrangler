@@ -1,12 +1,9 @@
 # Verify the daily-use loop
 
-The local interaction/lifecycle implementation is ready for the bounded operator
-walkthrough. This is the next use check, not evidence already obtained: local
-HTTP/SDK/service/TUI fixtures establish control delivery and persistence, not
-actual account setup or useful model work. Normal startup renews obsolete or
-stranded sessions without replaying their calls. Source/worktrees remain.
+Use this walkthrough to install Waywr from source, do a small development task,
+leave the application, rebuild it and return to the same project.
 
-The candidate uses the shared model runtime on Linux x86_64 with a systemd user
+Waywr uses the shared model runtime on Linux x86_64 with a systemd user
 manager, Node >=22.19 and `flock`. Configure a provider through the SDK's explicit
 login/environment setup, then choose a provider/model in F3. No native Codex/Claude
 CLI is required. Normal startup renews retired settings/bindings automatically;
@@ -14,10 +11,6 @@ valid shared model choices remain. For a model change, /model and /thinking open
 their pickers; S saves and A reviews activation. Choose Activate and share project
 context to switch after the current turn. /status shows the active state/usage.
 Existing request policy amendments remain explicit. See [provider setup](provider-selection.md).
-Automated fixtures do not establish account login or model reliability.
-
-The agent left the operator installation absent and made only local commits on
-`plan/usability-and-installation`. You review and perform remote delivery.
 
 ## Install and use
 
@@ -77,9 +70,6 @@ immediately. Leaving alone keeps background work running. From the Waywr source 
 repeat `sh scripts/dev-install.sh` after a local application change. Then return
 to the same project and run `waywr` again. `waywr --version` shows the new generated
 artifact ID. No manual bundle IDs, rebinding or project upgrade command is needed.
-When testing a paired bundle through the ignored project-local symlink instead,
-detach the existing TUI and relaunch that symlink after it is refreshed. Idle
-handover supports this portable layout without a global installation.
 Conversation, settings, draft/work and intentional pause should remain. Resume
 only when you intend to restart dispatch.
 

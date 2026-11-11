@@ -150,8 +150,7 @@ cancellation checks do not establish successful account access.
 
 For the built-in Anthropic provider, run `waywr models login anthropic --method oauth`
 for its subscription login flow or `waywr models login anthropic --method apiKey`
-for an API key. With the project-local candidate, use `./target/local-bin/waywr`
-in place of `waywr` from this checkout. A missing-credentials reply does not retry
+for an API key. A missing-credentials reply does not retry
 automatically: sign in, then deliberately send again. Older queued inputs remain
 held. To use another provider, choose it in /model, save and review activation.
 
@@ -172,9 +171,8 @@ The runner creates each non-worker child's private working directory before
 dispatch; this includes conversation/workflow coordinators and local checks.
 Workers continue to use their assigned checkout. A directory preparation failure
 produces a settled local configuration failure with positive nonlaunch evidence,
-without a child dispatch or an uncertain-result marker. An earlier release omitted
-this directory on the shared coordinator path; its already-recorded uncertain
-attempts are not rewritten or retried by this fix.
+without a child dispatch or an uncertain-result marker. Retained uncertain
+attempts are not automatically rewritten or retried.
 
 This is a trusted same-UID runtime, not an OS sandbox. The former CLI sandbox
 flags are not applied or claimed. Worktree ownership, no remote publication,
@@ -220,16 +218,3 @@ projection. Raw prompts, tool output and extra runtime fields remain outside it.
 Lost/ambiguous post-send completion remains uncertain even after local process exit.
 Cancellation fences adoption and settles owned local processes; it does not prove
 remote generation completed. Do not automatically resend an uncertain operation.
-
-## Verification boundary
-
-The initial red rejected runtime options/new provider selection through normal
-project initialization. Focused checks now cover saved selection/reopen, search,
-unknown provider/model IDs, frozen artifacts/destinations and real runner decoding.
-Real SDK/agent-loop checks against local HTTP fixtures cover two distinct protocols,
-a worker file-writing tool, structured completion and usage/progress. Host permits
-in that runner check are fixtures, not a systemd proof or authority for native use.
-Dummy API-key setup checks preserve two concurrent entries in a temporary private
-store without contacting accounts. Actual installed TUI/reopening is checked in
-isolated projects separately. No real inference, provider account or ordinary
-unassisted development delivery is established by these checks.

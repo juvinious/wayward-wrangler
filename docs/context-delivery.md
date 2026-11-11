@@ -96,12 +96,6 @@ exchange files and public metadata record what was supplied/retrieved. Raw sourc
 pages are not duplicated into public activity events. Compatible-release guards
 preserve retained continuation records; historical packets/receipts are not rewritten.
 
-The assisted label-management-example delivery exercised native Codex retrieval and a Claude
-review continuation: exact `cli.py` at the submitted commit, a complete two-page
-diff and a fresh review attempt. The [verified checkpoint](archive/conversational-coordination/2026-10-17-verified-checkpoint.md)
-records this observed path. It does not establish exhaustive review, an exact native
-token count or every evidence/provider/compaction combination.
-
 New finding-contract review packets preserve original native output separately from
 the effective disposition. Exact linked judgments can resolve prior concerns using
 supplied source evidence; omitted judgments remain blocking. See

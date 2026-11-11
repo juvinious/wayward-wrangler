@@ -67,56 +67,25 @@ saved revision or binding invalidates the review. Section4 retains advanced
 switch/status/cancellation controls; section6 retains policy amendments. Node/runtime
 and JSON option fields remain available without provider-specific key bindings.
 
-F1 and popup footers provide contextual help. This contract standardizes the
-existing Rust/Ratatui interface; it does not authorize operator services, provider
-login or inference. See [provider setup](provider-selection.md) for those steps.
+F1 and popup footers provide contextual help. See
+[provider setup](provider-selection.md) for model selection and login.
 
-## Planned everyday interaction
+## Everyday interaction
 
-Target recorded on2026-11-10, following the user's request to align ordinary use
-with Codex/Pi and finish it before another operator walkthrough. This section is
-implemented locally for interrupt/leave/pause, steering/follow-up, multiline
-history/newlines and direct model/thinking/status actions. The useful operator
-walkthrough remains separate evidence. A disconnected view labels retained state and stops its active-work timer. The
-event subscriber keeps attempting a verified snapshot resync after busy replies,
-gaps or transport loss; it does not stop permanently after one retry batch. A waiting
-task must not make the interface unusable. Drafting, browsing, inspection, changing
-topics and leaving remain available while an operation is waiting or stopping.
+Drafting, browsing, inspection, changing topics and leaving remain available while
+an operation is waiting or stopping. A disconnected view labels retained state and
+stops its active-work timer. The event subscriber keeps attempting verified
+resynchronization after busy replies, gaps or transport loss.
 
-### Reference observations
+### Actions and precedence
 
-Codex documents Enter as steering during work, Tab as a queued follow-up, prompt
-history/search, slash-command discovery, model/status controls, keymap editing,
-saved-session resume and direct exit. Its keymap is contextual. See the official
-[interactive shortcuts](https://learn.chatgpt.com/docs/developer-commands?surface=cli#interactive-shortcuts),
-[keymap command](https://learn.chatgpt.com/docs/developer-commands?surface=cli#remap-tui-shortcuts-with-keymap)
-and [resume/exit commands](https://learn.chatgpt.com/docs/developer-commands?surface=cli).
-
-Pi documents Enter for steering, Alt+Enter for follow-up and Escape for abort;
-its editor supports newline/history actions and restores queued input after abort.
-Its configurable named actions separate interrupt, clear and exit, with model and
-thinking shortcuts. See [terminal usage](https://raw.githubusercontent.com/earendil-works/pi/main/packages/coding-agent/docs/usage.md),
-[keybindings](https://raw.githubusercontent.com/earendil-works/pi/main/packages/coding-agent/docs/keybindings.md)
-and [action definitions](https://raw.githubusercontent.com/earendil-works/pi/main/packages/coding-agent/src/core/keybindings.ts).
-These are upstream observations checked on the date above, not a claim that every
-shortcut or delivery boundary is identical across versions and terminals.
-
-Waywr uses the shared libraries, not Pi's application. The pinned agent class
-provides steer, followUp and abort. The [runtime entry](../model-runtime/main.mjs)
-now claims an attempt-scoped inbox between agent steps and calls Agent.steer.
-Follow-ups remain separate service turns, each with its own validated result.
-See [live input](live-input.md) for pending/applied/held state, editing and replay
-boundaries. An older owner without this capability queues until idle handover.
-
-### Target actions and precedence
-
-| Action/context | Target behavior |
+| Action/context | Behavior |
 | --- | --- |
 | Enter while idle | Send the draft. Required setup offers the relevant action in place and keeps the draft. |
 | Enter while the current agent works | Deliver steering at the next supported agent-loop boundary; show pending versus applied. It does not silently expand approved work. |
 | Alt+Enter while busy | Queue a follow-up for after the current task. Queue controls can edit, withdraw or restore it without sending. |
 | Escape in a popup/editor | Return one level. Do not clear the underlying composer or interrupt unrelated work. |
-| Escape in the composer with text | Clear the draft, honoring the user's requested behavior. |
+| Escape in the composer with text | Clear the draft. |
 | Escape with empty composer and active agent | Request interruption immediately, preserve input/work, show Stopping until actual settlement, and keep the UI usable. |
 | Ctrl-C | Clear nonempty composer input; with empty input and an active agent, interrupt. Empty idle input does not implicitly terminate work or exit. |
 | Visible Interrupt action; `/interrupt` | Stop the foreground coordinator without a confirmation panel. A selected-worker stop must name that worker; it must not reuse whole-workflow cancellation implicitly. |
@@ -126,15 +95,8 @@ boundaries. An older owner without this capability queues until idle handover.
 | `/model`, `/thinking`, `/status`, `/help` | Direct discoverable actions; F3 and existing navigation remain available. Show active, saved and pending choices truthfully. |
 | Waiting/error | Show the affected task/call, concrete reason and available action. Preserve the draft; allow another topic or leaving. An unrelated request must not lock the whole application. |
 
-The Escape/text and Ctrl-C choices deliberately retain the user's clear-buffer
-preference rather than copying Pi's precedence wholesale. Alt+Enter avoids taking
-Tab away from Waywr's existing focus controls. Key handling and help should share
-one action definition; configurable bindings can follow without delaying the
-everyday loop. Model/provider behavior must remain below this interaction layer.
-
-The former exit confirmation/pause coupling is removed. /exit and Ctrl-Q leave
-promptly; /pause is separate. The controls above are implemented locally, with
-the useful operator walkthrough still required for ordinary-use evidence.
+Alt+Enter keeps Tab available for focus navigation. `/exit` and Ctrl-Q leave
+promptly; `/pause` is a separate action.
 
 Interruption is a request to stop one operation. Uncertain settlement still fences
 replay, replacement or conflicting writes for that operation; it cannot prevent

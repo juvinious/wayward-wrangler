@@ -2,7 +2,7 @@
 
 The state9 development path advertises IPC1.8 / `conversational_coordination_v1`.
 Older bound schemas and historical submissions keep their existing semantics.
-Installation and verification limits are recorded in [HANDOFF](HANDOFF.md).
+See [installation](distribution.md) for available distribution methods.
 
 The current request owns the composer, its questions, proposal and work summary.
 Selecting a task inspects it. `/discuss` explicitly changes conversation to the
@@ -60,15 +60,6 @@ correct owner for the old UI-state format; newer explicit user selections win.
 Unsent legacy drafts remain with their original request and no decision target;
 returning to one cannot bind its old assent to a newer proposal.
 
-Native/human acceptance is separate from fixtures. The human-originated label-management-example
-request was approved and delivered at `af358d7560d85f14d56aff481e6f34c5bd6c22a9`;
-its coordinator/worker/review/check evidence remains in the project history. The
-human subsequently verified the corrected post-delivery recap in the production TUI.
-Its new live turn completed with action:null and no development action. Broader
-conversation intents and unknown-citation fallback retain their focused fixture
-coverage; this one interaction is not exhaustive acceptance. See the
-[verified checkpoint](archive/conversational-coordination/2026-10-17-verified-checkpoint.md).
-
 Normal chat also recognizes exact named session pause/resume and request
 cancel/resume operations. Existing reconciliation gates remain; “continue” does not
 clear uncertain execution. Clear steering imperatives enter the normal coordinator
@@ -94,14 +85,12 @@ intent remains conservative and may need explicit `/new` or an inline action.
 
 Bundle `interaction_contract: conversation-v1` prevents choosing an older release
 that cannot interpret retained causal records. Pending effects and continued-answer
-intents participate in the existing quiescent release-change guard. Focused fixtures
-and recorded native/human results are distinguished in
-[HANDOFF](HANDOFF.md).
+intents participate in the existing quiescent release-change guard.
 
 Concise proposal cards are typed application rows, separate from activity text
 classification. Full scope/policy remains in optional Details. Effective role choices
 are labelled as defaults or fixed request pins, independently of permission sets.
-[Request routing](provider-selection.md#request-specific-choices) preserves human
+[Request routing](provider-selection.md#runtime-and-model-selection) preserves human
 source and enforces selected review profiles through assignment, reservation, launch
 permit and exact-commit review gates. The approved source directive is routing intent,
 never execution approval. Background presentation acknowledgements do not set message

@@ -27,8 +27,8 @@ startup reading list. `CLAUDE.md` points here as the canonical working policy.
 
 ## Development precepts
 
-Use [the acceptance-driven development approach](docs/development-approach.md)
-and the current slice in [the usability plan](docs/usability-plan.md).
+Use [the acceptance-driven development approach](docs/agents/development-approach.md)
+and the current slice in [the usability plan](docs/agents/usability-plan.md).
 
 The product order is broad provider/model support, lifecycle fluidity, then
 coordination through a substantial real application. Follow the
@@ -111,6 +111,17 @@ needs link/reference and diff checks, not application execution. Python harnesse
 are optional developer tools, not a Rust application runtime requirement.
 
 ## Documentation at every checkpoint
+
+Keep documentation separated by audience:
+
+- README, user guides and engineering references explain the product or code to
+  humans. Keep agent instructions, session permissions, branch/PR status and test
+  diaries out of them. Distinguish implemented behavior from planned interfaces.
+- `docs/agents/` holds task-specific implementation guidance; read only relevant
+  notes. `docs/reports/` holds dated findings and verification evidence. Historical
+  plans/reports go in `docs/archive/`; they are not standing instructions.
+- Keep HANDOFF short: checkpoint, unresolved blocker, next action and links to
+  individual notes/reports. Do not paste those reports into startup context.
 
 Before committing or handing off, reassess docs against current task and source.
 This includes routine checkpoints and task transitions, not just new branches.

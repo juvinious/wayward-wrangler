@@ -1,4 +1,4 @@
-# Continuous coordinator contract — implemented; offline native gate passed
+# State7 continuous coordinator compatibility contract
 
 This owns implemented state7/config4/IPC1.5/profile-v2 semantics. It is a
 maintenance contract, not a trial authorization or the complete product design.

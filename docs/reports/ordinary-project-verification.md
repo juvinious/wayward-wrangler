@@ -7,7 +7,7 @@ under archive refs. Final production source: `258d8a89a737aaabff16cf28288927f4b6
 clean when built with permanent Rust1.99.0, Linux x86_64/glibc2.39.
 Release ID: `v0.0.0-ordinary.20261018.258d8a89a737` (local build identity; no tag/release published).
 This supersedes `ordinary-20261018-e4354d3d2016` and interim closeout builds at
-`981321a`/`f883d5d`/`8b6ece7`. The [initial evidence](archive/product-workflow/2026-10-18-initial-verification-e4354d3.md)
+`981321a`/`f883d5d`/`8b6ece7`. The [initial evidence](../archive/product-workflow/2026-10-18-initial-verification-e4354d3.md)
 is retained separately; its broad focused checks were reused, not repeated.
 
 Bundle directory: `target/dist/v0.0.0-ordinary.20261018.258d8a89a737/waywr-v0.0.0-ordinary.20261018.258d8a89a737-linux-x86_64-gnu/`.

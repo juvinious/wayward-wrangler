@@ -1,209 +1,134 @@
-# Binary distribution and guarded updates
+# Installing and distributing Waywr
 
-`ci.yml` checks pull requests/main and builds a bundle; `release.yml` assembles a
-version tag and publishes its assets through a separate contents-write job.
-Actions are full-SHA pinned. The builder uses digest-pinned Ubuntu24.04, permanent
-rustup1.99.0 and Cargo.lock. `scripts/package-release.sh VERSION ABS_OUTPUT` runs
-the locked production build with machine-path remapping and existing `bundle-build`, then produces normalized
-GNU tar/gzip plus SHA256SUMS. The manifest records source/dirty state, lock/toolchain
-hashes, rustc, libc and builder identity. Normalized assembly is not a claim of
-bit-identical binaries; apt package revisions and hosted infrastructure can change.
-Two independent identical builds have not been demonstrated.
+Waywr is installed as one application containing the terminal UI, project service,
+worker runner and shared JavaScript model runtime. The installer puts these files
+in your user account and creates a stable `waywr` command. Project files and
+conversation state stay in each project's `.waywr` directory.
 
-Initial published target: Linux x86_64 GNU, Ubuntu24.04/glibc2.39. This is not a broad
-Linux portability claim. Systemd user execution, sandbox support and provider
-requirements still apply. Bundles now include a manifest-hashed shared JavaScript
-model runtime and its legal notices. Node >=22.19 and util-linux `flock` are binary
-runtime prerequisites; npm, Python and Rust are source-build tools only. Startup
-retires obsolete native configuration/session context and opens fresh usable
-state, retaining current shared-model choices where possible. Project source,
-Git history and dirty worktrees remain; retired calls/approvals are not replayed.
-See [startup renewal](project-layout.md) for ownership and retirement boundaries.
+## What works today
 
-For local development, run `sh scripts/dev-install.sh` from the source checkout.
-It wraps the existing locked remapped build, notice/privacy checks, paired bundle
-assembly and staged installation with a fresh generated ID. It selects the new
-application atomically without starting a service, changing shell/provider settings
-or binding each project. Failed compilation/checks leave the previous installation
-selected. `--prefix ABSOLUTE` isolates an installation; Rust/Python are source-build
-tools, not installed runtime dependencies. `waywr --version` reports the frontend
-version and selected artifact; the unbundled diagnostic needs no project/manifest.
-Older artifacts are currently retained; automatic collection/uninstall is later
-work. They are not permanent project dependencies.
+| Method or command | Availability |
+| --- | --- |
+| Build and install this checkout | Available: `sh scripts/dev-install.sh` |
+| Download a published binary release | Installer exists, but requires GitHub CLI login, a repository and an exact version; no published binary release is recorded yet |
+| Public curl installer with latest-version selection | Planned |
+| `waywr update` and `waywr uninstall` | Planned |
+| Debian, npm or Homebrew packages | Not provided |
 
-`scripts/install.sh --version vMAJOR.MINOR.PATCH` uses authenticated `gh` for a private
-repository. It verifies exact tag, GitHub's checksum-asset digest, archive SHA256,
-platform/libc, safe names, unique entries and regular-file/directory types before
-extraction. It rejects path traversal, links and special files, then delegates to
-existing staged/hash-validated `bundle-install`. Tokens stay with gh. Missing release
-assets/digests refuse; there is no source-build fallback. `--repo OWNER/REPO`,
-`--prefix ABSOLUTE` and `--no-select-default` are explicit options. Select `--repo OWNER/REPO` or set `WAYWR_REPOSITORY`; there is no embedded account
-or repository destination. See [README](../README.md#versioned-binary-installation)
-for Fish commands. Authenticated download trusts the selected repository/GitHub;
-there is no separate signing or independent release-attestation trust root yet.
+## Install from source now
 
-Layout remains `~/.local/share/wayward-wrangler/releases/ID`, `current`, `bin/waywr`
-and `~/.local/bin/waywr`. Selecting the default preserves project metadata.
-Normal startup now opens compatible stopped projects with the selected application;
-it does not route through an old build named in `.waywr/release.json`. That retained
-record supplies project identity/diagnostics, not an executable dependency. The
-installed bundle's hashes, storage schema and retained semantic contracts remain
-checked. An idle running service can be replaced under exact owner/quiescence checks;
-compatible busy owners remain attachable through the current UI. Obsolete or
-stranded sessions follow [startup renewal](project-layout.md), rather than making
-an old failed attempt a dependency of the application update.
-This also works for a manifest-validated paired bundle launched directly through
-a temporary/project-local symlink; an installed releases directory is not
-required. Handover verifies the old unit's real executable (including a deleted
-old file), exact project/state/key/release/IPC/runner/frontend command, socket
-peer PID and bounded project status reply, then applies the existing quiescence fence. It
-does not locate the old service by guessing a sibling installation directory.
-Using status instead of the full snapshot also permits upgrading an older
-service whose large project projection exceeds its former1MiB response ceiling.
-Explicit `waywr --project DIR session upgrade --release ID` checks closed UI/no pending
-input and positively settled operations, stops only that quiescent project service
-under execution fencing, then performs the existing guarded binding migration. PR delivery reconciles the exact
-merged PR before checking a potentially auto-deleted publication branch; completion
-and its effect/history records commit atomically.
-Active/uncertain execution refuses; there is no forced stop, inferred settlement or
-implicit resume. Intentional pauses and all approval/history/Git records remain.
-A normal launch starts the selected service through Waywr; users need no systemctl
-procedure. Legacy layout migration remains a separate supported operation.
+Install the [source-build prerequisites](../README.md#build-and-install-from-source),
+then run these commands from the Waywr checkout. Examples use Fish:
 
-`scripts/test-packaged-install.py ARCHIVE` uses the real versioned production
-archive, shell installer, staged bundle installer and paired installed binaries in
-an isolated HOME/XDG prefix. Only GitHub's download transport is a local fixture.
-It checks manifest hashes, launcher resolution, damaged-resource refusal and idle
-service/TUI startup outside the source tree with Rust absent from PATH. Its Python
-runtime is a developer/CI dependency, not an installed application dependency. PR
-and release package jobs run this check; no model or systemd bootstrap is involved.
-Local verification checks code, shell/workflow structure and isolated installation
-mechanisms. The PR/build workflow has executed successfully,
-including the real archive/install/TUI check and artifact upload. Git trusts only the
-owned `$GITHUB_WORKSPACE` in these ephemeral containers, not a wildcard path.
-The version-tag release workflow has not executed.
-Publishing requires an authorized push/merge, Actions enablement and a version tag;
-the release job must succeed and its archive/checksum assets must exist before the
-GitHub installer can work. Nothing has been published by this implementation task.
+```fish
+sh scripts/dev-install.sh
+fish_add_path "$HOME/.local/share/wayward-wrangler/bin"
+waywr --version
+```
 
-## Next distribution slice — proposed after installer comparison
+The script compiles the application, builds the model runtime, checks the result
+and installs all components together. It prints the installed version and launcher
+path. No sudo is needed. A failed build leaves the previous installation selected.
 
-The following is the next implementation target, not available CLI behavior.
-Keep the existing verified paired bundle as the artifact for every
-channel; installing only one Rust executable cannot deliver the shared runtime.
+To use it in another project:
 
-[Pi's current quickstart](https://pi.dev/docs/latest/quickstart) defaults to a
-shell installer with pinned dependencies and `pi update`. It also offers npm and
-Nix; those channels have their own update ownership. Its
-[installer source](https://pi.dev/install.sh) stages a managed npm release behind
-a stable launcher and can provision a private Node runtime. Pi is not distributed
-solely as one dependency-free native executable.
-[Codex's CLI guide](https://learn.chatgpt.com/docs/codex/cli) likewise defaults to
-a shell installer on macOS/Linux and updates by rerunning it. npm and Homebrew
-are additional channels. These are delivery references, not a reason to adopt
-either application's lifecycle or expand Waywr's supported platforms.
+```fish
+cd PROJECT
+waywr
+```
 
-First deliver a public, unauthenticated Linux installer using the existing
-archive validation/staged selection. Default to the latest stable release, retain
-an explicit version override and isolated prefix, and require no GitHub login for
-public assets. Record the selected repository/channel without embedding an
-operator account. Define the release/checksum trust model before replacing the
-private installer's authenticated asset-digest check. Missing or invalid assets
-must leave an existing working installation selected. Acceptance begins with the
-current failure: a clean isolated HOME without gh credentials cannot install from
-public release transport through the existing installer. Exercise the real archive,
-shell installer and paired binaries; only download transport is locally controlled.
+Waywr prompts for setup when needed. Use `/login` to configure a provider, then
+choose a model in F3. Installing the application does not sign in to a provider.
+See [provider setup](provider-selection.md).
 
-Then expose `waywr update` through the same verified atomic selection. It must not
-rebind each project or stop compatible busy owners; reuse existing lifecycle
-contracts. `waywr uninstall` should remove owned application files with explicit
-active-work handling while preserving project source/state and credentials by
-default. Decide Node provisioning explicitly: detect a compatible runtime or
-provide a verified user-local runtime without modifying global Node/shell setup.
-Do not hide this prerequisite behind a successful executable download.
+To update from source, run `sh scripts/dev-install.sh` again after changing the
+checkout, then reopen the project. No per-project application upgrade is needed.
 
-Additional package channels (for example npm, Homebrew or Debian) follow that
-working journey and reuse the same bundle. Cross-platform expansion is outside
-the first Linux installation slice.
+## How binary releases reach users
 
-## Public build privacy and notices
+The release workflow is configured to perform this sequence:
 
-Use `sh scripts/build-release.sh` for distributable binaries. It preserves Cargo
-flags and remaps checkout, home and toolchain paths; ordinary source compilation
-needs no Python. Packaging uses Python developer checks, fetches locked notice
-sources, verifies `THIRD_PARTY_NOTICES.md` and scans the entire bundle for builder
-paths. These tools are not installed application prerequisites.
+1. A maintainer publishes a version tag such as `v1.2.3` after reviewing the code
+   and passing the required checks. This version is illustrative.
+2. GitHub Actions compiles the Linux application and model runtime, checks the
+   bundle, and creates `waywr-v1.2.3-linux-x86_64-gnu.tar.gz` plus `SHA256SUMS`.
+3. The publish job attaches those files to a GitHub Release for the tag.
+4. The installer downloads the archive and checksums, verifies them, then installs
+   the complete application and selects it for subsequent launches.
 
-New bundles include root `LICENSE` and `THIRD_PARTY_NOTICES.md` as two additional
-manifest-hashed files, with explicit MIT/notice metadata. A new
-declaration missing either text is refused; older manifests without notice
-metadata retain their existing compatibility. The notice inventory covers189
-normal/build Rust dependencies for Linux x86_64 GNU. The shared runtime separately
-includes npm dependency attributions and license texts under
-`resources/model-runtime/THIRD_PARTY_NOTICES.md`. Its lockfile and SDK versions are
-recorded in source; production npm audit, Dependabot and JavaScript CodeQL coverage
-are prepared in the local workflows. Upstream names and copyright
-notices are required attribution, not operator-specific application content.
+An Actions build artifact alone is not a published release. The downloadable files
+must exist on the GitHub Release before the release installer can work.
 
-After dependency changes, run `python3 scripts/generate-notices.py`, review the
-license inventory, and include it with source and bundles. No public release or
-operator upgrade occurred during security remediation; see the
-[audit/remediation record](security-audit-2026-11-08.md).
+The current installer takes `--repo OWNER/REPO` and `--version VERSION`, downloads
+through authenticated GitHub CLI, and installs without compiling on the user's
+machine. [Versioned binary installation](../README.md#versioned-binary-installation)
+shows its current commands. It does not yet provide the public installation flow
+below.
 
-## Reopening after a compatible replacement
+## Planned public installation
 
-`python3 scripts/test-project-reopen.py` uses the real bundle builder/installer,
-launcher, service, IPC and TUI in a temporary HOME. It composes an unsent draft,
-saves a pause, selects another bundle identity, deletes the former installation,
-and reopens normally without editing the project binding. Draft/settings/legacy
-metadata and the intentional pause survive; invalid project identity and unsupported
-storage are refused without rewriting their metadata. No model request is sent.
-Services are started directly by this fixture, so it does not establish systemd
-bootstrap, live service handover, different-version protocol compatibility or a
-complete ordinary development workflow. Both bundles use the supplied paired
-binaries; the regression isolates application-build identity changes.
+The target is a single command that downloads the installer from the release
+repository and installs the latest stable release without a GitHub account or
+source checkout. This example describes the planned interface; it does not work
+with today's installer. Replace `OWNER/REPO` with the release repository:
 
-The `--systemd-handover` variant uses the real user manager and normal launcher to
-start and replace only its own uniquely keyed unit. It removes the old installation
-while the service runs, preserves an attached TUI and reconnects pending delivery
-or unresolved launch evidence to the existing owner, then verifies an idle
-replacement process/generation restores the saved draft.
-This establishes idle handover, not interruption or resumption of active model work.
-Adding `--portable` uses a temporary local-bin symlink directly to the paired
-bundles without installing them. That real-systemd variant reproduces the local
-development path and checks the same existing-owner attachment and idle
-replacement after removal of the old bundle.
-`--populated-history` exercises complete snapshot delivery above1MiB using inert
-retained fixture records. With `--systemd-handover --portable`, an explicit
-`--previous-binaries ABS_BIN` tests an older service that demonstrably closes its
-oversized snapshot, followed by safe idle replacement and successful reopening.
+```fish
+curl -fsSL https://raw.githubusercontent.com/OWNER/REPO/main/scripts/install.sh | sh -s -- --repo OWNER/REPO
+```
 
-`python3 scripts/test-session-renewal.py` uses real uniquely keyed temporary
-systemd services, IPC and TUI. It reproduces the old unresolved-attempt update
-refusal, verifies termination of an inert held operation, retires the stranded
-session/obsolete target, opens fresh state with retained model choices/source,
-and reopens without resetting again. It also replaces obsolete native settings
-on startup. `--busy` verifies attachment to the same active owner across builds,
-then idle handover. Its held process is sleep, not a provider call; this does not
-establish useful model delivery. Crash continuation and foreign-state refusal
-have focused unit coverage. The explicit retired-profile IPC fixture in
-test-project-reopen.py characterizes inspection UI, not ordinary startup renewal.
-The `--controls` variant uses an actual SDK stream against local HTTP, interrupts
-through the real service/runner, and SIGSTOP-holds settlement while verifying
-prompt leave and busy reattachment with the draft intact. It also verifies pause
-without leaving and prompt disconnected leave. It makes one local fixture
-request and no real model/account call; all fixture units are stopped afterward.
+The installer must choose the correct supported archive, verify the download and
+all bundled files, then make the stable `waywr` command available. Users who need
+a particular release can pass `--version v1.2.3`; `--prefix` chooses an alternative
+installation directory. The repository is saved at installation so updates do not
+require it again. A failed download or validation must leave the working version
+selected. A first install must print the exact PATH command if one is needed.
 
-`python3 scripts/test-dev-install.py` runs two actual builds/installations with an
-explicit temporary prefix (including spaces) and the permanent Rust toolchain. It
-removes the former build and reinitializes the same project without changing its
-saved settings. A fixture compiler failure then proves the selected working
-installation and project data remain intact. No service/model/operator install is
-involved. See [user verification](verify-usability.md) for ordinary use, which is
-separate from these automated checks.
+The initial target is Linux x86_64 with glibc2.39 or newer, a systemd user manager,
+Git, `/bin/sh`, Node >=22.19 and util-linux `flock`. Binary users do not need Rust,
+Python or npm. Node is currently an external prerequisite; the public installer
+must check it before reporting success. Automatic installation of a private Node
+runtime is not implemented. Other platforms need separate release builds.
+See [Linux requirements](linux-sandbox-setup.md) for the execution trust boundary.
 
-Service bootstrap forwards the existing allowlisted runtime variables and XDG
-locations from the calling terminal. This preserves normal CLI discovery and
-configuration locations instead of relying on stale user-manager HOME/PATH.
-It does not import arbitrary caller token variables or edit shared configuration.
-The real-systemd regression checks the service's actual HOME/PATH environment.
+## Updates
+
+Today, updating means rebuilding from source or installing another exact binary
+release through the current installer. The planned command is:
+
+```fish
+waywr update
+```
+
+It will fetch the latest stable release from the saved repository, check it and
+select it for new launches. Projects do not need to be rebound to that version.
+Compatible work already running stays with its existing service until settled;
+the UI can reattach to it. An idle service can switch when the project is reopened.
+Updating must not silently stop or repeat a model call.
+
+## Uninstall
+
+There is no supported uninstall command yet. The planned command is:
+
+```fish
+waywr uninstall
+```
+
+It will remove Waywr-owned launchers and application files. If work is still
+running, it must explain what is active and let the user settle or deliberately
+stop it before removing the files it needs. Project source, Git history, `.waywr`
+state and provider credentials are preserved by default.
+
+## Where files go
+
+These are the default locations; `--prefix` changes the application directory.
+
+| Location | Contents |
+| --- | --- |
+| `~/.local/share/wayward-wrangler/releases/RELEASE_ID/` | UI, service, runner, model runtime, license notices and file manifest |
+| `~/.local/share/wayward-wrangler/current` | Link selecting the application for new launches |
+| `~/.local/share/wayward-wrangler/bin/waywr` | Stable launcher; the default install also creates `~/.local/bin/waywr` |
+| `PROJECT/.waywr/` | Project settings, conversation, worktrees and execution history |
+
+Older application versions are retained today. Automatic cleanup is still planned.
+Package-manager channels will follow the public installer and reuse the same
+release contents. They must preserve the same project data and update behavior.

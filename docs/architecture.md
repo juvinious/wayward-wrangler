@@ -1,20 +1,11 @@
 # Waywr architecture
 
-This maps the current implementation. The [product direction](execution-adapter-decision.md)
-replaces provider/model-specific core integrations with one shared multi-provider
-layer. Current native paths below are not a compatibility requirement for the
-rewrite. Preserve project work and execution ownership; do not treat historical
-provider restrictions as the target architecture. The runtime uses the independent pi-ai/pi-agent-core libraries; Pi's terminal app is not used.
-
-The current Rust TUI/service/runner supports project-scoped conversation, authorized
-development and supervised model/tool workers. Workflow/provider/conversation/context
-work is merged through `799841c` (PR #9). Recovery/convergence and the ordinary-project
-increment were squash-merged as `4218347` (PR #10); original ancestry remains under
-`refs/archive/pr-10/`. The
-[recovery contract](coordinator-recovery.md) owns its current behavior and limits.
-The [approved plan](archive/product-workflow/approved-plan-b810bf1.md) is historical.
-The [current contract](ordinary-project-workflow.md) covers setup, knowledge,
-candidates, checkout ownership, retention and completion; HANDOFF records verification.
+The Rust TUI, project service and runner support project-scoped conversation,
+approved development and supervised model/tool workers. One shared provider
+runtime uses independent pi-ai/pi-agent-core libraries; Pi's terminal application
+is not used. The [architecture decision](execution-adapter-decision.md) explains
+the provider boundary. The [workflow contract](ordinary-project-workflow.md) covers
+setup, candidates, checkout ownership, retention and completion.
 
 ## Components and authority
 
@@ -47,8 +38,6 @@ output proposes actions and claims; receipts and exact commit/check evidence est
 what actually happened. TUI and optional Herdr displays grant no authority.
 
 [Canonical layout](project-layout.md) owns migration and evidence aliases.
-[Retained delivery evidence](archive/conversational-coordination/2026-10-17-verified-checkpoint.md)
-records real taskings and assistance, not general complex-project readiness.
 
 ## Connected development
 
@@ -56,8 +45,8 @@ New projects use state9 / conversation config6 / IPC1.10, with schema3
 `development-profiles-v1` preferences. Models/providers/options are data; the shared
 runtime owns protocol clients, catalogs and the tool loop. Defaults come from
 runtime configuration/catalogs. Retired native schema1/2 profiles are unsupported
-without explicit reconfiguration; files/history are preserved. The
-[selection contract](provider-selection.md) owns supported client/effort capabilities,
+as executable routes. Startup renews obsolete settings while preserving source
+and worktrees. The [selection contract](provider-selection.md) owns supported client/effort capabilities,
 per-attempt freezing, preference/policy separation, exact-commit review, binding
 handover and opt-in settled-capacity fallback. No shared provider settings or
 credentials are changed. Worktrees remain a trusted-client/same-UID boundary.
@@ -139,8 +128,7 @@ this conversation summary; worker views retain their existing telemetry path.
 The shared runner prepares non-worker child working directories independently
 of retired native-client helpers. Preparation failures precede child dispatch and
 retain explicit local nonlaunch proof; genuine post-dispatch uncertainties keep
-their existing fences. Real runner fixtures cover conversation and workflow
-coordinator startup as well as worker tools through two local protocols.
+their existing fences.
 
 ## Durable history and context
 
@@ -174,17 +162,14 @@ No Example Task App command pair or application-specific task sequence is prescr
 ## Provider increment and remaining limits
 
 [Provider selection](provider-selection.md) owns the connected state9 extension.
-Focused local tests cover selection, save/import, policy separation, role packets,
-handover, adapter boundaries and preservation. The recorded live delivery verifies
-Codex coordination/implementation with Claude review, including a source-retrieval
-continuation; fixtures do not establish other native role combinations. New requests
-and approvals remain human-originated. Discovery establishes neither authentication
-nor role usability.
+All current coding roles use the shared runtime. New requests and approvals
+remain human-originated. Discovery establishes neither authentication nor role
+suitability.
 The shared runtime supplies its SDK catalog and custom provider/model overlays
 without inference during metadata inspection. F3 searches provider/model IDs and
 edits options. All coding roles use the same runtime rather than brand allowlists.
-The current SDK catalog has42 providers/1592 models; two protocol fixtures establish
-request/tool/result plumbing, not every model's authentication or suitability.
+The SDK catalog supplies model metadata, not proof of each model's authentication
+or suitability.
 Standalone native-Claude and Ollama transports and their superseded integration
 harnesses were removed. Earlier fixed workflow readers remain historical code,
 not alternative state9 execution routes. See the provider contract for same-UID
@@ -206,11 +191,10 @@ Idle services hand over after exact ownership and quiescence checks. Obsolete or
 stranded sessions follow [startup renewal](project-layout.md): stop exact owned
 processes, retire old state/target configuration and create a fresh session from
 usable shared settings and current project source, without old execution replay.
-Installed
-bundles are independent of this source checkout. The GitHub PR/build workflow passed focused checks, production packaging, real
-isolated installation/TUI startup and artifact upload. The version-tag release
-workflow remains unexecuted; no release has been published. Versioned Linux binary artifacts, a download entry
-point and guarded quiescent updates now use the [distribution contract](distribution.md); authenticated release download/publication, ordinary project PR delivery and broader platform support remain unverified.
+Installed bundles are independent of the source checkout. The
+[distribution guide](distribution.md) describes available installation methods,
+release assets and planned update/uninstall commands. Detailed packaging/handover
+checks are kept in [agent distribution notes](agents/distribution.md).
 
 ## Conversational coordination
 
@@ -252,7 +236,6 @@ cross-references rather than rewriting old events or replaying misrouted assent.
 Ordinary conversation, including a verified post-delivery recap, uses the same live
 coordinator without requiring a scope action. Unknown optional citations are retained
 as unverified provenance rather than dependencies; typed actions keep strict guards.
-[HANDOFF](HANDOFF.md) records installation, repair and verification limits.
 
 ## Contract owners
 
