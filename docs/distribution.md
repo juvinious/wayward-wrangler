@@ -14,10 +14,11 @@ Initial published target: Linux x86_64 GNU, Ubuntu24.04/glibc2.39. This is not a
 Linux portability claim. Systemd user execution, sandbox support and provider
 requirements still apply. Bundles now include a manifest-hashed shared JavaScript
 model runtime and its legal notices. Node >=22.19 and util-linux `flock` are binary
-runtime prerequisites; npm, Python and Rust are source-build tools only. Existing
-profiles need schema3 reconfiguration; retained project work is not deleted.
-Schema2 profiles no longer stop service startup: the project opens with execution
-blocked and F3 available for explicit replacement and coordinator switching.
+runtime prerequisites; npm, Python and Rust are source-build tools only. Startup
+retires obsolete native configuration/session context and opens fresh usable
+state, retaining current shared-model choices where possible. Project source,
+Git history and dirty worktrees remain; retired calls/approvals are not replayed.
+See [startup renewal](project-layout.md) for ownership and retirement boundaries.
 
 For local development, run `sh scripts/dev-install.sh` from the source checkout.
 It wraps the existing locked remapped build, notice/privacy checks, paired bundle
@@ -84,6 +85,46 @@ The version-tag release workflow has not executed.
 Publishing requires an authorized push/merge, Actions enablement and a version tag;
 the release job must succeed and its archive/checksum assets must exist before the
 GitHub installer can work. Nothing has been published by this implementation task.
+
+## Next distribution slice — proposed after installer comparison
+
+The following is the next implementation target, not available CLI behavior.
+Keep the existing verified paired bundle as the artifact for every
+channel; installing only one Rust executable cannot deliver the shared runtime.
+
+[Pi's current quickstart](https://pi.dev/docs/latest/quickstart) defaults to a
+shell installer with pinned dependencies and `pi update`. It also offers npm and
+Nix; those channels have their own update ownership. Its
+[installer source](https://pi.dev/install.sh) stages a managed npm release behind
+a stable launcher and can provision a private Node runtime. Pi is not distributed
+solely as one dependency-free native executable.
+[Codex's CLI guide](https://learn.chatgpt.com/docs/codex/cli) likewise defaults to
+a shell installer on macOS/Linux and updates by rerunning it. npm and Homebrew
+are additional channels. These are delivery references, not a reason to adopt
+either application's lifecycle or expand Waywr's supported platforms.
+
+First deliver a public, unauthenticated Linux installer using the existing
+archive validation/staged selection. Default to the latest stable release, retain
+an explicit version override and isolated prefix, and require no GitHub login for
+public assets. Record the selected repository/channel without embedding an
+operator account. Define the release/checksum trust model before replacing the
+private installer's authenticated asset-digest check. Missing or invalid assets
+must leave an existing working installation selected. Acceptance begins with the
+current failure: a clean isolated HOME without gh credentials cannot install from
+public release transport through the existing installer. Exercise the real archive,
+shell installer and paired binaries; only download transport is locally controlled.
+
+Then expose `waywr update` through the same verified atomic selection. It must not
+rebind each project or stop compatible busy owners; reuse existing lifecycle
+contracts. `waywr uninstall` should remove owned application files with explicit
+active-work handling while preserving project source/state and credentials by
+default. Decide Node provisioning explicitly: detect a compatible runtime or
+provide a verified user-local runtime without modifying global Node/shell setup.
+Do not hide this prerequisite behind a successful executable download.
+
+Additional package channels (for example npm, Homebrew or Debian) follow that
+working journey and reuse the same bundle. Cross-platform expansion is outside
+the first Linux installation slice.
 
 ## Public build privacy and notices
 

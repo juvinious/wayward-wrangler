@@ -159,3 +159,44 @@ remain PR gates before merge; earlier dated advisory results are not presented a
 fresh checks. The historical private archive remains a separate publication
 boundary. Public installer/update/uninstall and broader product use are subsequent
 work, not additional local publication blockers identified in this review.
+
+## Hosted security follow-up — 2026-11-11
+
+After the user pushed PR13 at 911c53a, read-only Actions inspection identified
+two new Rust advisories in security run43039910780. Both were reproduced locally
+before changing dependencies; no ignored advisory or weakened gate was added.
+
+| Finding | Targeted remediation |
+| --- | --- |
+| [RUSTSEC-2026-0459](https://raw.githubusercontent.com/RustSec/advisory-db/main/crates/libsqlite3-sys/RUSTSEC-2026-0459.md): bundled SQLite can disclose uninitialized memory when opening a crafted database/WAL | rusqlite0.40.2 →0.41.1 selects libsqlite3-sys0.39.1 with SQLite3.54.1 |
+| [RUSTSEC-2026-0486](https://raw.githubusercontent.com/RustSec/advisory-db/main/crates/rustix/RUSTSEC-2026-0486.md): xattr buffer initialization is unsound | rustix1.1.5 →1.1.6 in both audited Rust lockfiles |
+
+Only these three crate versions/checksums changed. Cargo.lock is preserved, the
+toolchain remains1.99.0, and generated Rust notices reflect the patched versions.
+The unused legacy frontend lockfile remains in the existing security audit scope.
+
+Fresh local checks with pinned cargo-audit0.22.2 and RustSec database
+`fd6f39814c4d3c359fdbe223d0280dec4933f78f` pass `--deny warnings` for both lockfiles
+(292 and198 dependencies). The Python OSV check reports zero affected packages
+among41 locked identities. Production npm audit reports zero vulnerabilities,
+using isolated empty npm configuration rather than operator credentials.
+The remapped three-binary release build, 22 focused SQLite conversation/session/
+writer tests, three mouse-wheel regressions and the actual isolated PTY scroll/
+terminal-restoration check pass. No model/account or operator service is used.
+
+Rust PR build run43039910671 failed before checkout/compilation because the Ubuntu
+container could not resolve its package mirrors. This is separate from the
+advisories. CI and release bootstrap now retry index downloads a bounded number
+of times, treat incomplete index updates as errors, and refuse installation after
+persistent failure. The regression first observed the old command fail on a
+transient error, then passed recovery and permanent-failure cases against the
+actual inline workflow commands with an isolated apt stub. It does not prove
+hosted DNS availability; persistent infrastructure failure still fails the job.
+Action pins, builder digest and security policies remain unchanged.
+
+CodeQL run43039910583 succeeded on the pushed revision for Rust, JavaScript,
+Python and Actions. Read-only queries returned no open CodeQL/Dependabot alerts
+for the inspected repository/PR refs. These hosted results describe 911c53a,
+not the local fixes. The user must push the new checkpoint and obtain passing
+hosted checks; the agent did not push, rerun Actions, merge, publish or change
+settings. The user has explicitly deferred merge until distribution is addressed.

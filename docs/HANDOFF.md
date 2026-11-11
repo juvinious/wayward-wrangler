@@ -1,84 +1,75 @@
-# Waywr handoff — mouse-wheel scrolling
+# Waywr handoff — security fixes and distribution next
 
-Branch: `plan/usability-and-installation`. Application checkpoint: `cb094be`
-(mouse wheel); current checkpoint records the pre-push review on 2026-11-11.
-Follow [AGENTS.md](../AGENTS.md). Local commits only; the user handles remote
-writes. No operator project/service/binding/provider configuration/credentials,
-global installation or remote Git state was changed. No account/model call.
+Branch: `plan/usability-and-installation`; parent checkpoint911c53a, PR13.
+The user pushed the branch and explicitly deferred merge until installation/
+distribution is addressed. Follow [AGENTS.md](../AGENTS.md). Local commits only;
+the user owns all remote writes. This task queried GitHub read-only. No operator
+project/service/binding/provider configuration/credentials, global installation,
+model/account call or hosted setting was changed.
 
 ## Implemented outcome
 
-Mouse wheel over the conversation scrolls three lines per notch using the existing
-anchor/follow-latest behavior. New output preserves the reading position; scrolling
-to the bottom resumes following latest. The draft, editor cursor, keyboard focus,
-history and execution actions remain unchanged. Wheel input over controls/editor
-or outside a popup is ignored rather than scrolling its background conversation.
+The hosted strict Rust audit failed on libsqlite3-sys0.38.2 (RUSTSEC-2026-0459)
+and rustix1.1.5 (RUSTSEC-2026-0486). Both were reproduced locally. Targeted patches
+now select rusqlite0.41.1/libsqlite3-sys0.39.1 (SQLite3.54.1) and rustix1.1.6;
+the legacy frontend lock also has patched rustix. No other crate version changed,
+no advisory was suppressed, and toolchain1.99.0 remains. Notices are regenerated.
 
-Over a popup, wheel input scrolls its bounded content. The provider/model/thinking
-picker moves its highlighted entry through the existing list navigation without
-applying/saving it or changing its search query. F3 form scrolling disables focus
-following until keyboard navigation resumes. Popup titles/footers remain fixed.
-
-Production and scripted terminal guards enable Crossterm mouse capture and disable
-it on leave/startup failure alongside raw mode, paste and alternate-screen cleanup.
-Only vertical wheel events have actions; click/motion events do not select, change
-focus or request redraw. Hit regions are the last rendered conversation/popup
-rectangles, refreshed each render and cleared for a too-small display. No backend/protocol/dependency
-change or new UI architecture was added. Terminal selection may require Shift.
+The separate Rust PR build failed before checkout because Ubuntu package-mirror
+DNS was unavailable. CI/release bootstrap now uses bounded retries and fails
+accurately on incomplete package indexes. An isolated apt-stub regression observes
+the original transient failure, then verifies recovery and bounded permanent
+failure against the actual workflow commands. Persistent hosted DNS failure
+still requires infrastructure recovery; it is not established fixed locally.
 
 ## Evidence and limits
 
-Behavioral red preceded implementation: wheel events left both conversation and
-popup content stationary. Focused regressions now cover chat scroll/anchors/new
-output/follow-latest, draft/focus retention, ignored outside regions, popup bounds
-and model-list movement without applying. The real isolated PTY/scripted-TUI check
-sends SGR wheel bytes through Crossterm, verifies persisted scroll up/down and
-retained unsent draft, and checks mouse-capture disable plus exact terminal-mode
-restoration on exit. It starts no service or account operation. This is the actual
-terminal/input/view path, not proof of desktop trackpad behavior in every emulator.
+Strict cargo-audit0.22.2 passes both lockfiles against fresh database
+fd6f39814c4d3c359fdbe223d0280dec4933f78f. Python OSV (41 locked identities) and
+production npm audit are clean. The locked remapped three-binary release build,
+22 SQLite persistence tests, three wheel regressions and actual PTY mouse/
+terminal-restoration check pass. Public-content, notices, documentation-reference
+and diff checks cover this checkpoint. These are local checks, not new hosted runs.
 
-The remapped paired release, public-content source/binary/bundle gates, relative
-references and diff checks pass. CI/release checks are prepared locally; no hosted
-workflow was run. Broader service/model campaigns were not repeated for this UI-only
-change. The ignored target/local-bin/waywr points to the temporary paired candidate;
-target/local-bin/candidate.json records its actual source/artifact identity.
+Hosted CodeQL succeeded for all four languages on pushed revision911c53a;
+read-only queries returned no open alerts for inspected refs. The next user push
+must establish passing hosted build/security checks for these dependency fixes.
+See [audit record](security-audit-2026-11-08.md#hosted-security-follow-up--2026-11-11)
+for runs, advisory sources and scope. The earlier branch privacy review remains
+recorded there; no history was rewritten.
 
-## Existing behavior and next action
+The ignored target/local-bin/waywr still points to the earlier tested cb094be
+temporary paired candidate; candidate.json records its identity. The patched
+release binaries are in target/release and have not replaced an operator service
+or global installation. Do not describe the old candidate as the patched build.
 
-`5ebbb15` keeps the read-only event subscriber recovering after busy/error replies,
-transport loss, noncontiguous pages and exhausted snapshot retry batches. Recovery
-requires the verified owner and monotonic coherent snapshot; it never resends a
-command/call. Disconnected cached work has no active elapsed timer. Read-only
-operator receipts had confirmed completed model calls/usage behind the stale UI;
-the initial transient failure itself was not retained in inspected metadata.
-`1e09f59` adds /login and F3 G with SDK-advertised methods, private masked entry,
-browser/manual callback handling and sanitized exchange/refresh diagnostics.
-`2c6451a` adds Enter steering, separate Alt+Enter follow-ups, F7/E restore, multiline/
-history and direct model/thinking/status controls. Direct interrupt/leave/pause,
-renewable obsolete sessions and compatible busy-owner attachment remain. Preserve
-source/Git/worktrees, exact execution ownership, approval boundaries and no replay;
-keep model/provider catalogs/options outside core routing.
+## Product state and next authorized action
 
-The user reports the current application looks good. No further local usability
-audit fix is outstanding before branch review. Pre-push privacy checks cover the
-current 459 source paths, changed blobs/paths in 28 commits since the locally
-recorded origin/main, the three release binaries and19 bundle files. Gitleaks 8.30.1
-reports zero source/history findings with the existing exact synthetic-fixture
-fingerprint exclusion. Commit metadata contains public GitHub username/noreply
-attribution or neutral example attribution; no private email/machine address was
-found. Public GitHub attribution remains repository metadata and is
-not compiled application content. [Audit record](security-audit-2026-11-08.md)
-records scope and limits. The application candidate remains the tested cb094be;
-this checkpoint changes documentation only.
+The user reports responsive use, working provider sign-in/model requests and
+mouse scrolling. Broad shared-model execution, renewable obsolete sessions,
+compatible busy-owner attachment, direct interrupt/leave/pause, live steering,
+durable editable follow-ups and editor/model/thinking/status controls are
+implemented. Verified event resync handles busy/disconnected reads without
+replaying commands. Useful coordinated application delivery remains unproven;
+do not restart a broad control/testing campaign before addressing distribution.
 
-Next: the user pushes this branch and opens/reviews its PR. Hosted build, current
-dependency-advisory, secret and CodeQL checks must pass before merge; they have
-not been queried or run remotely by the agent. The local origin/main reference
-was inspected without fetching. No new publication/global installation or paid
-feature is implied. Useful task delivery, broader account/model quality/refresh,
-public installer/update/uninstall, workflow-wide usage and the substantial
-application remain later product work, not a reason to defer this branch review.
+Pi and Codex now both document shell installers; Pi exposes `pi update`, while
+Codex documents rerunning its installer. The comparison and proposed Waywr
+journey are in [distribution](distribution.md#next-distribution-slice--proposed-after-installer-comparison).
+Our current GitHub installer is private/authenticated and requires an exact
+version. Public latest-stable installation, CLI update/uninstall, managed runtime
+provisioning and additional package channels remain unimplemented.
 
-Owners: [controls](tui-controls.md), [live input](live-input.md),
-[providers](provider-selection.md), [plan](usability-plan.md),
-[user walkthrough](verify-usability.md).
+Next product slice: public unauthenticated Linux installation through the existing
+verified paired bundle, with a stable command, explicit version/prefix overrides
+and failed-download integrity. Start with its behavioral failure in an isolated
+HOME, then exercise real archive/install/CLI components. Only transport may be a
+local fixture; do not invoke operator installation or publish. Resolve Node runtime
+handling and public artifact trust explicitly. Follow with update/uninstall using
+the same bundle/lifecycle, then additional package channels. Preserve project
+source/Git/worktrees and actual execution ownership; no retired call/approval
+replay. Keep catalogs/options outside coordinator routing.
+
+Owners: [plan](usability-plan.md), [distribution](distribution.md),
+[controls](tui-controls.md), [live input](live-input.md),
+[providers](provider-selection.md), [user walkthrough](verify-usability.md).

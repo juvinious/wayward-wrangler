@@ -14,7 +14,22 @@ A user installs Waywr once, opens any supported project with `waywr`, gives it a
 real development request, reviews the result and can return later. Updating Waywr
 must not require upgrading each project or reinstalling the build that created it.
 
-## Reconciled checkpoint — 2026-11-10
+## Current checkpoint — 2026-11-11
+
+Ordinary use now includes responsive input, working sign-in/model requests and
+mouse-wheel controls. This does not establish useful coordinated application
+delivery across models.
+
+The hosted Rust security failures have local dependency fixes and fresh strict
+audits; [the security record](security-audit-2026-11-08.md#hosted-security-follow-up--2026-11-11)
+separates them from an Ubuntu mirror/DNS build failure and verification limits.
+The next product slice is the
+[public installer journey](distribution.md#next-distribution-slice--proposed-after-installer-comparison),
+then update/uninstall using the existing bundle and lifecycle. Additional package
+channels follow. Do not reopen completed control mechanisms as another broad
+acceptance campaign or claim the installer is already public-ready.
+
+## Earlier reconciled checkpoint — 2026-11-10
 
 Source checkpoint: live-input/editor work after `e4ac2ac`. The mechanisms below are implemented locally;
 their isolated evidence does not establish a fluid, useful daily workflow.
