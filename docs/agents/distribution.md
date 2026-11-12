@@ -76,7 +76,7 @@ account. Use the relevant existing example instead of repeating all campaigns.
 
 | Harness | What it establishes | Boundary |
 | --- | --- | --- |
-| `scripts/test-packaged-install.py ARCHIVE` | Real archive, shell installer, staged install, hashes, damage refusal and installed CLI/service/TUI startup outside checkout without Rust | Only HTTPS transport is mocked; isolated HOME; direct service, no systemd bootstrap or account |
+| `scripts/test-packaged-install.py ARCHIVE --slow-ipc` | Real archive, shell installer, staged install, hashes, damage refusal and installed CLI/service/TUI startup outside checkout without Rust; delayed reads cover large-snapshot startup | Requires strace for delayed reads; only HTTPS transport is mocked; isolated HOME; direct service, no systemd bootstrap or account |
 | `scripts/test-project-reopen.py` | Draft/pause/settings survive selecting a second bundle and deleting the first; invalid identity/storage refused | Same paired binaries under different IDs; direct services, not arbitrary version compatibility |
 | `test-project-reopen.py --systemd-handover` | Exact idle service replacement and retained draft; existing owner kept during pending delivery/uncertain execution | Real uniquely keyed fixture user unit; not active-model resumption |
 | Above with `--portable` | Same lifecycle through a temporary local-bin symlink after removal of old bundle | Temporary paired layout; no global installation |

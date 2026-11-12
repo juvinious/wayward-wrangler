@@ -69,6 +69,40 @@ class PublicContent(unittest.TestCase):
             finally:
                 event.unlink(missing_ok=True)
 
+    def test_public_readme_badges_allow_only_canonical_workflow_metadata(self):
+        identity = "synthetic-" + "account-owner"
+        repository = identity + "/example-repo"
+        canonical = "https://github.com/" + repository + "/actions/workflows/ci.yml"
+        badge = "[![Build](" + canonical + "/badge.svg?branch=main)](" + canonical + ")\n"
+        cases = [("README.md", badge, True), ("src/lib.rs", badge, False),
+                 ("docs/README.md", badge, False),
+                 ("README.md", badge + identity, False),
+                 ("README.md", badge.replace("example-repo", "private-repo"), False),
+                 ("README.md", badge.replace("ci.yml", "unlisted.yml"), False),
+                 ("README.md", badge.replace("?branch=main", "?branch=main&token=secret"), False)]
+        cases = [(name, content, allowed, False) for name, content, allowed in cases]
+        cases += [("README.md", badge.replace("ci.yml", workflow), True, False) for workflow in ["security.yml", "codeql.yml"]]
+        cases.append(("README.md", badge, False, True))
+        for name, content, allowed, private in cases:
+            with self.subTest(name=name, allowed=allowed), tempfile.TemporaryDirectory() as tmp:
+                root = pathlib.Path(tmp); (root / "repo/scripts").mkdir(parents=True)
+                repo = root / "repo"
+                shutil.copy2(SCRIPT, repo / "scripts" / SCRIPT.name)
+                subprocess.run(["git", "init", "--template=", str(repo)], check=True, capture_output=True)
+                path = repo / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_text(content)
+                event = root / "event.json"
+                event.write_text(json.dumps({"repository": {"owner": {"type": "User", "login": identity},
+                    "full_name": repository, "private": private}}))
+                env = dict(os.environ, GITHUB_EVENT_PATH=str(event))
+                result = subprocess.run(["python3", str(repo / "scripts" / SCRIPT.name)], env=env, capture_output=True)
+                self.assertEqual(result.returncode == 0, allowed, result.stderr.decode())
+                if allowed:
+                    artifact = root / "candidate.bin"; artifact.write_text(canonical)
+                    refused = subprocess.run(["python3", str(repo / "scripts" / SCRIPT.name), "--artifact", str(artifact)], env=env, capture_output=True)
+                    self.assertNotEqual(refused.returncode, 0)
+                else:
+                    self.assertNotIn(identity.encode(), result.stdout + result.stderr)
+
     def test_credential_filename_refuses_even_without_recognized_secret(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = pathlib.Path(tmp); (root / "scripts").mkdir()

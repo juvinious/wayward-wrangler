@@ -42,6 +42,18 @@ def problems(data, forbidden=(), artifact=False, allow_contacts=False):
     return found
 
 
+def public_workflow_metadata(name, data, repository):
+    # Requested public README badges identify GitHub ownership, not a builder.
+    # Only canonical workflow links for this public repository are exempt. Do
+    # not apply this to application source, artifacts, profile links or queries.
+    full_name = repository.get("full_name", "")
+    if name != "README.md" or repository.get("private") is not False or not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", full_name):
+        return data
+    base = re.escape(("https://github.com/" + full_name + "/actions/workflows/").encode())
+    pattern = base + rb"(?:ci|security|codeql)\.yml(?:/badge\.svg\?branch=main)?(?=[)\s])"
+    return re.sub(pattern, b"", data, flags=re.IGNORECASE)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--artifact", action="append", type=pathlib.Path, default=[])
@@ -50,15 +62,17 @@ def main():
     args = parser.parse_args()
     root = pathlib.Path(__file__).resolve().parents[1]
     forbidden = args.deny_file.read_bytes().splitlines() if args.deny_file else []
+    repository = {}
     event_path = os.environ.get("GITHUB_EVENT_PATH")
     if event_path:
-        owner = json.loads(pathlib.Path(event_path).read_text()).get("repository", {}).get("owner", {})
+        repository = json.loads(pathlib.Path(event_path).read_text()).get("repository", {})
+        owner = repository.get("owner", {})
         login = owner.get("login") or owner.get("name")
         if owner.get("type", "User") == "User" and login:
             forbidden.append(login.encode())
     def inspect(name, data):
         label = "[withheld path]" if any(value and value.lower() in name.encode().lower() for value in forbidden) else name
-        issues = problems(name.encode() + b"\0" + data, forbidden, allow_contacts=name == "THIRD_PARTY_NOTICES.md")
+        issues = problems(name.encode() + b"\0" + public_workflow_metadata(name, data, repository), forbidden, allow_contacts=name == "THIRD_PARTY_NOTICES.md")
         if private_path(name):
             issues.append("credential or private runtime file path")
         return [(label, issue) for issue in issues]

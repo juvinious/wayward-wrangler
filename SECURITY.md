@@ -29,7 +29,10 @@ removed in the same PR. It rejects personal-home paths and non-example contact
 addresses outside required upstream notices, plus credential/runtime filenames
 even when no token format is recognized. In GitHub Actions it also derives
 the personal repository owner's account identifier from the event payload and
-rejects it in source without placing that identifier in the public configuration.
+rejects it in source, except for canonical main-workflow badge/link URLs for
+that public repository in the root README. Other documentation, application
+source, private-repository URLs and distributed artifacts retain the identifier
+check. The gate itself contains no configured personal account identifier.
 GitHub ownership and normal contribution metadata remain public platform metadata;
 the source and distribution policy does not make an account anonymous.
 

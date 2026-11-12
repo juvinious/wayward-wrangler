@@ -41,8 +41,11 @@ Release automation is prepared, not permission to publish before this journey.
   No operator installation, account call, remote change or publication occurred.
 
 See the [installer report](../reports/public-installer-2026-11-11.md) for exact
-scope/artifacts. The user deferred the next items for review: hosted builder DNS,
-CLI update/uninstall, then first release/publication and Debian packaging. Do not
+scope/artifacts. The latest hosted build reached packaged TUI startup; the earlier
+builder DNS failure is no longer its current blocker. The
+[CI review](../reports/ci-review-2026-11-12.md) records the startup fix and pending
+hosted rerun. Remaining distribution items are CLI update/uninstall, then first
+release/publication and Debian packaging. Do not
 silently include these in the completed authentication fix. Update-source metadata
 and artifact collection belong with update/uninstall. No global/private Node
 provisioning or cross-platform expansion was added.

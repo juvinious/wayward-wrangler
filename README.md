@@ -1,5 +1,9 @@
 # Wayward Wrangler
 
+[![Build (main)](https://github.com/juvinious/wayward-wrangler/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/juvinious/wayward-wrangler/actions/workflows/ci.yml)
+[![Security (main)](https://github.com/juvinious/wayward-wrangler/actions/workflows/security.yml/badge.svg?branch=main)](https://github.com/juvinious/wayward-wrangler/actions/workflows/security.yml)
+[![CodeQL (main)](https://github.com/juvinious/wayward-wrangler/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/juvinious/wayward-wrangler/actions/workflows/codeql.yml)
+
 Waywr is a project-scoped development orchestrator. Initialize a project, discuss
 and approve scope and operating policy, delegate to tool-capable workers, review exact
 results, run checks and maintain project knowledge through its Rust terminal UI.

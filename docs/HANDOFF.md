@@ -1,29 +1,31 @@
 # Waywr handoff
 
-Branch: `plan/usability-and-installation`; source checkpoint `813b4fa`.
-Current task: prepare a significant real proposal → coordinator → workers →
-working outcome before release. The user owns all remote delivery; no release yet.
-Read [AGENTS](../AGENTS.md), then only task-relevant notes.
+Branch: `plan/usability-and-installation`; task base `b8a98a7`.
+Current checkpoint: README main-workflow badges and local fixes for the failing
+PR13 startup and PR11 SHA-2 compilation checks. The user owns all remote delivery;
+no push, merge or release. Read [AGENTS](../AGENTS.md), then task-relevant notes.
 
-## Current preparation
+## Implemented and checked
 
-[Workboard brief](../examples/release-acceptance-brief.md) proposes a real local web
-app with login/roles, persistent tasks/comments, filtering/export and run instructions.
-[Acceptance notes](agents/release-acceptance.md) define the ordinary flow and pass
-criteria. No application implementation or model result is being substituted.
-A fresh paired build is prepared; role/model choices and permission to use the
-provider login are pending. Human approval of the actual presented scope remains.
-No model call or operator project/service/configuration change has occurred.
+[CI review](reports/ci-review-2026-11-12.md) records the three PRs and evidence.
+Chunked IPC replies pass real packaged install/startup/detach with delayed reads.
+Hash encoding preserves values and compiles with current and proposed PR11
+dependencies; this branch's pins/locks are unchanged. Badges retain privacy gates
+outside canonical public README workflow URLs. PR12 was already green.
 
-## Next action
+## Next action and limits
 
-Prepare the isolated project/candidate and record its identity privately. Once
-native-run permission/model choices are provided, use Waywr's normal setup and
-proposal path; let the human approve the card. Real workers must implement and
-review/check/deliver; inspect the actual app and record any manual intervention.
-Do not call the test passed or tag a release before the whole journey succeeds.
+User reviews/pushes the local changes and updates PR11 with the compatibility fix;
+hosted CI must rerun. Later hosted steps and public download remain unverified.
+No operator environment or provider credentials were changed; no model calls.
 
-Tag automation/changelog and public installer are implemented locally; their
+Then return to the significant proposal → coordinator → workers → working app
+journey before release: [Workboard brief](../examples/release-acceptance-brief.md)
+and [acceptance notes](agents/release-acceptance.md). Native-run permission and
+role/model choices remain pending; human approval must cover the actual scope.
+Do not substitute fixture replies or direct app implementation for that journey.
+
+Tag automation/changelog and public installer are implemented; their
 [release](reports/release-pipeline-2026-11-11.md) and
 [installer](reports/public-installer-2026-11-11.md) reports retain evidence.
-Hosted builder DNS, update/uninstall and first published download remain separate.
+CLI update/uninstall and first publication remain separate work.

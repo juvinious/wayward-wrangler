@@ -8,6 +8,7 @@ import subprocess, sys, tempfile, termios, time
 from installer_fixture import release_transport
 
 ARCHIVE = pathlib.Path(sys.argv[1]).resolve()
+SLOW_IPC = '--slow-ipc' in sys.argv[2:]
 INSTALLER = pathlib.Path(__file__).with_name('install.sh').resolve()
 def digest(path): return hashlib.sha256(path.read_bytes()).hexdigest()
 def wait_for(check, reason, seconds=20):
@@ -35,10 +36,13 @@ def main():
              **fixture, 'DBUS_SESSION_BUS_ADDRESS':'unix:path='+str(root/'no-user-bus')}
         assert not shutil.which('cargo',path=env['PATH']) and not shutil.which('rustc',path=env['PATH'])
         trace=shutil.which('strace',path=env['PATH']); traces=[]
-        def traced(args):
+        assert not SLOW_IPC or trace, '--slow-ipc requires strace'
+        def traced(args, slow=False):
             if not trace:return list(map(str,args))
             path=root/f'files-{len(traces)}.log';traces.append(path)
-            return [trace,'-f','-e','trace=%file','-o',str(path)]+list(map(str,args))
+            delays=['--inject=read:delay_exit=100us','--inject=recvfrom:delay_exit=100us'] if slow else []
+            calls='trace=%file,read,recvfrom,recvmsg' if slow else 'trace=%file'
+            return [trace,'-f','-e',calls,'-o',str(path)]+delays+list(map(str,args))
         def run(args, ok=True, input=None):
             p=subprocess.run(traced(args),env=env,cwd=root/'outside',text=True,capture_output=True,timeout=30,input=input)
             assert (p.returncode==0)==ok, (args,p.stdout,p.stderr)
@@ -117,14 +121,14 @@ def main():
                 assert reply['body']['protocol']['minor']==10,reply
             status=json.loads(run([launcher,'--project',project,'session','status']).stdout)
             master, slave=pty.openpty();fcntl.ioctl(slave,termios.TIOCSWINSZ,struct.pack('HHHH',32,120,0,0))
-            ui=subprocess.Popen(traced([str(launcher),'--project',str(project)]),env=env,cwd=root/'outside',stdin=slave,stdout=slave,stderr=slave,start_new_session=True);os.close(slave)
+            ui=subprocess.Popen(traced([str(launcher),'--project',str(project)],slow=SLOW_IPC),env=env,cwd=root/'outside',stdin=slave,stdout=slave,stderr=slave,start_new_session=True);os.close(slave)
             screen=bytearray();deadline=time.monotonic()+20
             while b'Message the coordinator' not in screen and time.monotonic()<deadline:
                 if select.select([master],[],[],.1)[0]:
                     try: screen.extend(os.read(master,65536))
                     except OSError: break
                 assert ui.poll() is None,screen.decode(errors='replace')
-            assert b'Message the coordinator' in screen,screen.decode(errors='replace')
+            assert b'Message the coordinator' in screen,screen.decode(errors='replace')+'\nFixture service log:\n'+(root/'service.log').read_text(errors='replace')
             os.write(master,b'/detach\r');time.sleep(.2);os.write(master,b'\x1b[C\r')
             wait_for(lambda:ui.poll() is not None,'TUI did not detach')
             assert ui.returncode==0,screen.decode(errors='replace')
@@ -136,7 +140,7 @@ def main():
             assert not any(source in p.read_text(errors='replace') for p in traces), 'Installed runtime accessed source checkout'
             print(json.dumps({'archive':ARCHIVE.name,'archive_sha256':digest(ARCHIVE),'manifest_sha256':digest(installed/'manifest.json'),
                 'release':version,'manifest_files':len(manifest['files']),'real_installer':True,'https_transport':'fixture, no GitHub download','github_cli_used':False,'latest_stable':True,'exact_version':True,'failed_download_preserves_selection':True,
-                'installed_launcher':True,'real_service_and_tui':True,'rust_on_path':False,'runtime_file_trace':bool(trace),'source_file_accesses':0 if trace else 'not traced','cwd':'outside source checkout',
+                'installed_launcher':True,'real_service_and_tui':True,'rust_on_path':False,'slow_ipc_reads':SLOW_IPC,'runtime_file_trace':bool(trace),'source_file_accesses':0 if trace else 'not traced','cwd':'outside source checkout',
                 'damaged_resource_refused':True,'native_calls':0,'scope':'idle startup and detach; no systemd bootstrap or ordinary development job'}))
         finally:
             if ui and ui.poll() is None: os.killpg(ui.pid,signal.SIGTERM);ui.wait(timeout=5)
