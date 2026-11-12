@@ -1,6 +1,6 @@
 //! Offline Linux Rust release assembly and installation. No Python is used.
 use serde_json::{Value,json};
-use sha2::{Digest,Sha256};
+use waywr_backend::codec::sha256;
 use std::{env,fs,io,os::unix::fs::symlink,path::{Component,Path,PathBuf},process::Command};
 
 fn err(message:impl std::fmt::Display)->io::Error{io::Error::other(message.to_string())}
@@ -8,7 +8,7 @@ fn value(args:&[String],flag:&str)->io::Result<String>{
     args.windows(2).find(|pair|pair[0]==flag).map(|pair|pair[1].clone())
         .ok_or_else(||err(format!("Missing {flag}")))
 }
-fn digest(path:&Path)->io::Result<String>{Ok(format!("{:x}",Sha256::digest(fs::read(path)?)))}
+fn digest(path:&Path)->io::Result<String>{Ok(sha256(&fs::read(path)?))}
 fn clean_id(id:&str)->io::Result<&str>{
     if id.is_empty() || id=="." || id==".." || id.starts_with('.') || id.len()>64 || !id.bytes().all(|byte|byte.is_ascii_alphanumeric() || byte==b'-' || byte==b'_' || byte==b'.'){
         return Err(err("Invalid release ID"));

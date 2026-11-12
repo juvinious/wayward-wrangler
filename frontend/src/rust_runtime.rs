@@ -2,7 +2,7 @@
 //! this launcher owns only project setup, unit bootstrap and UI attachment.
 use super::{phase,request,check_project_compatibility,selected_project,session,session_resume,run_ui};
 use serde_json::{Value,json};
-use sha2::{Digest,Sha256};
+use waywr_backend::codec::sha256;
 use std::{env,fs,io::{self,Write},os::unix::ffi::OsStrExt,path::{Component,Path,PathBuf},
     process::{Command,Stdio},thread,time::{Duration,Instant}};
 use waywr_backend::execution::{FileLock,random_token,read,write,write_bytes};
@@ -420,7 +420,7 @@ pub fn initialize(root:&Path,manifest:&Value,args:&[String])->io::Result<()> {
         }
     }else{write(&endpoint,&json!({"schema_version":1,"project_key":key,"socket":socket}),true).map_err(err)?;}
     let release=manifest["release_id"].as_str().ok_or_else(||err("Release ID missing"))?;
-    let digest=format!("{:x}",Sha256::digest(fs::read(root.join("manifest.json"))?));
+    let digest=sha256(&fs::read(root.join("manifest.json"))?);
     let release_path=project.join(".waywr/release.json");
     if release_path.exists(){
         let existing=read(&release_path).map_err(err)?;

@@ -2,6 +2,7 @@
 use super::{rust_bundle,selected_project};
 use serde_json::{Value,json};
 use sha2::{Digest,Sha256};
+use waywr_backend::codec::sha256;
 use std::{fs,io::{self,Read},path::{Path,PathBuf},process::Command};
 use waywr_backend::{execution::{read,write,FileLock},host_attempt::Attempt,session_store::Session};
 
@@ -77,7 +78,7 @@ fn state_digest(state:&Path)->io::Result<String>{
         let mut buffer=[0u8;65536];
         loop {let count=file.read(&mut buffer)?;if count==0{break;}hash.update(&buffer[..count]);}
     }
-    Ok(format!("{:x}",hash.finalize()))
+    Ok(waywr_backend::codec::lower_hex(hash.finalize().as_ref()))
 }
 pub(super) fn host_attempts_quiescent(state:&Path,key:&str)->io::Result<()> {
     fn visit(dir:&Path,state:&Path,key:&str)->io::Result<()>{
@@ -235,7 +236,7 @@ pub fn change(root:&Path,_manifest:&Value,args:&[String],action:&str)->io::Resul
         let source_id=old["release_id"].as_str().ok_or_else(||err("Old release ID missing"))?;
         let source=catalog.join(source_id);
         let source_manifest=rust_bundle::validate(&source)?;
-        let source_hash=format!("{:x}",Sha256::digest(fs::read(source.join("manifest.json"))?));
+        let source_hash=sha256(&fs::read(source.join("manifest.json"))?);
         if old["manifest_sha256"]!=source_hash ||
             source_manifest["state_schema_min"].as_u64().unwrap_or(u64::MAX)>schema ||
             source_manifest["state_schema_max"].as_u64().unwrap_or(0)<schema && !(imported8&&schema==9&&source_manifest["state_schema_max"]==8&&action=="upgrade"){
@@ -251,7 +252,7 @@ pub fn change(root:&Path,_manifest:&Value,args:&[String],action:&str)->io::Resul
             }
         }
     }
-    let digest=format!("{:x}",Sha256::digest(fs::read(destination.join("manifest.json"))?));
+    let digest=sha256(&fs::read(destination.join("manifest.json"))?);
     let generation=prior.as_ref().and_then(|old|old["binding_generation"].as_u64()).unwrap_or(0)+1;
     let next=json!({"schema_version":1,"project_key":key,"release_id":target,
         "manifest_sha256":digest,"binding_generation":generation});

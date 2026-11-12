@@ -627,7 +627,7 @@ impl Service {
         let mut hasher=Sha256::new();let mut buffer=[0u8;64*1024];
         loop{let amount=file.read(&mut buffer).map_err(|e|e.to_string())?;
             if amount==0{break;}hasher.update(&buffer[..amount]);}
-        let digest=format!("{:x}",hasher.finalize());
+        let digest=crate::codec::lower_hex(hasher.finalize().as_ref());
         if reference["sha256"]!=digest{return Err("Artifact bytes differ from frozen reference; approval refused".into());}
         let offset=body["offset"].as_u64().unwrap_or(0);
         let limit=body["limit"].as_u64().unwrap_or(16*1024) as usize;

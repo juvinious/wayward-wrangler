@@ -3,7 +3,7 @@ use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 use serde_json::{Value, json};
 #[cfg(test)]
-use sha2::{Digest, Sha256};
+use waywr_backend::codec::sha256;
 use std::{env, fs, io::{self, stdout, Write}, os::{unix::{fs::{OpenOptionsExt, PermissionsExt}, net::UnixStream}}, path::{Path, PathBuf}, sync::{Arc, atomic::{AtomicBool, AtomicU64, Ordering}, mpsc::{self}}, thread, time::{Duration, Instant, SystemTime, UNIX_EPOCH}};
 use waywr::{protocol::{self, Frame}, prototype::{editor::{Composer, Draft}, view::{App, LiveIntent, Modal}}};
 mod rust_runtime;
@@ -911,7 +911,7 @@ fn checkpoint_phase(state: &Path) -> Option<Value> {
     let file = pointer["file"].as_str()?;
     if file.contains('/') || !file.ends_with(".json") { return None; }
     let bytes = fs::read(root.join(file)).ok()?;
-    if format!("{:x}",Sha256::digest(&bytes)) != pointer["sha256"].as_str()? { return None; }
+    if sha256(&bytes) != pointer["sha256"].as_str()? { return None; }
     let value: Value = serde_json::from_slice(&bytes).ok()?;
     if value["project_key"] != pointer["project_key"] { return None; }
     Some(value["session"].clone())
@@ -1079,7 +1079,7 @@ mod tests {
         fs::write(checkpoint.join("2-test.json"),serde_json::to_vec(&payload).unwrap()).unwrap();
         let bytes=fs::read(checkpoint.join("2-test.json")).unwrap();
         fs::write(checkpoint.join("latest.json"),serde_json::to_vec(&json!({
-            "project_key":"selected","file":"2-test.json","sha256":format!("{:x}",Sha256::digest(&bytes))})).unwrap()).unwrap();
+            "project_key":"selected","file":"2-test.json","sha256":sha256(&bytes)})).unwrap()).unwrap();
         assert_eq!(checkpoint_phase(root.path()).unwrap()["phase"],"paused");
         fs::write(checkpoint.join("2-test.json"),b"changed").unwrap();
         assert!(checkpoint_phase(root.path()).is_none());
