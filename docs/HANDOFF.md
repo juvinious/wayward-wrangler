@@ -1,8 +1,8 @@
 # Waywr handoff
 
-Branch: `plan/usability-and-installation`; task base `b8a98a7`.
-Current checkpoint: README main-workflow badges and local fixes for the failing
-PR13 startup and PR11 SHA-2 compilation checks. The user owns all remote delivery;
+Branch: `plan/usability-and-installation`; correction base `4f1bcf5`.
+Current checkpoint: correct the README badge exception in the actual local
+pre-push hook after the user's refused push. The user owns all remote delivery;
 no push, merge or release. Read [AGENTS](../AGENTS.md), then task-relevant notes.
 
 ## Implemented and checked
@@ -12,6 +12,8 @@ Chunked IPC replies pass real packaged install/startup/detach with delayed reads
 Hash encoding preserves values and compiles with current and proposed PR11
 dependencies; this branch's pins/locks are unchanged. Badges retain privacy gates
 outside canonical public README workflow URLs. PR12 was already green.
+The local hook now supplies explicit known-public repository context while keeping
+deny-file/history/Gitleaks checks; its offline replay and eight privacy tests pass.
 
 ## Next action and limits
 

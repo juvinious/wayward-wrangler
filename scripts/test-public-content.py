@@ -103,6 +103,52 @@ class PublicContent(unittest.TestCase):
                 else:
                     self.assertNotIn(identity.encode(), result.stdout + result.stderr)
 
+    def test_local_public_context_keeps_deny_file_and_history_checks(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp); repo = root / "repo"; (repo / "scripts").mkdir(parents=True)
+            shutil.copy2(SCRIPT, repo / "scripts" / SCRIPT.name)
+            identity = "synthetic-" + "account-owner"; repository = identity + "/example-repo"
+            canonical = "https://github.com/" + repository + "/actions/workflows/ci.yml"
+            badge = "[![Build](" + canonical + "/badge.svg?branch=main)](" + canonical + ")\n"
+            deny = root / "deny"; deny.write_text(identity + "\n")
+            env = dict(os.environ, GIT_AUTHOR_NAME="Fixture", GIT_COMMITTER_NAME="Fixture",
+                       GIT_AUTHOR_EMAIL="source@example.invalid", GIT_COMMITTER_EMAIL="source@example.invalid")
+            env.pop("GITHUB_EVENT_PATH", None)
+            def git(*args):
+                return subprocess.check_output(["git", "-C", str(repo), "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null", *args], env=env, stderr=subprocess.PIPE)
+            def scan(*args):
+                return subprocess.run(["python3", str(repo / "scripts" / SCRIPT.name), "--deny-file", str(deny), *args], env=env, capture_output=True)
+            git("init", "--initial-branch=main", "--template=")
+            readme = repo / "README.md"; readme.write_text(badge)
+            git("add", "."); git("commit", "-m", "Fixture badge")
+            allowed = ["--public-repository", repository]
+            self.assertNotEqual(scan().returncode, 0)
+            self.assertEqual(scan(*allowed, "--revisions", "HEAD").returncode, 0)
+            for name, content in [("README.md", badge + identity), ("src.rs", canonical),
+                                  ("README.md", badge.replace("ci.yml", "unlisted.yml")),
+                                  ("README.md", badge.replace("?branch=main", "?branch=main&token=secret"))]:
+                with self.subTest(name=name, content=content):
+                    path = repo / name; path.write_text(content)
+                    refused = scan(*allowed)
+                    self.assertNotEqual(refused.returncode, 0)
+                    self.assertNotIn(identity.encode(), refused.stdout + refused.stderr)
+                    if path == readme: readme.write_text(badge)
+                    else: path.unlink()
+            artifact = root / "candidate.bin"; artifact.write_text(canonical)
+            self.assertNotEqual(scan(*allowed, "--artifact", str(artifact)).returncode, 0)
+            readme.write_text(badge + identity); git("add", "."); git("commit", "-m", "Fixture disclosure")
+            readme.write_text(badge); git("add", "."); git("commit", "-m", "Remove disclosure")
+            refused = scan(*allowed, "--revisions", "HEAD~2..HEAD")
+            self.assertNotEqual(refused.returncode, 0)
+            self.assertNotIn(identity.encode(), refused.stdout + refused.stderr)
+            event = root / "event.json"; env["GITHUB_EVENT_PATH"] = str(event)
+            for full_name, private, ok in [(repository, False, True), (repository, True, False),
+                                          (identity + "/other-repo", False, False)]:
+                event.write_text(json.dumps({"repository": {"full_name": full_name, "private": private}}))
+                result = scan(*allowed)
+                self.assertEqual(result.returncode == 0, ok, result.stderr.decode())
+                self.assertNotIn(identity.encode(), result.stdout + result.stderr)
+
     def test_credential_filename_refuses_even_without_recognized_secret(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = pathlib.Path(tmp); (root / "scripts").mkdir()
