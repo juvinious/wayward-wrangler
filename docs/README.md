@@ -1,61 +1,44 @@
 # Documentation
 
-[Ordinary project workflow](ordinary-project-workflow.md) owns the implemented contract from approved `b810bf1`; HANDOFF records build and verification limits.
+## Using Waywr
 
-## Start here
-
-1. [AGENTS.md](../AGENTS.md): working policy and preservation.
-2. [HANDOFF](HANDOFF.md): current checkpoint, objective and next authorized action.
-3. [Architecture](architecture.md): current source owners, implemented behavior and limits.
-4. [Root README](../README.md): normal use, controls and source build/install instructions.
-
-## Current product work
-
-[Ordinary project workflow](ordinary-project-workflow.md), [providers](provider-selection.md)
-and [distribution](distribution.md) own the connected increment. The
-[approved plan](archive/product-workflow/approved-plan-b810bf1.md) is archived evidence.
-It builds on preserved recovery/convergence, not older main.
-The [repository cleanup record](repository-cleanup-2026-10-18.md) records both repository-only cleanups, PR/tree proof, former tips and preserved
-pre-squash archive refs. These docs authorize no
-managed-project operation or release publication. [Readiness](../README.md#current-readiness)
-remains experimental; no additional demonstration or acceptance program is prescribed.
-
-[Current local build/verification record](ordinary-project-verification.md) separates
-automated fixtures and hashes from native/GitHub behavior awaiting ordinary use.
-
-[Public-source audit/remediation](security-audit-2026-11-08.md) records patched
-dependencies, generalized public source/docs, MIT licensing, bundle notices and
-privacy/security checks. Dependabot controls are enabled; other GitHub features
-remain restricted or await a pushed workflow. The original history remains private;
-publication needs a clean-snapshot/historical-content decision.
-
-## Maintained contracts — read when relevant
-
-| Owner | Scope |
+| Guide | What it explains |
 | --- | --- |
-| [Conversation](conversational-coordination.md) | Request-bound discussion, exact inline approval, questions, steering and source identity |
-| [Distribution](distribution.md) | Versioned private binary installer, real isolated package check, guarded update and GitHub packaging workflows |
-| [Providers](provider-selection.md) | Project roles/preferences, frozen attempts, effort support, switching/fallback and current discovery limits |
-| [Recovery](coordinator-recovery.md) | Typed reconciliation, finding lineage, progress comparison, convergence and verification limits |
-| [Context](context-delivery.md) | Compact working context, exact evidence retrieval/continuation and capacity diagnostics |
-| [Layout](project-layout.md) | Canonical `.waywr` state, identity, migration and evidence preservation |
-| [State/history](contracts/state-contract.md) | Durable records, versions, request history and rollback boundaries |
-| [Execution](contracts/execution-contract.md) | Host ownership, receipts, Git integration and current retention behavior |
-| [IPC](contracts/session-protocol.md) | Versioned commands, capabilities, delivery and bounded inspection |
-| [TUI](contracts/tui-contract.md) | Production input, activity, candidate cards and exact validation handoff |
-| [Linux setup](linux-sandbox-setup.md) | Actual systemd/sandbox requirements and temporary AppArmor workaround |
+| [Getting started](../README.md) | What Waywr does, setup and everyday commands |
+| [Installation and distribution](distribution.md) | Available install methods, release downloads, files, updates and uninstall |
+| [Linux requirements](linux-sandbox-setup.md) | Runtime prerequisites and the execution trust boundary |
+| [Providers and models](provider-selection.md) | Sign-in, model/thinking selection, custom providers and usage |
+| [TUI controls](tui-controls.md) | Keyboard, mouse, editing, interrupt, leave and pause |
+| [Daily-use walkthrough](verify-usability.md) | Work on a project, leave, rebuild and return |
+| [Project layout](project-layout.md) | Project data, worktrees and supported migration |
+| [Changelog](../CHANGELOG.md) | Terse user-visible changes by version |
+| [Roadmap](roadmap.md) | Product direction and remaining work |
+| [Security policy](../SECURITY.md) | Private reporting, privacy and trust boundaries |
 
-## Selective history
+## Understanding the implementation
 
-[Verified workflow checkpoint](archive/conversational-coordination/2026-10-17-verified-checkpoint.md)
-records prior human-led deliveries and their assistance/verification limits.
-[Recovery/convergence correction](archive/coordinator-recovery/2026-10-18-convergence-correction.md)
-records current source/install evidence and the limited native observation.
-[Previous handoff](archive/product-workflow/2026-10-18-prior-handoff-d1dda24.md)
-retains the unresolved managed-project visual question without authorizing continuation.
-[Archive index](archive/README.md) locates superseded plans and earlier evidence.
+| Reference | Subject |
+| --- | --- |
+| [Release process](releases.md) | Version tags, changelog preparation and automated publication |
+| [Architecture](architecture.md) | Components, ownership and runtime boundaries |
+| [Provider architecture decision](execution-adapter-decision.md) | Why the shared model layer uses independent Pi libraries |
+| [Ordinary project workflow](ordinary-project-workflow.md) | Setup, source selection, candidates, checks and completion |
+| [Conversation](conversational-coordination.md) | Request routing, questions, exact approvals and steering |
+| [Live input](live-input.md) | Steering/follow-up persistence, editing and acknowledgement |
+| [Context](context-delivery.md) | Compact working context and exact evidence retrieval |
+| [Recovery](coordinator-recovery.md) | Recovery causes, findings and continuation |
+| [State/history](contracts/state-contract.md) | Durable records and compatibility |
+| [Execution](contracts/execution-contract.md) | Host ownership, receipts and result adoption |
+| [IPC](contracts/session-protocol.md) | Commands, capabilities and inspection |
+| [TUI contract](contracts/tui-contract.md) | Detailed presentation and input semantics |
 
-[State7 continuous interaction](contracts/continuous-coordinator-contract.md),
-[state5](contracts/claude-coordinator-contract.md) and [state6](contracts/live-scope-contract.md)
-retain compatibility semantics; their trial limits/permissions do not govern current
-development. Historical plans and Example Task App commands are not a startup reading list.
+## Agent guidance and reports
+
+[Agent documentation](agents/README.md) contains implementation guidance and
+selective task notes. [AGENTS.md](../AGENTS.md) is the working policy;
+[HANDOFF](HANDOFF.md) is the short current checkpoint. These are separate from
+the user guides above.
+
+[Reports](reports/README.md) contain dated findings and verification evidence.
+[Archives](archive/README.md) retain superseded plans, older contracts and historical
+reports. Neither is a default startup reading list or a source of current permission.

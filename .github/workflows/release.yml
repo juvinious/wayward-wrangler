@@ -2,20 +2,71 @@ name: Versioned binary release
 on:
   push:
     tags: ['v[0-9]*']
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 permissions:
   contents: read
 jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    outputs:
+      source_commit: ${{ steps.identity.outputs.source_commit }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate release identity and notes
+        id: identity
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -eu
+          git merge-base --is-ancestor HEAD origin/main || { echo 'Release commit must already be merged into main' >&2; exit 1; }
+          python3 scripts/release-notes.py --tag "$RELEASE_TAG" --output release-notes/notes.md
+          echo "source_commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-notes
+          path: release-notes/notes.md
+          if-no-files-found: error
+  audit:
+    needs: validate
+    uses: ./.github/workflows/security.yml
+    with:
+      ref: ${{ needs.validate.outputs.source_commit }}
   package:
+    needs: validate
     runs-on: ubuntu-24.04
     container:
       image: ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac
     env:
       WAYWR_BUILDER_IMAGE: ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac
     steps:
-      - run: apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git build-essential pkg-config python3 strace
+      - name: Builder prerequisites
+        run: |
+          set -eu
+          for attempt in 1 2 3; do
+            if apt-get -o Acquire::Retries=3 -o APT::Update::Error-Mode=any update; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo 'Package mirrors remain unavailable after three attempts' >&2
+              exit 1
+            fi
+            sleep 5
+          done
+          apt-get -o Acquire::Retries=3 install -y --no-install-recommends ca-certificates curl git build-essential pkg-config python3 strace
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ needs.validate.outputs.source_commit }}
           persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24.22.2'
+      - name: Locked model runtime
+        run: npm ci --prefix model-runtime --ignore-scripts --no-audit --no-fund && npm run build --prefix model-runtime
       - name: Trust the owned Actions checkout for container build steps
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - run: |
@@ -24,24 +75,59 @@ jobs:
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
       - name: Locked checks and assembly
         run: |
+          python3 scripts/test-builder-prerequisites.py
+          python3 scripts/release-notes.py --check
+          python3 scripts/test-release-pipeline.py
           python3 scripts/check-public-content.py
           python3 tests/session_schema_consistency.py
           python3 scripts/test-release-installer.py
           cargo test --locked -p waywr-backend --lib ordinary_
-          cargo test --locked -p waywr-backend --lib ollama::tests
-          cargo test --locked -p waywr-backend --lib ollama_http_
-          cargo test --locked -p waywr-backend --test ollama_lifecycle
+          cargo test --locked -p waywr-backend --lib codec::tests
+          npm test --prefix model-runtime
+          cargo test --locked -p waywr-backend --test shared_models
           cargo test --locked -p waywr --lib ordinary_
+          cargo test --locked -p waywr-backend --lib only_exact_proven_builtin_pair_is_allowed_without_enabling_skills_or_tools
+          cargo test --locked -p waywr --bin waywr event_subscription::tests
+          cargo test --locked -p waywr --bin waywr reconnect_retries
+          cargo test --locked -p waywr --bin waywr auth_login::tests
+          cargo test --locked -p waywr --bin waywr release_guard
+          cargo test --locked -p waywr --bin waywr handover_checks
+          cargo test --locked -p waywr --bin waywr rust_session::tests
+          cargo test --locked -p waywr --bin waywr normal_init_has_live_profile
+          cargo test --locked -p waywr-backend --lib compatible_ui
+          cargo test --locked -p waywr --lib protocol::tests
+          cargo test --locked -p waywr --lib provider_ui_tests
+          cargo test --locked -p waywr --lib mouse_wheel_
+          cargo build --locked -p waywr --bin waywr-ui-prototype
+          python3 scripts/test-mouse-scroll.py
+          cargo test --locked -p waywr --lib disconnected_work_indicator
+          cargo test --locked -p waywr --lib coordinator_usage
+          cargo test --locked -p waywr --lib escape_and_control_c
+          cargo test --locked -p waywr --lib everyday_
+          cargo test --locked -p waywr --lib live_input_
+          cargo test --locked -p waywr-backend --lib live_steering_targets
+          cargo test --locked -p waywr --lib continuous_busy_input
+          cargo test --locked -p waywr --lib idle_ticks_remain
+          cargo test --locked -p waywr-backend --lib discussion_switch_is_not_vetoed
+          cargo test --locked -p waywr-backend --lib provider_switch
+          cargo test --locked -p waywr-backend --lib current_revision_reads
+          cargo test --locked -p waywr-backend --lib provider_preflight_tests
+          cargo test --locked -p waywr-backend --lib coordinator_runtime_progress
+          cargo test --locked -p waywr-backend --lib oversize_response
           scripts/package-release.sh "$GITHUB_REF_NAME" /tmp/release
-          python3 scripts/test-packaged-install.py "/tmp/release/waywr-$GITHUB_REF_NAME-linux-x86_64-gnu.tar.gz"
+          python3 scripts/test-packaged-install.py "/tmp/release/waywr-$GITHUB_REF_NAME-linux-x86_64-gnu.tar.gz" --slow-ipc
+          python3 scripts/test-project-reopen.py --retired-profiles --provider-navigation --populated-history --activate-profile --coordinator-usage --blocked-send --idle-cpu
+          python3 scripts/test-provider-login.py
+          python3 scripts/test-dev-install.py
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release
+          if-no-files-found: error
           path: |
             /tmp/release/*.tar.gz
             /tmp/release/SHA256SUMS
   publish:
-    needs: package
+    needs: [validate, audit, package]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -50,9 +136,23 @@ jobs:
         with:
           name: release
           path: release
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-notes
+          path: release-notes
       - name: Publish immutable version assets
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.ref_name }}
-        run: gh release create "$RELEASE_TAG" release/* --verify-tag --generate-notes
+          RELEASE_SHA: ${{ needs.validate.outputs.source_commit }}
+        run: |
+          set -eu
+          actual=$(gh api "repos/$GH_REPO/commits/tags/$RELEASE_TAG" --jq .sha)
+          [ "$actual" = "$RELEASE_SHA" ] || { echo 'Release tag moved after validation; refusing publication' >&2; exit 1; }
+          set -- "$RELEASE_TAG" release/* --verify-tag --title "Waywr $RELEASE_TAG" --notes-file release-notes/notes.md
+          case "$RELEASE_TAG" in
+            *-*) set -- "$@" --prerelease --latest=false;;
+            *) set -- "$@" --latest;;
+          esac
+          gh release create "$@"

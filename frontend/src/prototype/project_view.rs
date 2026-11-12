@@ -28,7 +28,7 @@ impl App {
         if self.provider_typing {
             match key.code {
                 KeyCode::Esc => self.provider_typing = false,
-                KeyCode::Enter => {
+                KeyCode::Enter | KeyCode::Tab | KeyCode::BackTab => {
                     let value = self.scope_editor.text();
                     self.project_edit.as_mut().unwrap()[field] = if matches!(field,"command_recipes"|"generated_outputs") {
                         match serde_json::from_str(&value) {
@@ -42,6 +42,7 @@ impl App {
                         serde_json::json!(value)
                     };
                     self.provider_typing = false;
+                    if key.code!=KeyCode::Enter{self.provider_row=(self.provider_row+if key.code==KeyCode::Tab{1}else{FIELDS.len()-1})%FIELDS.len();}
                 }
                 _ => {
                     self.scope_editor.input(Event::Key(key));
@@ -51,7 +52,7 @@ impl App {
             return;
         }
         match key.code {
-            KeyCode::Up => {
+            KeyCode::Up | KeyCode::BackTab => {
                 self.provider_row = (self.provider_row + FIELDS.len() - 1) % FIELDS.len()
             }
             KeyCode::Down | KeyCode::Tab => {
@@ -125,7 +126,7 @@ impl App {
     }
     fn project_body(&self) -> (String, String) {
         let draft = self.project_draft();
-        let mut text="[1 Profiles] [2 Roles] [3 Fallback] [4 Switch] [5 Tasks] [6 Policy] [7 Project]\nProject setup · future request scope/policy approval includes these choices.\n↑/↓ selects · ←/→ changes choice · Enter edits · S saves · L reloads\nExisting approved requests keep their exact saved policy.\n\n".to_owned();
+        let mut text="Project setup · future request scope/policy approval includes these choices.\nExisting approved requests keep their exact saved policy.\n\n".to_owned();
         for (i, field) in [
             "baseline",
             "baseline_input",
@@ -146,7 +147,7 @@ impl App {
                 "{} {}: {}\n",
                 if self.provider_row == i { "›" } else { " " },
                 field,
-                draft[*field]
+                if self.provider_typing&&self.provider_row==i{Value::String(self.scope_editor.text())}else{draft[*field].clone()}
             ));
         }
         text.push_str("\nCommitted input preserves unrelated dirty edits. initialize-files requires explicit approval of the listed source manifest for a non-Git/unborn project. PR policy grants the exact remote/repository and respects repository checks/reviews. Preview recipes are instructions, not permission to start a long-lived process. Generated outputs: optional exact output roots (JSON array); only new inventoried ignored files can retire, never preexisting/changed files or dependency directories.\n");

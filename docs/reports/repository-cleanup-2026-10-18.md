@@ -95,4 +95,4 @@ remote branch. No PR was created or merged.
   pruning was performed. The inventory above is committed; the bundle is not.
 
 No cleanup exception requires a user decision. Current product work is governed by
-the [connected plan](archive/product-workflow/approved-plan-b810bf1.md), not the removed historical branches.
+the [connected plan](../archive/product-workflow/approved-plan-b810bf1.md), not the removed historical branches.

@@ -16,7 +16,7 @@ five retained Actions logs; and four build artifacts. All remote non-tree object
 were included in the local complete-object scan. Comments/reviews returned no
 additional records; releases, wiki and Pages were absent.
 
-Gitleaks8.30.1 scans included complete files, patches, commit/tag text, decoding
+Gitleaks 8.30.1 scans included complete files, patches, commit/tag text, decoding
 and binary printable strings. Two unique matches were project identities rather
 than credentials. Supplemental checks covered private-key headers, credential
 URLs, assignments, home paths and contact identities. No confirmed credential,
@@ -96,8 +96,8 @@ manifest SHA256 is
 `8cf854747b4d57cfd5d30d52475f97a6d73e4a75fa9f3d5ed94d0249bf465218`.
 No authenticated model, operator upgrade, public push, release, destructive history
 rewrite or shared infrastructure change occurred. Experimental workflow, native
-reliability and portability limits remain in [README](../README.md#current-readiness).
-The [Linux setup](linux-sandbox-setup.md) still records the sandbox/preflight gap.
+reliability and portability limits remain in [README](../../README.md#current-readiness).
+The [Linux setup](../linux-sandbox-setup.md) still records the sandbox/preflight gap.
 
 ## Publication boundary
 
@@ -118,9 +118,94 @@ state. Main requires PR/build/security checks with squash merge and topic-branch
 deletion; maintainer approval is the decision to merge after passing checks.
 The expanded privacy gate additionally checks new-commit blobs, contact addresses
 and the account identifier supplied by GitHub's event metadata. Required upstream
-attribution remains intact. See [SECURITY.md](../SECURITY.md) for the current policy.
+attribution remains intact. See [SECURITY.md](../../SECURITY.md) for the current policy.
 
 Raw reports and original copies remain in private temporary storage outside Git.
 No machine-specific audit storage location or real operator identifier is needed
-in the public source. See [SECURITY.md](../SECURITY.md) for reporting and ongoing
-privacy boundaries; [distribution](distribution.md) owns packaging requirements.
+in the public source. See [SECURITY.md](../../SECURITY.md) for reporting and ongoing
+privacy boundaries; [distribution](../distribution.md) owns packaging requirements.
+
+## Local iteration follow-up
+
+The local usability work's history scan flagged the sequential synthetic project
+ID in `backend/tests/provider_updates.rs` as a generic API key. That value is a
+metadata-only fixture identifier and provides no service access. Current fixtures
+use an obvious repeated-character ID. `.gitleaksignore` records only the exact
+immutable historical fingerprint from `fc5bffd`; no rule, file or path wildcard
+is excluded. The pinned scanner remains active for current source and introduced
+history. Local history scanning passes with that documented false positive.
+
+## Local branch review — 2026-11-11
+
+The operator reports the current application behavior looks good. The pre-push
+review at application checkpoint cb094be checks 459 current source paths and all
+changed blobs/paths in 28 commits since the locally recorded origin/main. The
+privacy gate reports zero issues for these sources/history, the three release
+binaries and the paired 19-file bundle. Checksum-verified Gitleaks 8.30.1 reports
+zero source/history findings, retaining only the exact previously documented
+synthetic-project-ID fingerprint exclusion. No runtime credential store or
+operator-state file was found in the scanned source snapshot.
+
+Commit author/committer metadata was checked separately: 21 application commits
+use public GitHub username/noreply attribution; seven use neutral example
+attribution. No private email, machine address or personal-home path was found
+there. Public GitHub authorship is repository attribution, separate from the
+application's neutral paths/configuration. No authors or Git history were rewritten.
+This checkpoint adds documentation only after those application checks.
+
+This was local review, without fetching, pushing or querying hosted settings.
+Latest hosted Rust/npm/Python advisories, secret scanning, build and CodeQL results
+remain PR gates before merge; earlier dated advisory results are not presented as
+fresh checks. The historical private archive remains a separate publication
+boundary. Public installer/update/uninstall and broader product use are subsequent
+work, not additional local publication blockers identified in this review.
+
+## Hosted security follow-up — 2026-11-11
+
+After the user pushed PR13 at 911c53a, read-only Actions inspection identified
+two new Rust advisories in security run43039910780. Both were reproduced locally
+before changing dependencies; no ignored advisory or weakened gate was added.
+
+| Finding | Targeted remediation |
+| --- | --- |
+| [RUSTSEC-2026-0459](https://raw.githubusercontent.com/RustSec/advisory-db/main/crates/libsqlite3-sys/RUSTSEC-2026-0459.md): bundled SQLite can disclose uninitialized memory when opening a crafted database/WAL | rusqlite0.40.2 →0.41.1 selects libsqlite3-sys0.39.1 with SQLite3.54.1 |
+| [RUSTSEC-2026-0486](https://raw.githubusercontent.com/RustSec/advisory-db/main/crates/rustix/RUSTSEC-2026-0486.md): xattr buffer initialization is unsound | rustix1.1.5 →1.1.6 in both audited Rust lockfiles |
+
+Only these three crate versions/checksums changed. Cargo.lock is preserved, the
+toolchain remains1.99.0, and generated Rust notices reflect the patched versions.
+The unused legacy frontend lockfile remains in the existing security audit scope.
+
+Fresh local checks with pinned cargo-audit0.22.2 and RustSec database
+`fd6f39814c4d3c359fdbe223d0280dec4933f78f` pass `--deny warnings` for both lockfiles
+(292 and198 dependencies). The Python OSV check reports zero affected packages
+among41 locked identities. Production npm audit reports zero vulnerabilities,
+using isolated empty npm configuration rather than operator credentials.
+The remapped three-binary release build, 22 focused SQLite conversation/session/
+writer tests, three mouse-wheel regressions and the actual isolated PTY scroll/
+terminal-restoration check pass. No model/account or operator service is used.
+
+Rust PR build run43039910671 failed before checkout/compilation because the Ubuntu
+container could not resolve its package mirrors. This is separate from the
+advisories. CI and release bootstrap now retry index downloads a bounded number
+of times, treat incomplete index updates as errors, and refuse installation after
+persistent failure. The regression first observed the old command fail on a
+transient error, then passed recovery and permanent-failure cases against the
+actual inline workflow commands with an isolated apt stub. It does not prove
+hosted DNS availability; persistent infrastructure failure still fails the job.
+Action pins, builder digest and security policies remain unchanged.
+
+CodeQL run43039910583 succeeded on the pushed revision for Rust, JavaScript,
+Python and Actions. Read-only queries returned no open CodeQL/Dependabot alerts
+for the inspected repository/PR refs. These hosted results describe 911c53a,
+not the local fixes. The user must push the new checkpoint and obtain passing
+hosted checks; the agent did not push, rerun Actions, merge, publish or change
+settings. The user has explicitly deferred merge until distribution is addressed.
+
+## Post-push checks — 2026-11-11, revision717d2a4
+
+Read-only inspection confirmed security run `43046503293` passed on the pushed
+revision, including the dependency fixes. Bundle run `43046503089` failed in Builder
+prerequisites before checkout: all three index-update attempts could not resolve
+archive.ubuntu.com/security.ubuntu.com. Retries correctly reported failure; hosted
+DNS recovery is not established. CodeQL run `43046502703` was still in progress at
+inspection. No job was rerun and no remote setting was changed.

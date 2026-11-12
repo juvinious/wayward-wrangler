@@ -4,7 +4,6 @@
 use rusqlite::{Connection, OpenFlags};
 use serde::Serialize;
 use serde_json::Value;
-use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
@@ -33,7 +32,7 @@ impl From<std::io::Error> for Error { fn from(e: std::io::Error) -> Self { Self:
 impl From<rusqlite::Error> for Error { fn from(e: rusqlite::Error) -> Self { Self::Sql(e) } }
 impl From<serde_json::Error> for Error { fn from(e: serde_json::Error) -> Self { Self::Json(e) } }
 
-pub fn sha256(bytes: &[u8]) -> String { format!("{:x}", Sha256::digest(bytes)) }
+pub fn sha256(bytes: &[u8]) -> String { crate::codec::sha256(bytes) }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct RawRecord {

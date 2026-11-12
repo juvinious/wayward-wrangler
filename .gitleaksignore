@@ -1,0 +1,4 @@
+# Synthetic sequential project identifier in the original metadata-only test.
+# This exact immutable historical finding is not an access credential. Current
+# fixtures use an obvious repeated-character identifier. No path/rule wildcard.
+fc5bffdd303fd69708fc8b21c87f78489436c979:backend/tests/provider_updates.rs:generic-api-key:16

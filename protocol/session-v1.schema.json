@@ -203,5 +203,14 @@
       "frozen baseline, target, completion and validation policy",
       "incremental exact project index and nested instructions"
     ]
+  },
+  "x-waywr-live-input-v1": {
+    "advertised_by": "snapshot.conversation.continuous.live_input_contract",
+    "actions": [
+      "conversation.steer",
+      "conversation.withdraw_input"
+    ],
+    "authority": "same reserved turn and subject; frozen scope/model/tools unchanged",
+    "follow_up": "separate durable turn after the current reply"
   }
 }

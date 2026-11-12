@@ -314,6 +314,13 @@ impl Session {
         if revision.is_none(){return Err("Project session metadata is incomplete".into());}
         Ok(Self{workflow,project,key:key.into(),release:release.into()})
     }
+    /// Cheap projection watermark; do not parse retained event bodies to see if
+    /// anything changed. Full snapshots and history remain separate reads.
+    pub(crate) fn current_revision(&self)->Result<u64,String>{
+        let mut connection=self.workflow.connection()?;
+        let tx=connection.transaction_with_behavior(TransactionBehavior::Deferred).map_err(|e|e.to_string())?;
+        revision(&tx)
+    }
     pub fn snapshot(&self) -> Result<Value, String> {
         let mut conn = self.workflow.connection()?;
         let tx = conn
@@ -622,6 +629,16 @@ impl Session {
 mod tests {
     use super::*;
     use tempfile::TempDir;
+
+    #[test]
+    fn current_revision_reads_only_the_watermark_not_retained_event_bodies(){
+        let root=TempDir::new().unwrap();let s=session(&root,"project","revision-reader");
+        assert_eq!(s.current_revision().unwrap(),0);
+        let connection=s.workflow.connection().unwrap();
+        connection.execute("INSERT INTO session_events(schema_version,type,body) VALUES(1,'fixture.retained','invalid old event body')",[]).unwrap();
+        connection.execute("UPDATE session_metadata SET value='7\n' WHERE name='state_revision'",[]).unwrap();
+        assert_eq!(s.current_revision().unwrap(),7,"Watermark reads must be independent of retained history parsing");
+    }
 
     fn session(root:&TempDir,name:&str,key:&str)->Session{
         let project=root.path().join(name);

@@ -79,6 +79,11 @@ fn parse_tail(bytes: &[u8], truncated: bool) -> Value {
 }
 
 pub(crate) fn current(directory: &Path) -> Value {
+    if let Ok(v)=crate::execution::read(&directory.join("runtime-progress.json")) {
+        let activity=&v["activity"];
+        return json!({"status":activity["status"].as_str().unwrap_or("working"),
+            "label":activity["label"].as_str().unwrap_or("Working"),"usage":v["usage"]});
+    }
     if directory.join("receipt.json").exists() {
         return json!({"status":"finishing","label":"Finishing · result ready"});
     }

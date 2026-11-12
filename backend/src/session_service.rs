@@ -13,8 +13,7 @@ use tokio::{io::{AsyncReadExt,AsyncWriteExt},net::{UnixListener,UnixStream as As
     sync::{Semaphore,watch},task::JoinSet,time::{self,timeout}};
 #[cfg(test)]use std::io::Write;
 
-const FRAME_MAX:usize=1024*1024;
-const COMMAND_MAX:usize=64*1024;
+use crate::ipc_limits::{REQUEST_FRAME_MAX as FRAME_MAX,RESPONSE_FRAME_MAX,COMMAND_MAX};
 const MAX_CONNECTIONS:usize=64;
 const MAX_BLOCKING_DISPATCH:usize=16;
 struct ReadPermit<'a>(&'a AtomicUsize);
@@ -44,9 +43,29 @@ fn read_frame(peer:&mut UnixStream)->Result<Option<Value>,String>{
 }
 #[cfg(test)]
 fn send(peer:&mut UnixStream,value:&Value)->Result<(),String>{
-    let mut bytes=serde_json::to_vec(value).map_err(|e|e.to_string())?;
-    if bytes.len()>FRAME_MAX{return Err("Response frame exceeds 1 MiB".into());}
+    let mut bytes=response_bytes(value)?;
     bytes.push(b'\n');peer.write_all(&bytes).map_err(|e|e.to_string())
+}
+fn response_bytes(value:&Value)->Result<Vec<u8>,String>{
+    let bytes=serde_json::to_vec(value).map_err(|e|e.to_string())?;
+    if bytes.len()<=RESPONSE_FRAME_MAX{return Ok(bytes);}
+    // A bounded correlated error keeps the peer usable and never substitutes
+    // a partial snapshot for complete state or authorizes a retry/mutation.
+    serde_json::to_vec(&frame("error",value["request_id"].as_str().unwrap_or("response"),json!({
+        "code":"response_too_large","message":"Service reply exceeds the 8 MiB response budget; use scoped task/history reads. Project state is preserved.",
+        "response_kind":value["kind"],"response_bytes":bytes.len(),"limit_bytes":RESPONSE_FRAME_MAX
+    }))).map_err(|e|e.to_string())
+}
+#[cfg(test)]
+#[test]
+fn oversize_response_is_correlated_and_keeps_connection_usable(){
+    let (mut service,mut client)=UnixStream::pair().unwrap();
+    send(&mut service,&frame("snapshot","large-read",json!({"history":"x".repeat(RESPONSE_FRAME_MAX)}))).unwrap();
+    let reply=read_frame(&mut client).unwrap().unwrap();
+    assert_eq!(reply["kind"],"error");assert_eq!(reply["request_id"],"large-read");
+    assert_eq!(reply["body"]["code"],"response_too_large");assert_eq!(reply["body"]["limit_bytes"],RESPONSE_FRAME_MAX);
+    send(&mut service,&frame("session.status_result","next-read",json!({"project_key":"fixture"}))).unwrap();
+    assert_eq!(read_frame(&mut client).unwrap().unwrap()["request_id"],"next-read");
 }
 async fn read_frame_async(peer:&mut AsyncUnixStream)->Result<Option<Value>,String>{
     let mut raw=Vec::new();let mut byte=[0u8];
@@ -63,8 +82,7 @@ async fn read_frame_async(peer:&mut AsyncUnixStream)->Result<Option<Value>,Strin
     Ok(Some(value))
 }
 async fn send_async(peer:&mut AsyncUnixStream,value:&Value)->Result<(),String>{
-    let mut bytes=serde_json::to_vec(value).map_err(|e|e.to_string())?;
-    if bytes.len()>FRAME_MAX{return Err("Response frame exceeds 1 MiB".into());}
+    let mut bytes=response_bytes(value)?;
     bytes.push(b'\n');peer.write_all(&bytes).await.map_err(|e|e.to_string())
 }
 fn current_uid(fd:RawFd)->Result<bool,String>{
@@ -80,6 +98,18 @@ fn peer_pid(fd:RawFd)->Result<u32,String>{
     if unsafe{libc::getsockopt(fd,libc::SOL_SOCKET,libc::SO_PEERCRED,
         (&raw mut creds).cast(),&mut len)}!=0{return Err(std::io::Error::last_os_error().to_string());}
     Ok(creds.pid as u32)
+}
+
+// UI compatibility is a wire/storage contract, not an application-build pin.
+// The socket already authenticates the same UID. Still verify the actual peer's
+// executable against its paired manifest instead of trusting a payload path.
+fn compatible_frontend(executable:&Path)->Result<bool,String>{
+    if executable.file_name().is_none_or(|n|n!="waywr") {return Ok(false);}
+    let Some(root)=executable.parent().filter(|p|p.file_name().is_some_and(|n|n=="bin")).and_then(Path::parent) else{return Ok(false)};
+    let manifest=match read(&root.join("manifest.json")){Ok(v)=>v,Err(_)=>return Ok(false)};
+    Ok(manifest["schema_version"]==1 && manifest["backend_kind"]=="rust" && manifest["protocol_major"]==1 &&
+        manifest["interaction_contract"]=="conversation-v1" &&
+        manifest["files"]["bin/waywr"]==execution::hash_file(executable)?)
 }
 
 impl Service {
@@ -286,6 +316,8 @@ impl Service {
                 }else{Ok(("snapshot",self.session.snapshot()?))}
             },
             "conversation.read"=>if self.conversation{Ok(("conversation.result",self.session.conversation_snapshot()?))}
+                else{Ok(("error",json!({"code":"capability_unavailable","message":"Conversation requires schema 4"})))},
+            "conversation.activity"=>if self.conversation{Ok(("conversation.activity_result",self.session.conversation_activity(body["turn_id"].as_str().ok_or("missing turn ID")?)?))}
                 else{Ok(("error",json!({"code":"capability_unavailable","message":"Conversation requires schema 4"})))},
             "events_read"=>{
                 let after=body["after_seq"].as_u64().ok_or("invalid event cursor")?;
@@ -595,7 +627,7 @@ impl Service {
         let mut hasher=Sha256::new();let mut buffer=[0u8;64*1024];
         loop{let amount=file.read(&mut buffer).map_err(|e|e.to_string())?;
             if amount==0{break;}hasher.update(&buffer[..amount]);}
-        let digest=format!("{:x}",hasher.finalize());
+        let digest=crate::codec::lower_hex(hasher.finalize().as_ref());
         if reference["sha256"]!=digest{return Err("Artifact bytes differ from frozen reference; approval refused".into());}
         let offset=body["offset"].as_u64().unwrap_or(0);
         let limit=body["limit"].as_u64().unwrap_or(16*1024) as usize;
@@ -611,6 +643,7 @@ impl Service {
             "complete":offset+take as u64==size}))
     }
     fn command(&self,body:&Value)->Result<Value,String>{
+        if body["action"].as_str().is_some_and(|a|a.starts_with("conversation.")){return crate::live_input::command(&self.session,body)}
         if body["action"].as_str().is_some_and(|a|a.starts_with("coordination.")){return crate::coordination::command(&self.session,body)}
         let _development_scope_fence=if self.session.development()&&matches!(body["action"].as_str(),Some("save_proposal_revision"|"authorize_scope"|"answer_conversation")){Some(FileLock::exclusive(&self.session.workflow.state.join("supervision/fence.lock")).map_err(|e|format!("busy: Scope decision waits for serialized Git effect: {e}"))?)}else{None};
         if self.session.conversation_chat() && !matches!(body["action"].as_str(),Some("submit_message"|"select_coordinator"|"cancel_conversation"|"stop_session"|"resume_session")){
@@ -784,9 +817,12 @@ impl Service {
     }
     fn attach_direct(&self,pid:u32,payload:&Value)->Result<Value,String>{
         let _guard=self.attach_gate.lock().map_err(|e|e.to_string())?;
+        // Serialize new UI claims with the launcher's quiescent service handover.
+        let _execution=FileLock::exclusive(&self.session.workflow.state.join("supervision/fence.lock"))?;
         let executable=fs::read_link(format!("/proc/{pid}/exe")).map_err(|e|e.to_string())?;
-        if executable!=fs::canonicalize(&self.config.frontend).map_err(|e|e.to_string())?{
-            return Err("Invoking process is not the bound Waywr release".into());
+        if fs::canonicalize(&self.config.frontend).ok().as_ref()!=Some(&executable) &&
+            !(self.host && compatible_frontend(&executable)?){
+            return Err("Invoking UI does not support this project's interaction contract".into());
         }
         let process=execution::process_identity(pid)?;
         let herdr=Herdr::new(&self.config.herdr_socket);
@@ -1154,6 +1190,48 @@ impl Service {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn live_steering_targets_the_reserved_turn_and_survives_reopen(){
+        let root=tempfile::tempdir().unwrap();let project=root.path().join("project");let state=project.join(".waywr/state");fs::create_dir_all(&state).unwrap();
+        let key="a".repeat(32);write(&state.join("state-contract.json"),&json!({"schema_version":1,"state_schema":9,"execution_host":"systemd-user-v1","project_key":key}),true).unwrap();
+        write(&project.join(".waywr/coordinator.json"),&crate::model_runtime::initial_preferences().unwrap(),true).unwrap();
+        let exe=std::env::current_exe().unwrap();let service=Service::new(Config{project:project.clone(),state:state.clone(),key:key.clone(),release:"fixture".into(),ipc:root.path().join("ipc"),herdr_socket:PathBuf::new(),runner:exe.clone(),frontend:exe}).unwrap();
+        let c=service.session.workflow.connection().unwrap();
+        c.execute("INSERT INTO conversation_turns(turn_id,schema_version,project_key,message_id,binding_generation,status,packet_sha256) VALUES('active',1,?1,'original',1,'reserved',?2)",rusqlite::params![key,"b".repeat(64)]).unwrap();
+        c.execute("INSERT INTO dialogue_inputs(turn_id,subject_id) VALUES('active','discussion')",[]).unwrap();drop(c);
+        let command=json!({"command_id":"live-guidance","action":"conversation.steer","payload":{"turn_id":"active","subject_id":"discussion","text":"Use the revised constraint"}});
+        let result=service.command(&command).unwrap();assert_eq!(result["status"],"accepted", "{result}");assert_eq!(result["delivery"],"pending");
+        assert_eq!(service.session.workflow.connection().unwrap().query_row("SELECT count(*) FROM conversation_messages WHERE message_id=?1",[result["input_id"].as_str()],|r|r.get::<_,i64>(0)).unwrap(),0,"Pending guidance must not leak into another turn's context before it is applied");
+        assert_eq!(service.command(&command).unwrap(),result,"Replay must not create another guidance input");
+        let mut foreign=command.clone();foreign["command_id"]=json!("foreign-guidance");foreign["payload"]["subject_id"]=json!("other");assert_eq!(service.command(&foreign).unwrap()["status"],"rejected");
+        let saved=Session::open_existing(&project,&state,&key,"fixture").unwrap();
+        let snapshot=saved.dialogue_state().unwrap();assert!(snapshot["queue"].as_array().unwrap().iter().any(|r|r["input_id"]==result["input_id"]&&r["text"]=="Use the revised constraint"));
+        let withdraw=json!({"command_id":"withdraw-live-guidance","action":"conversation.withdraw_input","payload":{"input_id":result["input_id"],"subject_id":"discussion"}});
+        assert_eq!(service.command(&withdraw).unwrap()["status"],"accepted");
+        assert!(!saved.dialogue_state().unwrap()["queue"].as_array().unwrap().iter().any(|r|r["input_id"]==result["input_id"]));
+        let mut second=command.clone();second["command_id"]=json!("guidance-claimed");let second=service.command(&second).unwrap();
+        let directory=state.join("session/fixture-attempt");let input=second["input_id"].as_str().unwrap();
+        fs::create_dir_all(directory.join("live-input/claimed")).unwrap();fs::write(directory.join("live-input/claimed").join(format!("{input}.json")),"claimed by fixture").unwrap();
+        fs::create_dir_all(directory.join("live-input/pending")).unwrap();fs::write(directory.join("live-input/pending").join(format!("{input}.json")),"republished duplicate").unwrap();
+        service.session.workflow.connection().unwrap().execute("UPDATE conversation_live_inputs SET directory=?1 WHERE input_id=?2",rusqlite::params![directory.to_str(),input]).unwrap();
+        let mut late=withdraw;late["command_id"]=json!("withdraw-claimed");late["payload"]["input_id"]=json!(input);
+        assert_eq!(service.command(&late).unwrap()["code"],"already_dispatched","Claimed guidance cannot be edited after delivery begins");
+    }
+    #[test]
+    fn compatible_ui_uses_manifest_and_peer_binary_instead_of_build_identity(){
+        let root=tempfile::tempdir().unwrap();let bin=root.path().join("bin");std::fs::create_dir(&bin).unwrap();
+        let executable=bin.join("waywr");std::fs::write(&executable,b"fixture binary bytes").unwrap();
+        let mut manifest=serde_json::json!({"schema_version":1,"backend_kind":"rust","protocol_major":1,
+            "interaction_contract":"conversation-v1","release_id":"another-build",
+            "files":{"bin/waywr":crate::execution::hash_file(&executable).unwrap()}});
+        let path=root.path().join("manifest.json");crate::execution::write(&path,&manifest,false).unwrap();
+        assert!(super::compatible_frontend(&executable).unwrap());
+        manifest["protocol_major"]=serde_json::json!(2);crate::execution::write(&path,&manifest,false).unwrap();
+        assert!(!super::compatible_frontend(&executable).unwrap());
+        manifest["protocol_major"]=serde_json::json!(1);crate::execution::write(&path,&manifest,false).unwrap();
+        std::fs::write(&executable,b"changed binary bytes").unwrap();
+        assert!(!super::compatible_frontend(&executable).unwrap());
+    }
     use super::*;
     use std::thread;
     use rusqlite::Connection;
@@ -1767,7 +1845,7 @@ impl Service {
     async fn project_history_async(self:Arc<Self>){
         let mut projected_revision=None;
         while !self.shutting_down.load(Ordering::SeqCst){let service=self.clone();let previous=projected_revision.clone();
-            let result=tokio::task::spawn_blocking(move||->Result<Option<Value>,String>{let revision=service.session.snapshot()?["state_revision"].clone();if previous.as_ref()==Some(&revision){return Ok(previous)}
+            let result=tokio::task::spawn_blocking(move||->Result<Option<u64>,String>{let revision=service.session.current_revision()?;if previous==Some(revision){return Ok(previous)}
                 let pending=crate::request_history::project(&service.session)?;Ok(if pending{None}else{Some(revision)})
             }).await;
             match result {Ok(Ok(revision))=>projected_revision=revision,other=>{let path=self.session.workflow.state.join("history/projection-attention.json");let body=json!({"status":"attention","reason":format!("{other:?}"),"action":"Committed source events remain saved; preserve and reconcile the history projection"});let _=tokio::task::spawn_blocking(move||{if read(&path).ok().as_ref()!=Some(&body){let _=write(&path,&body,false);}}).await;}}
@@ -1820,6 +1898,7 @@ impl Service {
         Ok(())
     }
     fn tick_chat(&self,running:bool)->Result<(),String>{
+        if self.session.continuous(){crate::live_input::reconcile(&self.session)?;}
         let active=self.session.chat_reserved()?;
         let pending=if active.is_some(){None}else if running{self.session.conversation_next_queued()?}else{None};
         let Some(id)=active.as_ref().or(pending.as_ref()).and_then(|v|v["turn_id"].as_str())else{return Ok(());};
@@ -1845,6 +1924,9 @@ impl Service {
                 "context_sha256":canonical_sha256(&context).map_err(|e|e.to_string())?,"selected_context":context});
                 packet
             };
+            if !self.session.development()&&fresh_packet["execution"]["mode"]=="native"{
+                fresh_packet["execution"]=crate::provider_selection::with_client(fresh_packet["execution"].clone());
+            }
             // Scope packet construction includes bounded development context before its final check.
             if fresh_packet["execution"]["profile"]=="development-profiles-v1"{if let Err(error)=crate::development_context::prepare(&self.session,&directory,&mut fresh_packet){self.session.conversation_block_queued(id,&error)?;return Ok(())}}
             let limit=if fresh_packet["execution"]["profile"]=="development-profiles-v1"{crate::development_context::MEMORY_LIMIT}else{crate::native_contract::PACKET_LIMIT};

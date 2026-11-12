@@ -1,31 +1,33 @@
-# Waywr handoff — clean repository baseline
+# Waywr handoff
 
-This standalone source snapshot intentionally excludes the original private Git
-and GitHub history. The original repository and exact runtime evidence remain
-private. There are no inherited private branches, tags, PRs, logs or artifacts.
-The public repository's checked-out HEAD is the new source baseline.
+Branch: `plan/usability-and-installation`; correction base `4f1bcf5`.
+Current checkpoint: correct the README badge exception in the actual local
+pre-push hook after the user's refused push. The user owns all remote delivery;
+no push, merge or release. Read [AGENTS](../AGENTS.md), then task-relevant notes.
 
-The source incorporates security-fixed dependencies, MIT licensing, required
-upstream notices, generalized source/docs, explicit installer repository selection,
-path-remapped builds and privacy/secret/advisory/CodeQL workflows. See the
-[audit and verification record](security-audit-2026-11-08.md), [security policy](../SECURITY.md)
-and [distribution contract](distribution.md) for exact coverage and limits.
+## Implemented and checked
 
-The user authorized renaming/archiving the original privately and reusing the
-original repository name for this independent source history. Ongoing work belongs
-to this repository. The historical repository is read-only and receives no future
-source, workflow or dependency updates. Its local remote is retired from active use.
+[CI review](reports/ci-review-2026-11-12.md) records the three PRs and evidence.
+Chunked IPC replies pass real packaged install/startup/detach with delayed reads.
+Hash encoding preserves values and compiles with current and proposed PR11
+dependencies; this branch's pins/locks are unchanged. Badges retain privacy gates
+outside canonical public README workflow URLs. PR12 was already green.
+The local hook now supplies explicit known-public repository context while keeping
+deny-file/history/Gitleaks checks; its offline replay and eight privacy tests pass.
 
-The replacement's secret scanning/push protection, Dependabot, private reporting,
-read-only workflow tokens and pinned-action policy are configured independently.
-Main uses required PR/build/security checks, squash-only merge and automatic topic
-branch deletion. The sole maintainer decides when to merge; no second reviewer is
-required. Check actual hosted run results and branch rules before merging work;
-this document is not a substitute for those gates. No release or operator upgrade
-is implied by this source migration.
+## Next action and limits
 
-The accepted Rust/Ratatui application is IPC1.10/state9. Native reliability,
-ordinary-project usability and portability remain experimental. Contracts:
-[workflow](ordinary-project-workflow.md), [providers](provider-selection.md),
-[recovery](coordinator-recovery.md), [context](context-delivery.md).
-Historical public reports are generalized context, not fresh trial authority.
+User reviews/pushes the local changes and updates PR11 with the compatibility fix;
+hosted CI must rerun. Later hosted steps and public download remain unverified.
+No operator environment or provider credentials were changed; no model calls.
+
+Then return to the significant proposal → coordinator → workers → working app
+journey before release: [Workboard brief](../examples/release-acceptance-brief.md)
+and [acceptance notes](agents/release-acceptance.md). Native-run permission and
+role/model choices remain pending; human approval must cover the actual scope.
+Do not substitute fixture replies or direct app implementation for that journey.
+
+Tag automation/changelog and public installer are implemented; their
+[release](reports/release-pipeline-2026-11-11.md) and
+[installer](reports/public-installer-2026-11-11.md) reports retain evidence.
+CLI update/uninstall and first publication remain separate work.

@@ -2,7 +2,7 @@
 //! execution evidence and never advances workflow state or answers a gate.
 use crate::{
     adapters,
-    codec::{canonical_sha256, sha256},
+    codec::canonical_sha256,
     execution::{FileLock, alive, now, process_identity, read, write, write_bytes},
     fake,
     herdr::Herdr,
@@ -17,7 +17,7 @@ use std::{
     io::Write,
     os::unix::process::CommandExt,
     path::{Path,PathBuf},
-    process::{Command, Stdio},
+    process::Stdio,
     thread,
     time::{Duration, Instant},
 };
@@ -90,51 +90,6 @@ fn reserve_native(directory: &Path, op: &Value) -> Result<(), String> {
         &json!({"operation_id":op["operation_id"],"count":1,
         "meaning":"reserved native process launch attempt"}),
     )
-}
-
-fn version(binary: &str) -> Result<String, String> {
-    let output = Command::new(binary)
-        .arg("--version")
-        .output()
-        .map_err(|e| e.to_string())?;
-    if !output.status.success() {
-        return Err("Agent CLI version check failed; no execution".into());
-    }
-    String::from_utf8(output.stdout).map_err(|e| e.to_string())
-}
-fn prepare_native(
-    directory: &Path,
-    packet: &Value,
-    op: &Value,
-) -> Result<(Vec<String>, BTreeMap<String, String>), String> {
-    if op["application_version"] != env!("CARGO_PKG_VERSION") {
-        return Err(
-            "Installed runner version differs from frozen native operation; no execution".into(),
-        );
-    }
-    if op["authorization_plan_sha256"] != packet["authorization_plan_sha256"] {
-        return Err("Native operation authorization differs from frozen packet".into());
-    }
-    let role = &packet["execution"];
-    let binary = required(role, "binary")?;
-    let version = adapters::verify_role(role, &version(binary)?)?;
-    let schema = adapters::schema(packet)?;
-    evidence(directory, "output-schema.json", &schema)?;
-    let prompt = adapters::prompt(packet)?;
-    write_bytes(&directory.join("prompt.txt"), prompt.as_bytes(), true)?;
-    let command = adapters::command(packet, directory)?;
-    let env = adapters::environment(required(packet, "provider")?, &std::env::vars().collect())?;
-    evidence(
-        directory,
-        "execution.json",
-        &json!({"provider":packet["provider"],
-        "requested_model":role["model"],"reasoning":role["reasoning"],"cli_version":version,
-        "argv":command.argv,"input_transport":"read-only prompt.txt on stdin then EOF; not the terminal",
-        "prompt_sha256":sha256(prompt.as_bytes()),"packet_sha256":op["packet_sha256"],
-        "permissions":command.restrictions,
-        "native_retries":"CLI/provider transport retries may occur; controller never re-dispatches a failed/uncertain stage"}),
-    )?;
-    Ok((command.argv, env))
 }
 
 fn report(herdr: &Herdr, pane: &str, op: &Value, state: &str, message: &str) {
@@ -275,7 +230,7 @@ fn execute(
                     return Ok(("failed".into(),None,None,Some(reason)));
                 },Err(reason)=>return Err(reason)
             }
-        }else if chat {crate::claude_chat::prepare(directory,packet)?}else{prepare_native(directory, packet, op)?}
+        }else{return Err("Legacy native execution is retired; configure the shared model runtime".into())}
     } else if local {
         (vec![std::env::current_exe().map_err(|e|e.to_string())?.to_string_lossy().into_owned(),"development-check-child".into(),directory.join("packet.json").to_string_lossy().into_owned()],{let mut env=crate::adapters::environment("codex",&std::env::vars().collect())?;let home=std::env::var("HOME").unwrap_or_default();env.insert("PATH".into(),format!("{home}/.cargo/bin:/usr/local/bin:/usr/bin:/bin"));env.insert("CARGO_TARGET_DIR".into(),PathBuf::from(packet["worktree"].as_str().ok_or("Missing check worktree")?).join("target").to_string_lossy().into_owned());env})
     } else {
@@ -299,6 +254,23 @@ fn execute(
             ]),
         )
     };
+    let working_directory=if development&&packet["operation_kind"]=="development-worker"{
+        PathBuf::from(required(packet,"worktree")?)
+    }else if chat||development{
+        let scratch=directory.join("client-scratch");
+        if let Err(error)=fs::create_dir_all(&scratch){
+            let reason=format!("Cannot prepare child working directory {}: {error}",scratch.display());
+            // This is before dispatch or spawn, so no provider process exists.
+            // A local preparation error must not become an ambiguous invocation.
+            evidence(directory,"completion.json",&json!({"schema_version":1,
+                "provider_selection_v1":packet["execution"]["profile"]=="development-profiles-v1",
+                "category":"configuration","known_completion":true,"settled":true,
+                "capabilities_valid":true,"action_valid":false,"no_provider_process_spawned":true,
+                "reason":reason}))?;
+            return Ok(("failed".into(),None,None,Some(reason)));
+        }
+        scratch
+    }else{directory.to_path_buf()};
     if native && op["schema_version"]!=2 {
         reserve_native(directory, op)?;
     }
@@ -313,13 +285,13 @@ fn execute(
     let mut command = TokioCommand::new(&argv[0]);
     command
         .args(&argv[1..])
-        .current_dir(if development&&provider=="claude"&&packet["operation_kind"]=="development-worker"{PathBuf::from(required(packet,"worktree")?)}else if chat||development&&provider=="claude"{directory.join("client-scratch")}else{directory.to_path_buf()})
+        .current_dir(&working_directory)
         .env_clear()
         .envs(environment)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     command.as_std_mut().process_group(0);
-    if native && provider != "ollama" {
+    if native {
         command.stdin(Stdio::from(
             File::open(directory.join("prompt.txt")).map_err(|e| e.to_string())?,
         ));
@@ -434,7 +406,14 @@ fn execute(
                                             directory,&mut transcript,&error);
                                     }
                                 }
-                                if continuous {
+                                if development {
+                                    crate::model_runtime::progress(directory,&value)?;
+                                    if chat&&value["type"]=="runtime.text" {
+                                        chat_text.push_str(value["text"].as_str().unwrap_or(""));
+                                        if chat_text.len()>65536{return invalid_output(&runtime,&mut child,&identity,directory,&mut transcript,"Conversation stream exceeds bound")}
+                                        write(&directory.join("conversation-stream.json"),&json!({"schema_version":1,"text":chat_text,"provisional":true}),false)?;
+                                    }
+                                }else if continuous {
                                     let ev=&value["event"];
                                     if ev["type"]=="content_block_start"&&ev["content_block"]["name"]=="StructuredOutput"{structured_index=ev["index"].as_u64();}
                                     if ev["delta"]["type"]=="input_json_delta"&&structured_index.is_some()&&structured_index==ev["index"].as_u64(){structured_text.push_str(ev["delta"]["partial_json"].as_str().unwrap_or(""));}
@@ -481,17 +460,19 @@ fn execute(
     }
     let status = runtime.block_on(child.wait()).map_err(|e| e.to_string())?;
     if directory.join("cancel.json").exists() {
-        if development {evidence(directory,"completion.json",&json!({"schema_version":1,"category":"interrupted","known_completion":true,"settled":group_settled(&identity)?,"capabilities_valid":true,"action_valid":false,"client_abandoned":packet["provider"]=="ollama","remote_completion":if packet["provider"]=="ollama"{"unknown; abandoned after settled cancellation, no action adopted"}else{"native"}}))?;}
+        if development {evidence(directory,"completion.json",&json!({"schema_version":1,"category":"interrupted","known_completion":true,"settled":group_settled(&identity)?,"capabilities_valid":true,"action_valid":false,"client_abandoned":packet["provider"]=="ollama","remote_completion":"unknown after cancellation; no action adopted"}))?;}
         if continuous {evidence(directory,"completion.json",&json!({"schema_version":1,"category":"interrupted","known_completion":true,"settled":group_settled(&identity)?,"capabilities_valid":events.iter().all(|e|crate::continuous_adapter::inspect(e,packet["model"].as_str().unwrap_or("")).is_ok()),"exit_code":status.code(),"action_valid":false,"events_sha256":canonical_sha256(&json!(events)).map_err(|e|e.to_string())?}))?;}
         return Ok(("cancelled".into(), status.code(), None, None));
     }
     if development && native {
       let settled=group_settled(&identity)?;
       let decoded=crate::development::finish_native(&events,directory,packet,status.code());
-      let refusal=if provider=="ollama"{events.iter().find(|e|e["type"]=="ollama.refused"&&matches!(e["http_status"].as_u64(),Some(429|503))).map(|_|json!({"reason":"Explicit Ollama HTTP capacity refusal","retry_after_secs":60}))}else if provider=="claude"{crate::development_claude::capacity(&events,status.code())}else{crate::development::capacity_refusal(&events,status.code())};let capacity=refusal.is_some();
-      let remote_unknown=packet["provider"]=="ollama"&&directory.join("ollama-send-intent.json").exists()&&!events.iter().any(|e|matches!(e["type"].as_str(),Some("ollama.completed"|"ollama.refused")));
-      let category=if remote_unknown{"uncertain"}else if !settled{"uncertain"}else if capacity{"capacity"}else if decoded.is_ok(){"completed"}else{"format"};
-      evidence(directory,"completion.json",&json!({"schema_version":1,"category":category,"known_completion":status.code().is_some()&&!remote_unknown,"settled":settled,"capabilities_valid":true,"action_valid":decoded.is_ok()&&settled,"reason":decoded.as_ref().err(),"capacity":refusal}))?;
+      let terminal=events.iter().rev().find(|e|e["type"]=="runtime.completed");
+      let refusal=terminal.filter(|e|e["category"]=="capacity").cloned();let capacity=refusal.is_some();
+      let remote_unknown=terminal.is_none()||terminal.is_some_and(|e|e["outcome"]!="completed"&&e["request_sent"]==true&&e["response_complete"]!=true);
+      let no_request=terminal.is_some_and(|e|e["request_sent"]==false);
+      let category=if remote_unknown||!settled{"uncertain"}else if no_request{"configuration"}else if capacity{"capacity"}else if decoded.is_ok(){"completed"}else{"format"};
+      evidence(directory,"completion.json",&json!({"schema_version":1,"provider_selection_v1":true,"category":category,"no_model_request_sent":no_request,"known_completion":status.code().is_some()&&!remote_unknown,"settled":settled,"capabilities_valid":true,"action_valid":decoded.is_ok()&&settled,"reason":decoded.as_ref().err(),"capacity":refusal}))?;
       if !settled{return Ok(("failed".into(),status.code(),None,Some("Worker descendants not quiescent; no synchronization".into())))}
       return match decoded {Ok((result,runtime))=>{evidence(directory,"runtime-result.json",&runtime)?;evidence(directory,"result.json",&result)?;Ok(("completed".into(),status.code(),Some(result),None))},Err(reason)=>Ok((if capacity{"capacity-waiting"}else{"failed"}.into(),status.code(),None,Some(reason)))};
     }
@@ -823,6 +804,20 @@ mod tests {
 
 #[cfg(test)]mod provider_preflight_tests{
     use super::*;
+    #[test]fn unavailable_child_working_directory_is_a_local_failure_not_uncertain(){
+        let d=tempfile::tempdir().unwrap();
+        fs::write(d.path().join("client-scratch"),b"not a directory").unwrap();
+        let packet=json!({"development":true,"provider":"fake","operation_kind":"development-check","worktree":d.path()});
+        let outcome=execute(d.path(),&json!({"provider":"fake"}),&packet,&Value::Null,None);
+        assert!(outcome.is_ok(),"A local working-directory preparation failure must produce a settled failure: {outcome:?}");
+        let outcome=outcome.unwrap();assert_eq!(outcome.0,"failed");
+        let proof=read(&d.path().join("completion.json")).unwrap();
+        assert_eq!(proof["no_provider_process_spawned"],true);
+        assert_eq!(proof["settled"],true);
+        assert!(!d.path().join("dispatch.json").exists());
+        assert!(!d.path().join("child.json").exists());
+        assert!(!d.path().join("uncertain.json").exists());
+    }
     #[test]fn provider_preflight_failure_has_positive_nonlaunch_proof_and_is_not_capacity(){
         let d=tempfile::tempdir().unwrap();let packet=json!({"development":true,"provider":"claude","operation_kind":"development-worker","execution":{"profile":"development-profiles-v1","provider":"claude","binary":"/missing/client","model":"claude-sonnet-5-5","effort":"medium"}});
         let outcome=execute(d.path(),&json!({"provider":"claude"}),&packet,&Value::Null,None).unwrap();

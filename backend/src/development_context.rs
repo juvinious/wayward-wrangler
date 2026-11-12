@@ -1133,23 +1133,10 @@ pub fn diagnose(packet: &Value, directory: &Path) -> Result<Value, String> {
     let chars = text.chars().count() + schema.to_string().chars().count() + instruction_bytes;
     let estimated = (chars + 2) / 3;
     let worker = packet["operation_kind"] == "development-worker";
-    let published = match (packet["provider"].as_str(), packet["model"].as_str()) {
-        (Some("codex"), Some("gpt-6.1-sol")) => Some((
-            1_050_000,
-            "https://developers.openai.com/api/docs/models/gpt-6.1-sol",
-        )),
-        (Some("claude"), Some("claude-sonnet-5-5")) => Some((
-            1_000_000,
-            "https://platform.claude.com/docs/en/models/sonnet-5-5/overview",
-        )),
-        _ => None,
-    };
-    let sections = packet
-        .as_object()
-        .into_iter()
-        .flatten()
-        .map(|(k, v)| Ok((k.clone(), json!(compact(v)?.len()))))
-        .collect::<Result<serde_json::Map<_, _>, String>>()?;
+    let published:Option<(usize,&str)>=None; // Capacity is reported by the runtime catalog/usage, never a core model table.
+    let sections=packet.as_object().into_iter().flatten()
+        .map(|(k,v)|Ok((k.clone(),json!(compact(v)?.len()))))
+        .collect::<Result<serde_json::Map<_,_>,String>>()?;
     let response_reserve = if published.is_some() { 128000 } else { 32768 };
     let reserve = response_reserve + if worker { 65536 } else { 8192 } + 16384;
     let known_input_bytes = bytes.len() + schema_bytes + instruction_bytes + 64;

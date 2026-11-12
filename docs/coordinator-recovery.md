@@ -103,27 +103,11 @@ binding change to a bundle without `coordinator_recovery_contract: recovery-v1`.
 Native result object hashes and immutable receipt/file hashes remain distinct;
 projections never replace original bytes.
 
-## Verification boundary
+## Limits
 
-Subsequent ordinary use supplied one native observation: the Codex coordinator
-retired `tui-repair-review` through a completed receipt and one application event;
-the readable result alias points to the combined commit. This verifies that case,
-not general autonomous convergence. The user still found the preview and acceptance
-handoff cumbersome: deep worktree commands and repeated explanations of integration
-versus main are required. No simple preview/acceptance flow is implemented, and the
-current TUI request's human visual acceptance remains open. These are product gaps,
-not failures of the focused checks below.
-
-Isolated fixtures cover the recorded provisional finding/exact-source/nonblocking
-result case, omitted/unrelated/wrong-profile resolution refusal, legacy schemas,
-preparation cause changes, scoped concurrent work, repeated decisions/reads, circular
-code state, capacity waiting, restart/adoption deduplication, interrupted integration,
-dirty-state preservation, readable history, chat and release compatibility. They do
-not establish fully autonomous native recovery. Progress is a structural comparison,
-not a semantic proof; a new implementation strategy with no measurable delta may
-need clarification or new evidence. Long cycles beyond the comparison window,
-arbitrary provider output failures, OS/auth/configuration repair and unproven effects
-remain limits. No new authenticated calls, runtime trial or direct Example Task App code
-edits establish the convergence correction. Automated receipts remain fixtures; the
-limited native observation above does not establish general autonomous recovery or
-a usable end-to-end acceptance flow.
+Progress comparison uses structural evidence rather than a semantic proof of a
+better implementation strategy. New strategy without a measurable delta can need
+clarification or new evidence. Long cycles beyond the comparison window, arbitrary
+provider output failures, OS/auth/configuration repair and unproven effects remain
+outside automatic recovery. Unknown execution is never treated as settled merely
+to continue work.

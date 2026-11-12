@@ -1,9 +1,10 @@
-use crossterm::{event::{self, EnableBracketedPaste, DisableBracketedPaste, KeyboardEnhancementFlags, PushKeyboardEnhancementFlags, PopKeyboardEnhancementFlags}, execute, terminal::{EnterAlternateScreen, LeaveAlternateScreen, enable_raw_mode, disable_raw_mode}};
+use crossterm::{event::{self, EnableBracketedPaste, EnableMouseCapture, DisableBracketedPaste, DisableMouseCapture, KeyboardEnhancementFlags, PushKeyboardEnhancementFlags, PopKeyboardEnhancementFlags}, execute, terminal::{EnterAlternateScreen, LeaveAlternateScreen, enable_raw_mode, disable_raw_mode}};
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 use serde_json::{Value, json};
-use sha2::{Digest, Sha256};
-use std::{env, fs, io::{self, stdout, Write}, os::{unix::{fs::{OpenOptionsExt, PermissionsExt}, net::UnixStream, process::CommandExt}}, path::{Path, PathBuf}, sync::{Arc, atomic::{AtomicBool, AtomicU64, Ordering}, mpsc::{self}}, thread, time::{Duration, Instant, SystemTime, UNIX_EPOCH}};
+#[cfg(test)]
+use waywr_backend::codec::sha256;
+use std::{env, fs, io::{self, stdout, Write}, os::{unix::{fs::{OpenOptionsExt, PermissionsExt}, net::UnixStream}}, path::{Path, PathBuf}, sync::{Arc, atomic::{AtomicBool, AtomicU64, Ordering}, mpsc::{self}}, thread, time::{Duration, Instant, SystemTime, UNIX_EPOCH}};
 use waywr::{protocol::{self, Frame}, prototype::{editor::{Composer, Draft}, view::{App, LiveIntent, Modal}}};
 mod rust_runtime;
 mod rust_bundle;
@@ -12,15 +13,18 @@ mod rust_views;
 mod rust_review;
 mod rust_maintenance;
 mod rust_migrate;
+mod rust_session;
 mod cli_schema;
+mod auth_login;
+mod event_subscription;
 
 struct TerminalGuard;
 impl TerminalGuard {
     fn enter() -> io::Result<Self> {
         enable_raw_mode()?;
-        if let Err(error) = execute!(stdout(), EnterAlternateScreen, EnableBracketedPaste,
+        if let Err(error) = execute!(stdout(), EnterAlternateScreen, EnableBracketedPaste, EnableMouseCapture,
             PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES)) {
-            let _=execute!(stdout(),PopKeyboardEnhancementFlags,DisableBracketedPaste,LeaveAlternateScreen);
+            let _=execute!(stdout(),PopKeyboardEnhancementFlags,DisableBracketedPaste, DisableMouseCapture,LeaveAlternateScreen);
             let _ = disable_raw_mode();
             return Err(error);
         }
@@ -28,7 +32,7 @@ impl TerminalGuard {
     }
 }
 impl Drop for TerminalGuard {
-    fn drop(&mut self) { let _ = execute!(stdout(), PopKeyboardEnhancementFlags, DisableBracketedPaste, LeaveAlternateScreen); let _ = disable_raw_mode(); }
+    fn drop(&mut self) { let _ = execute!(stdout(), PopKeyboardEnhancementFlags, DisableBracketedPaste, DisableMouseCapture, LeaveAlternateScreen); let _ = disable_raw_mode(); }
 }
 fn page_bytes(hex:&str)->io::Result<Vec<u8>>{
     if hex.len()%2!=0{return Err(io::Error::other("Malformed project output page"));}
@@ -210,7 +214,7 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
     ui_token: Option<String>, project:Option<PathBuf>) -> io::Result<()> {
     let draft_path=outbox_dir.parent().ok_or_else(||io::Error::other("outbox lacks session parent"))?.join("draft.json");
     let mut command_stream = session(&socket, &key, &release, "command")?;
-    let mut event_stream = session(&socket, &key, &release, "events")?;
+    let event_stream = session(&socket, &key, &release, "events")?;
     if let Some(token) = ui_token {
         if env::var("HERDR_ENV").ok().as_deref() != Some("1") {
             return Err(io::Error::new(io::ErrorKind::PermissionDenied, "UI pane is not Herdr-managed"));
@@ -249,10 +253,17 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
             };
             match reply {
                 Ok(mut frame) => {
-                    if kind=="command"&&matches!(payload["action"].as_str(),Some("submit_message"|"coordination.submit"))&&(frame.body["status"]=="rejected"||frame.kind=="error"){
+                    if kind=="command"&&matches!(payload["action"].as_str(),Some("submit_message"|"coordination.submit"|"conversation.steer"))&&(frame.body["status"]=="rejected"||frame.kind=="error"){
                         let evidence=command_outbox.parent().unwrap().join("refused-deliveries").join(format!("{id}.json"));
                         let _=waywr_backend::execution::write(&evidence,&json!({"command":payload,"response":frame.body}),true);
                         frame.body["local_refused_submission"]=payload["payload"].clone();
+                    }
+                    if kind=="command"&&payload["payload"]["restore_to_editor"]==true&&frame.body["status"]=="accepted"&&frame.body["text"].is_string(){
+                        let input=json!({"source_command":id,"text":frame.body["text"],"subject_id":payload["payload"]["subject_id"]});
+                        if let Err(error)=waywr_backend::execution::write(&command_outbox.parent().unwrap().join("restored-input.json"),&input,false){
+                            let _=command_updates.send(Frame::new("error",&id,json!({"code":"restore_pending","message":error,"operator_action":"Edit result remains in the command ledger/outbox; reconnect to restore it"})));break;
+                        }
+                        frame.body["local_queue_restore"]=input;
                     }
                     if let Some(value) = frame.body.get("state_revision").and_then(Value::as_u64) {
                         command_revision.fetch_max(value, Ordering::SeqCst);
@@ -278,70 +289,8 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
     let event_key = key.clone();
     let event_release = release.clone();
     let initial_cursor = snapshot.body.get("cursor").and_then(Value::as_u64).unwrap_or(0);
-    thread::spawn(move || {
-        let mut cursor = initial_cursor;
-        let mut counter = 0;
-        loop {
-            let id = next_id(&mut counter);
-            let reply = request(&mut event_stream, "events_read", &id, json!({"after_seq":cursor,"limit":64,"wait_ms":1000}));
-            let frame = match reply {
-                Ok(frame) => frame,
-                Err(_) => {
-                    event_mutations.store(false,Ordering::SeqCst);
-                    let _=updates_tx.send(Frame::new("error",&id,json!({"code":"service_unavailable","message":"Reconnecting to this project's service; draft preserved"})));
-                    let (replacement,snapshot)=match reconnect_snapshot(&event_socket,&event_key,&event_release,cursor){
-                        Ok(value)=>value,
-                        Err(error)=>{let _=updates_tx.send(Frame::new("error",&id,json!({"code":"resync_required","message":format!("Reconnect stopped: {error}. Reopen Waywr to reconcile; no call was resubmitted.")})));break;}
-                    };
-                    cursor=snapshot.body["cursor"].as_u64().unwrap();
-                    if let Some(value)=snapshot.body.get("state_revision").and_then(Value::as_u64) { event_revision.fetch_max(value,Ordering::SeqCst); }
-                    if updates_tx.send(snapshot).is_err() { break; }
-                    event_stream=replacement;
-                    event_mutations.store(true,Ordering::SeqCst);
-                    continue;
-                }
-            };
-            let mut expected = cursor + 1;
-            let mut gap = false;
-            if let Some(events) = frame.body.get("events").and_then(Value::as_array) {
-                for item in events {
-                    if item.get("seq").and_then(Value::as_u64) != Some(expected) { gap = true; break; }
-                    expected += 1;
-                }
-            } else { gap = true; }
-            let next = frame.body.get("next_seq").and_then(Value::as_u64).unwrap_or(cursor);
-            if gap || next != expected - 1 {
-                event_mutations.store(false, Ordering::SeqCst);
-                let _ = updates_tx.send(Frame::new("error", &id, json!({"code":"resync_required","message":"Event sequence gap; reconnect and reload snapshot before mutation"})));
-                break;
-            }
-            cursor = next;
-            if let Some(value) = frame.body.get("state_revision").and_then(Value::as_u64) {
-                event_revision.fetch_max(value, Ordering::SeqCst);
-            }
-            let changed = frame.body.get("events").and_then(Value::as_array).is_some_and(|items| !items.is_empty());
-            if updates_tx.send(frame).is_err() { break; }
-            if changed {
-                let id = next_id(&mut counter);
-                match request(&mut event_stream,"snapshot",&id,json!({})) {
-                    Ok(snapshot) if snapshot.kind == "snapshot" => { if updates_tx.send(snapshot).is_err() { break; } },
-                    _ => {
-                        event_mutations.store(false,Ordering::SeqCst);
-                        let _=updates_tx.send(Frame::new("error",&id,json!({"code":"service_unavailable","message":"Snapshot delivery interrupted; reconnecting with draft preserved"})));
-                        match reconnect_snapshot(&event_socket,&event_key,&event_release,cursor){
-                            Ok((replacement,snapshot))=>{
-                                cursor=snapshot.body["cursor"].as_u64().unwrap();
-                                if let Some(value)=snapshot.body["state_revision"].as_u64(){event_revision.fetch_max(value,Ordering::SeqCst);}
-                                if updates_tx.send(snapshot).is_err(){break;}
-                                event_stream=replacement;event_mutations.store(true,Ordering::SeqCst);
-                            },
-                            Err(error)=>{let _=updates_tx.send(Frame::new("error",&id,json!({"code":"resync_required","message":format!("Snapshot reconnect stopped: {error}. Reopen Waywr; no call was resubmitted.")})));break;}
-                        }
-                    }
-                }
-            }
-        }
-    });
+    thread::spawn(move||event_subscription::run(event_stream,event_socket,event_key,event_release,initial_cursor,event_revision,event_mutations,updates_tx));
+
     let mut _guard=TerminalGuard::enter()?;
     let mut terminal=Terminal::new(CrosstermBackend::new(stdout()))?;
     let mut app=App::new_live(title,load_editor_draft(&draft_path)?);
@@ -352,25 +301,38 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
     if app.scope_mode()&&scope_draft_path.exists(){let bytes=fs::read(&scope_draft_path)?;if bytes.len()>128*1024{return Err(io::Error::other("Saved scope edit exceeds bounds; inspect it before attaching"));}app.restore_scope_edit(serde_json::from_slice(&bytes)?);}
     let subject_path=draft_path.with_file_name("conversation-subject.json");
     if app.continuous_mode()&&subject_path.exists(){let bytes=fs::read(&subject_path)?;if bytes.len()>1024*1024{return Err(io::Error::other("Saved conversation subjects/drafts exceed 1 MiB"));}app.restore_conversation_ui(&serde_json::from_slice::<Value>(&bytes)?).map_err(io::Error::other)?;}
+    let restored_input_path=draft_path.with_file_name("restored-input.json");
+    if restored_input_path.is_file()&&fs::metadata(&restored_input_path)?.len()<=40*1024{
+        if let Ok(input)=waywr_backend::execution::read(&restored_input_path){
+            app.restore_queue_input(input);save_editor_draft(&draft_path,&app.composer.snapshot())?;
+            if app.continuous_mode(){waywr_backend::execution::write(&subject_path,&app.conversation_ui_state(),false).map_err(io::Error::other)?;}
+            fs::remove_file(&restored_input_path)?;
+        }
+    }
     let mut last_subject=app.conversation_ui_state();
     let mut last_scope_draft=app.scope_edit_snapshot();
     let mut counter=0u64;
     let mut last_draft=app.composer.snapshot();
     let mut last_draft_save=Instant::now();
     let mut last_draw=Instant::now()-Duration::from_secs(1);
-    let mut exit_preparation:Option<String>=None;
-    let mut exit_command_id:Option<String>=None;
-    let mut exit_result:Option<Value>=None;
+    let mut pause_preparation:Option<String>=None;
+    let mut pause_command_id:Option<String>=None;
     let mut output_request_id:Option<String>=None;
     let mut last_output_fetch=Instant::now()-Duration::from_secs(1);
     let mut operation_request_id:Option<String>=None;
     let mut last_operation_fetch=Instant::now()-Duration::from_secs(2);
+    let mut coordinator_activity_request_id:Option<String>=None;
+    let mut last_coordinator_activity_fetch=Instant::now()-Duration::from_secs(2);
     let mut artifact_request_id:Option<String>=None;
     let mut detail_request_id:Option<String>=None;
+    let mut last_detail_revision:Option<u64>=None;
     let mut last_detail_fetch=Instant::now()-Duration::from_secs(1);
     let (view_tx,view_rx)=mpsc::sync_channel::<String>(2);
     let mut view_pending=false;
+    let mut login:Option<auth_login::Login>=None;
     loop {
+        let mut auth_events=Vec::new();if let Some(client)=&login{for _ in 0..32{let Some(event)=client.poll()else{break;};auth_events.push(event);}}
+        for event in auth_events{if event["type"]=="auth.completed"{login=None;}app.auth_update(event);}
         app.tick();
         if app.dirty || app.effects_running() && last_draw.elapsed()>=Duration::from_millis(34) {
             let elapsed=last_draw.elapsed();
@@ -380,8 +342,9 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
         }
         if event::poll(Duration::from_millis(34))? { app.input(event::read()?); }
         while let Some(intent)=app.take_intent() {
-            if !mutations_allowed.load(Ordering::SeqCst) && !matches!(intent,LiveIntent::Detach) {
-                if matches!(intent,LiveIntent::SubmitTask(_)){if let Some(draft)=app.submission_draft.take(){app.composer=Composer::from_draft(draft);}}
+            if !mutations_allowed.load(Ordering::SeqCst) && !matches!(&intent,LiveIntent::Detach|LiveIntent::ProviderLogin{..}|LiveIntent::AuthAnswer{..}|LiveIntent::AuthCancel|LiveIntent::AuthBrowser(_)) {
+                if matches!(&intent,LiveIntent::Dialogue(v) if v["action"]=="cancel_conversation"){app.interrupt_not_sent();}
+                if matches!(intent,LiveIntent::SubmitTask(_))||matches!(&intent,LiveIntent::Dialogue(v) if v["action"]=="conversation.steer"){if let Some(draft)=app.submission_draft.take(){app.composer=Composer::from_draft(draft);}}
                 if matches!(&intent,LiveIntent::Dialogue(v) if matches!(v["action"].as_str(),Some("coordination.present"|"candidate.present"))){app.presentation_delivery_failed();}
                 app.notice="Disconnected: draft retained; mutations wait for a verified service snapshot".into();
                 continue;
@@ -389,7 +352,26 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
             let row=app.live.as_ref().and_then(|v|v.tasks.get(app.journal.selected_task)).cloned();
             let task_id=row.as_ref().and_then(|v|v["task_id"].as_str()).map(str::to_owned);
             match intent {
-                LiveIntent::Dialogue(value)=>{let id=command_id(&mut counter);let mut payload=json!({"command_id":id,"action":value["action"],"payload":value["payload"]});if value["action"]=="resume_session"{payload["expected_state_revision"]=json!(revision.load(Ordering::SeqCst));}match enqueue_mutation(&outbox_dir,&commands_tx,id.clone(),payload){Ok(())=>{app.provider_command_started(value["action"].as_str().unwrap_or(""),&id);if !matches!(value["action"].as_str(),Some("coordination.present"|"candidate.present")){app.notice="Sending · delivery pending".into();}},Err(e)=>app.notice=format!("Delivery needs attention: {e}")}},
+                LiveIntent::ProviderLogin{provider,method}=>{
+                    save_editor_draft(&draft_path,&app.composer.snapshot())?;
+                    if app.continuous_mode(){waywr_backend::execution::write(&subject_path,&app.conversation_ui_state(),false).map_err(io::Error::other)?;}
+                    login=None;
+                    match auth_login::Login::start(&provider,&method){Ok(client)=>login=Some(client),Err(_)=>app.auth_update(json!({"type":"auth.completed","status":"failed"}))}
+                },
+                LiveIntent::AuthAnswer{id,value}=>{if login.as_ref().is_none_or(|client|client.answer(id,value).is_err()){login=None;app.auth_update(json!({"type":"auth.completed","status":"failed"}));}},
+                LiveIntent::AuthCancel=>{login=None;},
+                LiveIntent::AuthBrowser(url)=>{if auth_login::open_browser(&url).is_err(){app.auth_update(json!({"type":"auth.event","event":{"message":"Browser could not be opened. Use the displayed URL, or Ctrl-B to try again."}}));}},
+                LiveIntent::Dialogue(value)=>{
+                    let id=command_id(&mut counter);let action=value["action"].as_str().unwrap_or("");
+                    let original=if action=="conversation.steer"{app.submission_draft.take()}else{None};
+                    let mut payload=json!({"command_id":id,"action":value["action"],"payload":value["payload"]});
+                    if action=="resume_session"{payload["expected_state_revision"]=json!(revision.load(Ordering::SeqCst));}
+                    match enqueue_mutation(&outbox_dir,&commands_tx,id.clone(),payload){
+                        Ok(())=>{app.provider_command_started(action,&id);app.interrupt_command_started(action,&id);if action=="conversation.steer"{app.message_submitted();}
+                            if !matches!(action,"coordination.present"|"candidate.present"){app.notice=match action{"cancel_conversation"=>"Stopping coordinator · keep drafting or Ctrl-Q to leave","conversation.steer"=>"Steering pending · applies at the next agent boundary",_=>"Sending · delivery pending"}.into();}},
+                        Err(e)=>{if action=="cancel_conversation"{app.interrupt_not_sent();}if action=="conversation.steer"&&!e.to_string().contains("saved for reconciliation")&&let Some(draft)=original{app.composer=Composer::from_draft(draft);}app.notice=format!("Delivery needs attention: {e}");}
+                    }
+                },
                 scope_intent @ (LiveIntent::SaveScope(_)|LiveIntent::AuthorizeScope(_))=>{
                     let saving=matches!(scope_intent,LiveIntent::SaveScope(_));let payload=match scope_intent{LiveIntent::SaveScope(p)|LiveIntent::AuthorizeScope(p)=>p,_=>unreachable!()};let id=command_id(&mut counter);
                     let command=json!({"command_id":id,"action":if saving{"save_proposal_revision"}else{"authorize_scope"},"payload":payload});
@@ -436,7 +418,7 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
                             let id=command_id(&mut counter);
                             if commands_tx.try_send((kind.into(),id.clone(),json!({"task_id":task_id}))).is_err(){
                                 app.notice="Request queue full; try again after responses arrive".into();
-                            }else if kind=="task.get"{detail_request_id=Some(id);last_detail_fetch=Instant::now();}
+                            }else if kind=="task.get"{detail_request_id=Some(id);last_detail_fetch=Instant::now();last_detail_revision=Some(revision.load(Ordering::SeqCst));}
                         }
                     } else if app.live.as_ref().is_some_and(|v|v.conversation.is_some()){
                         app.notice="Conversation, questions and budgets are shown in this project's Inspect panel".into();
@@ -645,13 +627,21 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
                         Err(e)=>app.notice=format!("Cancellation delivery needs attention: {e}"),
                     }
                 },
-                LiveIntent::Exit=>{
-                    if exit_preparation.is_some()||exit_command_id.is_some(){app.notice="Exit delivery pending; no duplicate request".into();continue;}
+                LiveIntent::Pause=>{
+                    if pause_preparation.is_some()||pause_command_id.is_some(){app.notice="Pause delivery pending; no duplicate request".into();continue;}
                     let id=command_id(&mut counter);
-                    if commands_tx.try_send(("snapshot".into(),id.clone(),json!({}))).is_ok(){exit_preparation=Some(id);app.notice="Preparing exit from current project state…".into();}else{app.notice="Exit preparation busy; choose Exit again".into();}
+                    if commands_tx.try_send(("snapshot".into(),id.clone(),json!({}))).is_ok(){pause_preparation=Some(id);app.notice="Preparing pause from current project state…".into();}else{app.notice="Pause preparation busy; choose /pause again".into();}
                 },
             }
             app.dirty=true;
+        }
+        if coordinator_activity_request_id.is_none()&&last_coordinator_activity_fetch.elapsed()>=Duration::from_secs(1){
+            if let Some(body)=app.coordinator_activity_request(){
+                let id=command_id(&mut counter);
+                if commands_tx.try_send(("conversation.activity".into(),id.clone(),body)).is_ok(){
+                    coordinator_activity_request_id=Some(id);last_coordinator_activity_fetch=Instant::now();
+                }
+            }
         }
         if (app.modal==Modal::Worker || app.has_active_workers()) && operation_request_id.is_none() &&
             last_operation_fetch.elapsed()>=Duration::from_secs(1){
@@ -674,7 +664,10 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
         }
         while let Ok(update)=updates_rx.try_recv() {
             let detail_reply=detail_request_id.as_deref()==Some(update.request_id.as_str());
-            if detail_reply{detail_request_id=None;}
+            if detail_reply{detail_request_id=None;if update.kind!="task.result"{last_detail_revision=None;}}
+            if coordinator_activity_request_id.as_deref()==Some(update.request_id.as_str()){
+                coordinator_activity_request_id=None;
+            }
             if operation_request_id.as_deref()==Some(update.request_id.as_str()){
                 operation_request_id=None;
             }
@@ -684,17 +677,17 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
             if artifact_request_id.as_deref()==Some(update.request_id.as_str()){
                 artifact_request_id=None;
             }
-            if exit_preparation.as_deref()==Some(update.request_id.as_str()){
-                exit_preparation=None;
+            if pause_preparation.as_deref()==Some(update.request_id.as_str()){
+                pause_preparation=None;
                 if update.kind=="snapshot"&&update.body["state_revision"].is_u64(){
                     let id=command_id(&mut counter);let payload=json!({"command_id":id,"action":"stop_session","expected_state_revision":update.body["state_revision"],"payload":{}});
-                    match enqueue_mutation(&outbox_dir,&commands_tx,id.clone(),payload){Ok(())=>{exit_command_id=Some(id);app.notice="Exit requested; awaiting durable acknowledgement".into();},Err(e)=>app.notice=format!("Exit delivery needs attention: {e}")}
-                }else{app.notice="Exit preparation failed; reconnect, then choose Exit again".into();}
+                    match enqueue_mutation(&outbox_dir,&commands_tx,id.clone(),payload){Ok(())=>{pause_command_id=Some(id);app.notice="Pause requested; awaiting durable acknowledgement".into();},Err(e)=>app.notice=format!("Pause delivery needs attention: {e}")}
+                }else{app.notice="Pause preparation failed; reconnect, then choose /pause again".into();}
             }
-            if exit_command_id.as_deref()==Some(update.request_id.as_str()) {
+            if pause_command_id.as_deref()==Some(update.request_id.as_str()) {
                 if update.kind=="command_result" && update.body["status"]=="accepted" {
-                    exit_result=Some(update.body.clone());app.detached=true;
-                } else {app.notice=format!("Exit not committed: {}",update.body);exit_command_id=None;}
+                    pause_command_id=None;app.notice="Session pause accepted; keep drafting or Ctrl-Q to leave".into();
+                } else {app.notice=format!("Pause not committed: {}",update.body);pause_command_id=None;}
             }
             if let Some(submitted)=update.body.get("local_refused_submission"){
                 if app.composer.text().is_empty()&&(!app.continuous_mode()||submitted["subject_id"]==app.conversation_subject){
@@ -703,6 +696,7 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
                     app.retain_submission_context(submitted);
                 }
             }
+            let queue_restore=update.body.get("local_queue_restore").cloned();
             match update.kind.as_str() {
                 "snapshot"=>{
                     if let Some(value)=update.body["state_revision"].as_u64(){
@@ -718,6 +712,7 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
                 },
                 "task.plan_result"=>app.apply_plan(update.body),
                 "operation.list_result"=>app.apply_operation_list(&update.body),
+                "conversation.activity_result"=>app.apply_coordinator_activity(&update.body),
                 "operation.output.page"=>{
                     let text=update.body["page"]["segments"].as_array()
                         .ok_or_else(||io::Error::other("Output page lacks segments"))
@@ -743,7 +738,7 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
                 },
                 "task.result"=>app.apply_detail(update.body),
                 "error"=>{
-                    if update.body["code"]!="service_unavailable"{app.provider_command_result(&update.request_id,&update.body);}
+                    if update.body["code"]!="service_unavailable"{app.provider_command_result(&update.request_id,&update.body);app.interrupt_command_result(&update.request_id,&update.body);}
                     if detail_reply {app.pending_action_failed();}
                     if matches!(update.body["code"].as_str(),Some("service_unavailable"|"resync_required")) {
                         app.journal.connection="reconnecting".into();
@@ -753,6 +748,7 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
                 },
                 "command_result"=>{
                     app.provider_command_result(&update.request_id,&update.body);
+                    app.interrupt_command_result(&update.request_id,&update.body);
                     if app.scope_edit.as_ref().is_some_and(|e|e["pending_command_id"].as_str()==Some(update.request_id.as_str())){
                         if update.body["status"]=="accepted"{app.scope_edit=None;}else if let Some(e)=app.scope_edit.as_mut(){e.as_object_mut().unwrap().remove("pending_command_id");}
                     }
@@ -767,20 +763,27 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
                 },
                 _=>app.notice=format!("Service response: {}",update.kind),
             }
+            if let Some(input)=queue_restore{
+                app.restore_queue_input(input);save_editor_draft(&draft_path,&app.composer.snapshot())?;
+                if app.continuous_mode(){waywr_backend::execution::write(&subject_path,&app.conversation_ui_state(),false).map_err(io::Error::other)?;}
+                if restored_input_path.is_file(){fs::remove_file(&restored_input_path)?;}
+            }
             app.dirty=true;
         }
         if detail_request_id.is_none() && last_detail_fetch.elapsed()>=Duration::from_millis(500){
             let selected=app.live.as_ref().and_then(|live|live.tasks.get(app.journal.selected_task));
-            // Scope detail includes live pending-turn/answer dependencies. A text-only
-            // completion need not change the immutable proposal or task version.
-            let stale=selected.is_some_and(|row|app.scope_mode() || (row["status"]=="awaiting-input" &&
+            // Pending-turn/answer changes advance the project revision even when
+            // the immutable task version stays the same. Idle state needs no polling.
+            let state_revision=revision.load(Ordering::SeqCst);
+            let stale=selected.is_some_and(|row|(app.scope_mode()&&last_detail_revision!=Some(state_revision)) ||
+                ((app.scope_mode()||row["status"]=="awaiting-input") &&
                 app.live.as_ref().and_then(|live|live.detail.as_ref()).is_none_or(|detail|
                     detail["task"]["task_id"]!=row["task_id"] || detail["task"]["version"]!=row["version"] ||
                     detail["task"]["state_revision"]!=row["state_revision"])));
             if stale {
                 let id=command_id(&mut counter);
                 if commands_tx.try_send(("task.get".into(),id.clone(),json!({"task_id":selected.unwrap()["task_id"]}))).is_ok(){
-                    detail_request_id=Some(id);last_detail_fetch=Instant::now();
+                    detail_request_id=Some(id);last_detail_fetch=Instant::now();last_detail_revision=Some(state_revision);
                 }
             }
         }
@@ -805,10 +808,6 @@ fn run_ui(socket: String, key: String, release: String, title: String, outbox_di
     save_editor_draft(&draft_path,&app.input_history.draft_to_save(app.composer.snapshot()))?;
     app.input_history.save(&input_history_path)?;
     drop(terminal);drop(_guard);
-    if let Some(result)=exit_result {
-        println!("Exit requested. Checkpoint: {}\nResume: cd {}; waywr resume",
-            result["checkpoint"]["path"].as_str().unwrap_or("project state/session/checkpoints"),env::current_dir()?.display());
-    }
     Ok(())
 }
 
@@ -824,38 +823,50 @@ fn selected_project(args: &[String]) -> io::Result<PathBuf> {
     waywr_backend::project_workflow::canonical_project(&value.unwrap_or(env::current_dir()?)).map_err(io::Error::other)
 }
 
-fn route_bound_release(root: &Path, manifest: &Value, project: &Path, args: &[String]) -> io::Result<()> {
+// Projects belong to a storage/semantic contract, not an application build.
+// A legacy release record is retained evidence; its old executable is not needed.
+fn check_project_compatibility(root: &Path, manifest: &Value, project: &Path, args: &[String]) -> io::Result<()> {
     waywr_backend::project_layout::check(project).map_err(io::Error::other)?;
+    rust_bundle::validate(root)?;
+    let configuration=project.join(".waywr/project.toml");
+    if !configuration.exists(){return Ok(());}
+    let config:toml::Value=toml::from_str(&fs::read_to_string(configuration)?).map_err(io::Error::other)?;
+    let key=config["project_key"].as_str().filter(|key|key.len()==32&&key.bytes().all(|b|b.is_ascii_hexdigit()))
+        .ok_or_else(||io::Error::other("Invalid project identity"))?;
     let descriptor=project.join(".waywr/release.json");
-    if !descriptor.exists() { return Ok(()); }
-    let binding:Value=serde_json::from_slice(&fs::read(&descriptor)?)?;
-    if binding["schema_version"]!=1 { return Err(io::Error::other("Unsupported project release binding")); }
-    let bound=binding["release_id"].as_str().ok_or_else(|| io::Error::other("Project release binding lacks ID"))?;
-    let matches_digest = |path: &Path| -> io::Result<bool> {
-        let Some(expected)=binding["manifest_sha256"].as_str() else { return Ok(true); };
-        let actual=format!("{:x}",Sha256::digest(fs::read(path)?));
-        Ok(actual==expected)
-    };
-    if Some(bound)==manifest["release_id"].as_str() {
-        if !matches_digest(&root.join("manifest.json"))? { return Err(io::Error::other("Project release manifest digest mismatch")); }
-        return Ok(());
+    if descriptor.exists(){
+        let record:Value=serde_json::from_slice(&fs::read(descriptor)?)?;
+        if record["schema_version"]!=1||record["project_key"]!=key{
+            return Err(io::Error::other("Legacy release record project identity mismatch"));
+        }
     }
-    if env::var_os("WAYWR_ROUTE_DEPTH").is_some() { return Err(io::Error::other("Project release routing loop")); }
-    let catalog=root.parent().filter(|p| p.file_name().is_some_and(|n| n=="releases"))
-        .ok_or_else(|| io::Error::other(format!("Project is bound to {bound}; use its installed compatible waywr release")))?;
-    if bound.contains('/') || bound.contains("..") || bound.is_empty() {
-        return Err(io::Error::other("Invalid bound release ID"));
+    let state=args.windows(2).find(|pair|pair[0]=="--state-dir")
+        .map(|pair|PathBuf::from(&pair[1])).unwrap_or_else(||project.join(".waywr/state"));
+    let state=if state.is_absolute(){state}else{project.join(state)};
+    let contract=state.join("state-contract.json");
+    if contract.exists(){
+        let record:Value=serde_json::from_slice(&fs::read(contract)?)?;
+        let schema=record["state_schema"].as_u64().ok_or_else(||io::Error::other("State schema missing"))?;
+        if record["schema_version"]!=1||record["project_key"]!=key||record["execution_host"]!="systemd-user-v1"{
+            return Err(io::Error::other("Project state identity or execution contract mismatch"));
+        }
+        if manifest["state_schema_min"].as_u64().unwrap_or(u64::MAX)>schema||
+            manifest["state_schema_max"].as_u64().unwrap_or(0)<schema{
+            return Err(io::Error::other("Installed application cannot read this project's storage schema; project data preserved"));
+        }
     }
-    let target=catalog.join(bound).join("bin/waywr");
-    let target_root=fs::canonicalize(target.parent().and_then(|p| p.parent()).ok_or_else(||io::Error::other("Invalid release layout"))?)?;
-    if target_root.parent()!=Some(catalog) || !target.is_file() {
-        return Err(io::Error::other(format!("Bound release {bound} is unavailable; install it before attaching")));
+    rust_maintenance::require_recovery_contract(&state,manifest)?;
+    for (marker,field,required) in [
+        ("ollama-transport-v1.json","provider_transport_contract","ollama-http-v1"),
+        ("model-runtime-v1.json","model_runtime_contract","shared-models-v1"),
+        ("context-delivery-v1.json","context_delivery_contract","evidence-v1"),
+        ("context-memory-v2.json","context_memory_contract","working-memory-v2"),
+    ]{
+        if state.join(marker).exists()&&manifest[field]!=required{
+            return Err(io::Error::other(format!("Retained project state requires {required}; project data preserved")));
+        }
     }
-    let target_manifest:Value=serde_json::from_slice(&fs::read(target_root.join("manifest.json"))?)?;
-    if target_manifest["release_id"]!=bound { return Err(io::Error::other("Bound release manifest identity mismatch")); }
-    if !matches_digest(&target_root.join("manifest.json"))? { return Err(io::Error::other("Bound release manifest digest mismatch")); }
-    let error=std::process::Command::new(target).args(args).env("WAYWR_ROUTE_DEPTH","1").exec();
-    Err(error)
+    Ok(())
 }
 
 fn command_name(args: &[String]) -> Option<&str> {
@@ -900,7 +911,7 @@ fn checkpoint_phase(state: &Path) -> Option<Value> {
     let file = pointer["file"].as_str()?;
     if file.contains('/') || !file.ends_with(".json") { return None; }
     let bytes = fs::read(root.join(file)).ok()?;
-    if format!("{:x}",Sha256::digest(&bytes)) != pointer["sha256"].as_str()? { return None; }
+    if sha256(&bytes) != pointer["sha256"].as_str()? { return None; }
     let value: Value = serde_json::from_slice(&bytes).ok()?;
     if value["project_key"] != pointer["project_key"] { return None; }
     Some(value["session"].clone())
@@ -925,6 +936,38 @@ fn value_from_args(args:&[String],flag:&str)->Option<String>{
     args.windows(2).find(|pair|pair[0]==flag).map(|pair|pair[1].clone())
 }
 
+fn print_version()->io::Result<()> {
+    let root=env::current_exe()?.canonicalize()?;
+    let manifest=root.parent().and_then(|p|p.parent()).map(|p|p.join("manifest.json"));
+    let release=manifest.and_then(|p|fs::read(p).ok()).and_then(|bytes|serde_json::from_slice::<Value>(&bytes).ok())
+        .and_then(|m|m["release_id"].as_str().filter(|id|!id.is_empty()&&id.len()<=64&&
+            id.bytes().all(|b|b.is_ascii_alphanumeric()||b"._-".contains(&b))).map(str::to_owned));
+    println!("waywr {} ({})",env!("CARGO_PKG_VERSION"),release.as_deref().unwrap_or("unbundled"));
+    Ok(())
+}
+
+fn models_command(args:&[String])->std::io::Result<()> {
+    let err=|e:String|std::io::Error::other(e);
+    let binary=waywr_backend::model_runtime::node().map_err(err)?;
+    if args.iter().any(|a|a=="login"){
+        let i=args.iter().position(|a|a=="login").unwrap();
+        let provider=args.get(i+1).ok_or_else(||std::io::Error::other("Provider missing"))?;
+        let method=args.windows(2).find(|a|a[0]=="--method").map(|a|a[1].as_str()).unwrap_or("oauth");
+        let status=std::process::Command::new(binary).arg(waywr_backend::model_runtime::entry().map_err(err)?)
+            .args(["login",provider,method]).status()?;
+        if !status.success(){return Err(std::io::Error::other("Provider login did not complete"))}return Ok(());
+    }
+    let mut transport=waywr_backend::model_runtime::default_transport().map_err(err)?;
+    if let Some(config)=args.windows(2).find(|a|a[0]=="--config"){transport["config"]=serde_json::json!(config[1]);}
+    let data=waywr_backend::model_runtime::describe(&binary,&transport).map_err(err)?;
+    let query=args.windows(2).find(|a|a[0]=="--search").map(|a|a[1].to_lowercase()).unwrap_or_default();
+    for m in data["models"].as_array().into_iter().flatten(){
+        let label=format!("{}/{}",m["provider"].as_str().unwrap_or(""),m["model"].as_str().unwrap_or(""));
+        if label.to_lowercase().contains(&query){println!("{} · context {} · authentication not checked",label,m["context_window"]);}
+    }
+    Ok(())
+}
+
 fn main() {
     let args: Vec<String> = env::args().flat_map(|arg| { if arg.starts_with("--") { if let Some((k,v))=arg.split_once('=') {return vec![k.to_owned(),v.to_owned()]} } vec![arg] }).collect();
     match cli_schema::validate(&args[1..]) {
@@ -932,8 +975,10 @@ fn main() {
         Err(error)=>{eprintln!("waywr: {error}");std::process::exit(2)},
         Ok(true)=>{},
     }
-    let result = if args.iter().any(|x| x == "--backend-info") { backend_info() }
+    let result = if command_name(&args[1..]).is_none()&&args.iter().any(|x|matches!(x.as_str(),"--version"|"-V")){print_version()}
+        else if args.iter().any(|x| x == "--backend-info") { backend_info() }
         else if args.iter().any(|x|x=="--view-output") { rust_views::viewer(&args[1..]) }
+        else if command_name(&args[1..])==Some("models") { models_command(&args[1..]) }
         else if command_name(&args[1..])==Some("bundle-build") { rust_bundle::build(&args[1..]) }
         else if command_name(&args[1..])==Some("bundle-install") { rust_bundle::install(&args[1..]) }
         else {
@@ -1034,7 +1079,7 @@ mod tests {
         fs::write(checkpoint.join("2-test.json"),serde_json::to_vec(&payload).unwrap()).unwrap();
         let bytes=fs::read(checkpoint.join("2-test.json")).unwrap();
         fs::write(checkpoint.join("latest.json"),serde_json::to_vec(&json!({
-            "project_key":"selected","file":"2-test.json","sha256":format!("{:x}",Sha256::digest(&bytes))})).unwrap()).unwrap();
+            "project_key":"selected","file":"2-test.json","sha256":sha256(&bytes)})).unwrap()).unwrap();
         assert_eq!(checkpoint_phase(root.path()).unwrap()["phase"],"paused");
         fs::write(checkpoint.join("2-test.json"),b"changed").unwrap();
         assert!(checkpoint_phase(root.path()).is_none());

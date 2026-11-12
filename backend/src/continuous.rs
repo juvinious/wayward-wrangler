@@ -67,7 +67,7 @@ pub(crate) fn stop_tx(
             Ok(reject("outcome_conflict", "Outcome evidence changed"))
         };
     }
-    let configuration=kind=="configuration"&&proof["provider_selection_v1"]==true&&proof["no_provider_process_spawned"]==true;
+    let configuration=kind=="configuration"&&proof["provider_selection_v1"]==true&&(proof["no_provider_process_spawned"]==true||proof["no_model_request_sent"]==true);
     let recovery = (matches!(kind, "format" | "interrupted")||configuration)
         && proof["settled"] == true
         && proof["capabilities_valid"] == true
@@ -113,6 +113,7 @@ impl Session {
             .is_some_and(|v| matches!(v["state_schema"].as_u64(),Some(7|8|9)) && v["project_key"] == self.key)
     }
     pub(crate) fn dialogue_schema(&self) -> Result<(), String> {
+        crate::live_input::schema(self)?;
         let c = self.workflow.connection()?;
         c.execute_batch("CREATE TABLE IF NOT EXISTS dialogue_subjects(subject_id TEXT PRIMARY KEY,task_id TEXT UNIQUE);
  CREATE TABLE IF NOT EXISTS dialogue_inputs(turn_id TEXT PRIMARY KEY,subject_id TEXT NOT NULL,request_revision INTEGER NOT NULL DEFAULT 0,interrupt_command_id TEXT,held_generation INTEGER);
@@ -135,13 +136,14 @@ impl Session {
                 if let Some(at) = at { row["started_at"] = json!(at); }
             }
         }
+        rows.extend(crate::live_input::rows(&tx)?);
         let mut st = tx
             .prepare(
                 "SELECT subject_id,task_id FROM dialogue_subjects ORDER BY rowid DESC LIMIT 16",
             )
             .map_err(|e| e.to_string())?;
         let subjects=st.query_map([],|r|Ok(json!({"subject_id":r.get::<_,String>(0)?,"task_id":r.get::<_,Option<String>>(1)?}))).map_err(|e|e.to_string())?.collect::<Result<Vec<_>,_>>().map_err(|e|e.to_string())?;
-        Ok(json!({"schema_version":1,"pause":p,"queue":rows,"subjects":subjects}))
+        Ok(json!({"schema_version":1,"pause":p,"queue":rows,"subjects":subjects,"live_input_contract":if crate::provider_selection::enabled(self){1}else{0}}))
     }
     pub(crate) fn dialogue_submit(&self, body: &Value) -> Result<Value, String> {
         if let Some(w) = &self.workflow.writer {

@@ -4,6 +4,9 @@ set -eu
 set -f
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
 cd "$root"
+command -v node >/dev/null || { echo 'Node >=22.19 is required for the shared model runtime' >&2; exit 2; }
+npm ci --prefix model-runtime --ignore-scripts --no-audit --no-fund --prefer-offline --cache "${TMPDIR:-/tmp}/waywr-npm-cache"
+npm run build --prefix model-runtime
 separator=$(printf '\037')
 flags=${CARGO_ENCODED_RUSTFLAGS-}
 if [ "${CARGO_ENCODED_RUSTFLAGS+x}" != x ]; then

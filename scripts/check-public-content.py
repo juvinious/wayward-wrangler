@@ -42,23 +42,46 @@ def problems(data, forbidden=(), artifact=False, allow_contacts=False):
     return found
 
 
+def public_workflow_metadata(name, data, repository):
+    # Requested public README badges identify GitHub ownership, not a builder.
+    # Only canonical workflow links for this public repository are exempt. Do
+    # not apply this to application source, artifacts, profile links or queries.
+    full_name = repository.get("full_name", "")
+    if name != "README.md" or repository.get("private") is not False or not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", full_name):
+        return data
+    base = re.escape(("https://github.com/" + full_name + "/actions/workflows/").encode())
+    pattern = base + rb"(?:ci|security|codeql)\.yml(?:/badge\.svg\?branch=main)?(?=[)\s])"
+    return re.sub(pattern, b"", data, flags=re.IGNORECASE)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--artifact", action="append", type=pathlib.Path, default=[])
     parser.add_argument("--deny-file", type=pathlib.Path, help="private newline-separated values; never printed")
+    parser.add_argument("--public-repository", metavar="OWNER/REPO",
+                        help="explicitly identify a known public repository for local README workflow checks; no network lookup")
     parser.add_argument("--revisions", help="also inspect changed blobs in every commit of this Git revision range")
     args = parser.parse_args()
+    if args.public_repository and not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", args.public_repository):
+        parser.error("Public repository must be an OWNER/REPO name")
     root = pathlib.Path(__file__).resolve().parents[1]
     forbidden = args.deny_file.read_bytes().splitlines() if args.deny_file else []
+    repository = {}
     event_path = os.environ.get("GITHUB_EVENT_PATH")
     if event_path:
-        owner = json.loads(pathlib.Path(event_path).read_text()).get("repository", {}).get("owner", {})
-        login = owner.get("login") or owner.get("name")
-        if owner.get("type", "User") == "User" and login:
-            forbidden.append(login.encode())
+        repository = json.loads(pathlib.Path(event_path).read_text()).get("repository", {})
+        if args.public_repository and (repository.get("private") is not False or repository.get("full_name") != args.public_repository):
+            parser.error("Public repository argument conflicts with GitHub event metadata")
+    elif args.public_repository:
+        repository = {"full_name": args.public_repository, "private": False,
+                      "owner": {"login": args.public_repository.split("/")[0], "type": "User"}}
+    owner = repository.get("owner", {})
+    login = owner.get("login") or owner.get("name")
+    if owner.get("type", "User") == "User" and login:
+        forbidden.append(login.encode())
     def inspect(name, data):
         label = "[withheld path]" if any(value and value.lower() in name.encode().lower() for value in forbidden) else name
-        issues = problems(name.encode() + b"\0" + data, forbidden, allow_contacts=name == "THIRD_PARTY_NOTICES.md")
+        issues = problems(name.encode() + b"\0" + public_workflow_metadata(name, data, repository), forbidden, allow_contacts=name == "THIRD_PARTY_NOTICES.md")
         if private_path(name):
             issues.append("credential or private runtime file path")
         return [(label, issue) for issue in issues]

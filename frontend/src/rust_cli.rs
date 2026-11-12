@@ -1,8 +1,7 @@
-//! Rust-release diagnostics and compatibility boundary. Legacy projects route
-//! to their explicitly bound release before this dispatcher is entered.
-use super::{route_bound_release,rust_runtime,selected_project};
+//! Rust-release diagnostics and storage compatibility boundary.
+use super::{check_project_compatibility,rust_runtime,selected_project};
 use serde_json::{Value,json};
-use sha2::{Digest,Sha256};
+use waywr_backend::codec::sha256;
 use std::{fs,io,os::unix::fs::PermissionsExt,path::{Path,PathBuf}};
 use waywr_backend::{execution::{read,write,FileLock,identity_matches},herdr::Herdr,
     operation,session_store::Session};
@@ -124,7 +123,7 @@ fn workers(project:&Path,args:&[String],run:&str)->io::Result<Value>{
 }
 fn command_id(action:&str,identity:&Value)->io::Result<String>{
     let bytes=serde_json::to_vec(&json!({"action":action,"identity":identity}))?;
-    Ok(format!("cli-{}",&format!("{:x}",Sha256::digest(bytes))[..40]))
+    Ok(format!("cli-{}",&sha256(&bytes)[..40]))
 }
 fn saved_command_path(args:&[String],id:&str)->io::Result<PathBuf>{
     if id.is_empty() || id.len()>120 || !id.bytes().all(|byte|byte.is_ascii_alphanumeric() || byte==b'-' || byte==b'_'){
@@ -315,10 +314,10 @@ fn preflight(args:&[String])->io::Result<Value>{
                 "reasoning":role["reasoning"],"version":version}));
         }else{roles.push(json!({"role":name,"provider":"fake","model":role["model"]}));}
     }
-    Ok(json!({"project":project,"run_id":run,"brief_sha256":format!("{:x}",Sha256::digest(brief.as_bytes())),
-        "profile":profile,"profile_sha256":format!("{:x}",Sha256::digest(fs::read(&profile)?)),
+    Ok(json!({"project":project,"run_id":run,"brief_sha256":sha256(brief.as_bytes()),
+        "profile":profile,"profile_sha256":sha256(&fs::read(&profile)?),
         "context_selected":context.is_some(),
-        "context_sha256":context.as_ref().map(|text|format!("{:x}",Sha256::digest(text.as_bytes()))),
+        "context_sha256":context.as_ref().map(|text|sha256(text.as_bytes())),
         "roles":roles,"review_limit":2,"max_worker_invocations":5,
         "native_clis_authenticated":native,
         "admission":if native{"blocked-native-isolation"}else{"simulated-ready"},
@@ -362,7 +361,7 @@ fn location_rebind(args:&[String])->io::Result<()> {
         let history=registry.join("rebindings");fs::create_dir_all(&history)?;
         let record=json!({"schema_version":1,"project_key":key,"previous":previous,"next":replacement,
             "state_revision":revision});
-        let digest=format!("{:x}",Sha256::digest(serde_json::to_vec(&record)?));
+        let digest=sha256(&serde_json::to_vec(&record)?);
         write(&history.join(format!("{key}-{}.json",&digest[..16])),&record,true).map_err(err)?;
         document["projects"][key]=replacement.clone();write(&index,&document,false).map_err(err)?;
     }
@@ -371,7 +370,7 @@ fn location_rebind(args:&[String])->io::Result<()> {
 }
 fn start(root:&Path,manifest:&Value,args:&[String])->io::Result<()> {
     let project=selected_project(args)?;
-    let run=value(args,"--run").map(str::to_owned).unwrap_or_else(||format!("cli-{}",&format!("{:x}",Sha256::digest(format!("{}",std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos()).as_bytes()))[..16]));
+    let run=value(args,"--run").map(str::to_owned).unwrap_or_else(||format!("cli-{}",&sha256(format!("{}",std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos()).as_bytes())[..16]));
     let brief_arg=value(args,"--brief").ok_or_else(||err("Use start --brief FILE"))?;
     let mut check=args.to_vec();
     if value(args,"--run").is_none(){check.push("--run".into());check.push(run.clone());}
@@ -486,15 +485,11 @@ fn supervise(root:&Path,manifest:&Value,args:&[String],index:usize,install:bool)
     }
     Ok(())
 }
-fn offline(root:&Path,manifest:&Value,args:&[String])->io::Result<(Value,Option<Session>)>{
+fn offline(_root:&Path,manifest:&Value,args:&[String])->io::Result<(Value,Option<Session>)>{
     let project=selected_project(args)?;
     let config:toml::Value=toml::from_str(&fs::read_to_string(project.join(".waywr/project.toml"))?).map_err(err)?;
     let key=config["project_key"].as_str().ok_or_else(||err("Project key missing"))?;
     let release=manifest["release_id"].as_str().ok_or_else(||err("Release ID missing"))?;
-    let binding=read(&project.join(".waywr/release.json")).map_err(err)?;
-    let digest=format!("{:x}",Sha256::digest(fs::read(root.join("manifest.json"))?));
-    if binding["schema_version"]!=1 || binding["project_key"]!=key || binding["release_id"]!=release ||
-        binding["manifest_sha256"]!=digest{return Err(err("Project release binding differs from installed release"));}
     let state=state_dir(&project,args);
     if !state.join("state.sqlite").is_file(){
         return Ok((json!({"project_key":key,"release_id":release,"state_revision":0,
@@ -515,7 +510,7 @@ pub fn legacy(root:&Path,manifest:&Value,args:&[String])->io::Result<()> {
         return Ok(());
     }
     let project=selected_project(args)?;
-    route_bound_release(root,manifest,&project,args)?;
+    check_project_compatibility(root,manifest,&project,args)?;
     if value(args,"--legacy-origin").is_some(){return Err(err("--legacy-origin applies only to an explicitly bound legacy release"));}
     if value(args,"--release").is_some(){return Err(err("--release is only valid for session bind/upgrade/rollback"));}
     if value(args,"--color")==Some("always"){
@@ -654,7 +649,7 @@ pub fn session(root:&Path,manifest:&Value,args:&[String])->io::Result<()> {
     if action=="repair-answer-history"{return super::rust_maintenance::repair_answer_history(args)}
     if action=="migrate"{return super::rust_migrate::migrate(root,manifest,args)}
     if !matches!(action,"bind"|"upgrade"|"rollback"){
-        route_bound_release(root,manifest,&project,args)?;
+        check_project_compatibility(root,manifest,&project,args)?;
     }
     if value(args,"--legacy-origin").is_some(){return Err(err("--legacy-origin applies only to an explicitly bound legacy release"));}
     if value(args,"--release").is_some() && !matches!(action,"bind"|"upgrade"|"rollback"){

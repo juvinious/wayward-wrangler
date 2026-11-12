@@ -29,7 +29,15 @@ removed in the same PR. It rejects personal-home paths and non-example contact
 addresses outside required upstream notices, plus credential/runtime filenames
 even when no token format is recognized. In GitHub Actions it also derives
 the personal repository owner's account identifier from the event payload and
-rejects it in source without placing that identifier in the public configuration.
+rejects it in source, except for canonical main-workflow badge/link URLs for
+that public repository in the root README. Other documentation, application
+source, private-repository URLs and distributed artifacts retain the identifier
+check. The gate itself contains no configured personal account identifier.
+Local checks without an Actions event can supply `--public-repository OWNER/REPO`
+for a repository already known to be public. This explicit context enables the
+same narrow README exception and retains the owner's identifier check elsewhere;
+the flag performs no visibility lookup. A supplied GitHub event remains
+authoritative: conflicting repository or private-repository metadata is refused.
 GitHub ownership and normal contribution metadata remain public platform metadata;
 the source and distribution policy does not make an account anonymous.
 

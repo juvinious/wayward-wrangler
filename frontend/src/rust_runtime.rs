@@ -1,8 +1,8 @@
 //! Rust-release startup and project routing. The service owns workflow state;
 //! this launcher owns only project setup, unit bootstrap and UI attachment.
-use super::{phase,request,route_bound_release,selected_project,session,session_resume,run_ui};
+use super::{phase,request,check_project_compatibility,selected_project,session,session_resume,run_ui};
 use serde_json::{Value,json};
-use sha2::{Digest,Sha256};
+use waywr_backend::codec::sha256;
 use std::{env,fs,io::{self,Write},os::unix::ffi::OsStrExt,path::{Component,Path,PathBuf},
     process::{Command,Stdio},thread,time::{Duration,Instant}};
 use waywr_backend::execution::{FileLock,random_token,read,write,write_bytes};
@@ -22,15 +22,10 @@ fn selected(input:Option<String>,project:&Path,default:&Path)->io::Result<PathBu
 }
 fn init_project(project:&Path)->io::Result<()> {
     waywr_backend::project_layout::check(project).map_err(err)?;
+    let preferences=waywr_backend::model_runtime::initial_preferences().map_err(err)?;
     let root=project.join(".waywr");fs::create_dir_all(&root)?;
     let key=random_token().map_err(err)?;
     write_bytes(&root.join("project.toml"),format!("schema_version = 2\nproject_key = \"{key}\"\n[execution]\nhost = \"systemd-user-v1\"\n[conversation]\nschema_version = 6\n").as_bytes(),true).map_err(err)?;
-    let auth_home=std::env::var("HOME").unwrap_or_default();
-    let binary=waywr_backend::development::find_codex().unwrap_or_else(||PathBuf::from(&auth_home).join(".local/bin/codex"));
-    let legacy=json!({"schema_version":1,"profile":"codex-development-v1","mode":"native",
-        "provider":"codex","model":"gpt-6.1-sol","effort":"medium","binary":binary,
-        "concurrency":2,"fallback":[],"main_policy":"checked-fast-forward","dependency_network":true});
-    let preferences=waywr_backend::provider_selection::imported(&legacy).map_err(err)?;
     write(&root.join("coordinator.json"),&preferences,true).map_err(err)?;
 
     waywr_backend::project_workflow::initialize(project).map_err(err)?;
@@ -158,7 +153,80 @@ fn service_command(root:&Path,ready:&Ready)->Vec<String>{
     if !ready.herdr.as_os_str().is_empty(){command.extend(["--herdr-socket".into(),ready.herdr.to_string_lossy().into_owned()]);}
     command
 }
-fn ensure_service(root:&Path,ready:&Ready)->io::Result<()> {
+// Locate the previous pair from the exact running command, independent of the
+// new bundle's installation layout. /proc still identifies a deleted old ELF.
+fn previous_service_root(ready:&Ready,prior:&str,arguments:&[u8],executable:&Path)->io::Result<PathBuf>{
+    let argv0=arguments.split(|b|*b==0).next().filter(|s|!s.is_empty())
+        .ok_or_else(||err("Previous service command is empty; service preserved"))?;
+    let service=Path::new(std::ffi::OsStr::from_bytes(argv0));
+    let root=service.parent().filter(|p|p.file_name().is_some_and(|name|name=="bin"))
+        .and_then(Path::parent).filter(|_|service.is_absolute()&&service.file_name().is_some_and(|name|name=="waywr-service"))
+        .ok_or_else(||err("Previous service has no paired executable path; service preserved"))?;
+    let deleted=[argv0,b" (deleted)"].concat();
+    if executable.as_os_str().as_bytes()!=argv0 && executable.as_os_str().as_bytes()!=deleted{
+        return Err(err("Previous service executable differs from its command; service preserved"));
+    }
+    let mut previous=ready.clone();previous.release=prior.into();
+    let expected=service_command(root,&previous);
+    let expected=expected.iter().flat_map(|s|s.as_bytes().iter().copied().chain([0])).collect::<Vec<_>>();
+    if arguments!=expected{return Err(err("Previous service command differs from this project; service preserved"));}
+    Ok(root.to_path_buf())
+}
+pub(super) fn verify_previous_service(project:&Path,state:&Path,key:&str,release:&str,arguments:&[u8],executable:&Path)->io::Result<()> {
+    let argv=arguments.split(|b|*b==0).filter(|v|!v.is_empty()).map(|v|String::from_utf8(v.to_vec()).map_err(err)).collect::<io::Result<Vec<_>>>()?;
+    let ipc=value(&argv,"--ipc").ok_or_else(||err("Previous service IPC path missing"))?;
+    let ready=Ready{project:project.into(),state:state.into(),key:key.into(),release:release.into(),
+        ipc:ipc.into(),herdr:value(&argv,"--herdr-socket").unwrap_or_default().into(),unit:format!("waywr-{key}.service")};
+    previous_service_root(&ready,release,arguments,executable).map(|_|())
+}
+fn handover_idle_service(ready:&Ready)->io::Result<Option<String>> {
+    use std::os::fd::AsRawFd;
+    let owner=read(&ready.state.join("supervision/owner.json")).map_err(err)?;
+    let prior=owner["release_id"].as_str().ok_or_else(||err("Service owner release missing"))?;
+    if prior==ready.release{return Ok(None);}
+    if owner["project_key"]!=ready.key || prior.is_empty() || prior.len()>64 ||
+        !prior.bytes().all(|b|b.is_ascii_alphanumeric()||b"._-".contains(&b)) || prior.starts_with('.'){
+        return Err(err("Previous service ownership is invalid; service preserved"));
+    }
+    let pid=Command::new("systemctl").args(["--user","show","--property=MainPID","--value",&ready.unit]).output()?;
+    if !pid.status.success(){return Err(err("Cannot verify previous service owner"));}
+    let pid:u32=String::from_utf8_lossy(&pid.stdout).trim().parse().map_err(err)?;
+    if pid<=1{return Err(err("Previous service has no verifiable main process; service preserved"));}
+    let arguments=fs::read(format!("/proc/{pid}/cmdline"))?;
+    let executable=fs::read_link(format!("/proc/{pid}/exe"))?;
+    previous_service_root(ready,prior,&arguments,&executable)?;
+    let mut peer=session(ready.ipc.to_str().ok_or_else(||err("Non-UTF8 IPC path"))?,&ready.key,prior,"command")?;
+    let mut creds:libc::ucred=unsafe{std::mem::zeroed()};
+    let mut size=std::mem::size_of::<libc::ucred>() as libc::socklen_t;
+    if unsafe{libc::getsockopt(peer.as_raw_fd(),libc::SOL_SOCKET,libc::SO_PEERCRED,
+        (&raw mut creds).cast(),&mut size)}!=0 || creds.pid<=0 || creds.pid as u32!=pid{
+        return Err(err("Project socket and service process differ; service preserved"));
+    }
+    // Old services may be unable to serialize a large project snapshot. Their
+    // bounded status reply proves the same project; quiescence is checked below.
+    let snapshot=request(&mut peer,"session.status","handover-inspect",json!({}))?;
+    if snapshot.kind!="session.status_result"||snapshot.body["project_key"]!=ready.key{
+        return Err(err("Previous service did not prove this project's state; service preserved"));
+    }
+    drop(peer);
+    if super::rust_maintenance::stop_quiescent_project(&ready.project,&ready.state,&ready.key).is_err(){
+        // The UI speaks the existing wire contract. A busy owner is a connection
+        // target, not an update error. Retain its exact release in IPC only.
+        eprintln!("waywr: Connected to the running project service; application replacement will occur when idle.");
+        return Ok(Some(prior.to_owned()));
+    }
+    // Owned units are transient --collect units. Never rewrite a persistent or
+    // unrelated definition to make a replacement fit.
+    let deadline=Instant::now()+Duration::from_secs(5);
+    loop{
+        let loaded=Command::new("systemctl").args(["--user","show","--property=LoadState","--value",&ready.unit]).output()?;
+        if loaded.status.success()&&String::from_utf8_lossy(&loaded.stdout).trim()=="not-found"{break;}
+        if Instant::now()>=deadline{return Err(err("Idle service stopped but its unit is still loaded; project state preserved"));}
+        thread::sleep(Duration::from_millis(50));
+    }
+    Ok(None)
+}
+fn ensure_service(root:&Path,ready:&mut Ready)->io::Result<()> {
     let lock_path=ready.state.join("session/start.lock");
     let lock_deadline=Instant::now()+Duration::from_secs(10);
     let _start_lock=loop{
@@ -173,6 +241,10 @@ fn ensure_service(root:&Path,ready:&Ready)->io::Result<()> {
         let state=unit_state(&ready.unit)?;
         if matches!(state.as_str(),"inactive"|"failed"){break;}
         if state=="active" && request_service(ready,"session.status",json!({})).is_ok(){return Ok(());}
+        if state=="active"{
+            if let Some(prior)=handover_idle_service(ready)?{ready.release=prior;return Ok(());}
+            if matches!(unit_state(&ready.unit)?.as_str(),"inactive"|"failed"){break;}
+        }
         if Instant::now()>=deadline{return Err(io::Error::new(io::ErrorKind::TimedOut,format!("Project service {} did not settle; inspect its journal",ready.unit)));}
         thread::sleep(Duration::from_millis(100));
     }
@@ -191,6 +263,11 @@ fn ensure_service(root:&Path,ready:&Ready)->io::Result<()> {
         Command::new("systemd-run").args(["--user","--collect",&format!("--unit={}",ready.unit),
             "--property=Restart=on-failure","--property=RestartSec=1s",
             "--property=StartLimitBurst=3","--property=StartLimitIntervalSec=30"])
+            // Forward the caller's runtime locations and SDK credential variables;
+            // values remain in the process environment, never project evidence.
+            .args(env::vars_os().filter(|(key,_)|{
+                let key=key.to_string_lossy();waywr_backend::adapters::ENV_KEYS.contains(&key.as_ref())||key.starts_with("XDG_")||key.ends_with("_API_KEY")||key.ends_with("_AUTH_TOKEN")||key=="GOOGLE_APPLICATION_CREDENTIALS"
+            }).map(|(key,value)|{let mut arg=std::ffi::OsString::from("--setenv=");arg.push(key);arg.push("=");arg.push(value);arg}))
             .args(&command).output()?
     }else{return Err(err("Could not determine project unit load state"));};
     if !started.status.success(){return Err(err(format!("Project service failed to start: {}",String::from_utf8_lossy(&started.stderr))));}
@@ -203,11 +280,19 @@ fn ensure_service(root:&Path,ready:&Ready)->io::Result<()> {
 }
 fn prepare(root:&Path,manifest:&Value,args:&[String],setup:bool)->io::Result<Option<Ready>> {
     let project=selected_project(args)?;
+    waywr_backend::project_layout::check(&project).map_err(err)?;
+    super::rust_bundle::validate(root)?;
     let configuration=project.join(".waywr/project.toml");
     if !configuration.exists(){
         if !setup{return Ok(None);}
         init_project(&project)?;
     }
+    let state=selected(value(args,"--state-dir"),&project,&project.join(".waywr/state"))?;
+    // Outside the replaceable state directory so renewal remains serialized
+    // across its rename and a crash can resume the journal on the next launch.
+    let _startup=FileLock::exclusive(&project.join(".waywr/startup.lock")).map_err(err)?;
+    super::rust_session::prepare(&project,&state,manifest)?;
+    check_project_compatibility(root,manifest,&project,args)?;
     let config:toml::Value=toml::from_str(&fs::read_to_string(&configuration)?).map_err(err)?;
     let key=config["project_key"].as_str().ok_or_else(||err("Project key missing"))?.to_owned();
     let host=config["schema_version"].as_integer()==Some(2) &&
@@ -218,7 +303,6 @@ fn prepare(root:&Path,manifest:&Value,args:&[String],setup:bool)->io::Result<Opt
         return Err(err("Unsupported project identity"));
     }
     let release=manifest["release_id"].as_str().ok_or_else(||err("Release ID missing"))?.to_owned();
-    let state=selected(value(args,"--state-dir"),&project,&project.join(".waywr/state"))?;
     register_project(&project,&state,&key,args)?;
     if host{
         write(&state.join("state-contract.json"),&json!({"schema_version":1,
@@ -245,18 +329,6 @@ fn prepare(root:&Path,manifest:&Value,args:&[String],setup:bool)->io::Result<Opt
     let socket=PathBuf::from(selected_socket);
     if !host && !socket.is_absolute(){return Err(err("Herdr socket must be absolute"));}
     if !host && !endpoint.exists(){write(&endpoint,&json!({"schema_version":1,"project_key":key,"socket":socket}),true).map_err(err)?;}
-    let binding_path=project.join(".waywr/release.json");
-    let manifest_hash=format!("{:x}",Sha256::digest(fs::read(root.join("manifest.json"))?));
-    if binding_path.exists(){
-        let binding=read(&binding_path).map_err(err)?;
-        if binding["project_key"]!=key || binding["release_id"]!=release || binding["manifest_sha256"]!=manifest_hash{
-            return Err(err("Project is bound to another or changed release; route explicitly"));
-        }
-    }else{
-        if !setup{return Err(err("Existing project has no release binding; use explicit project binding"));}
-        write(&binding_path,&json!({"schema_version":1,"project_key":key,"release_id":release,
-            "manifest_sha256":manifest_hash,"binding_generation":1}),true).map_err(err)?;
-    }
     let runtime=value(args,"--ipc-dir").map(PathBuf::from).or_else(||env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from))
         .unwrap_or_else(||PathBuf::from(format!("/run/user/{}",unsafe{libc::geteuid()})));
     if !runtime.is_absolute(){return Err(err("IPC directory must be absolute"));}
@@ -264,11 +336,17 @@ fn prepare(root:&Path,manifest:&Value,args:&[String],setup:bool)->io::Result<Opt
     if ipc.as_os_str().as_bytes().len()>=108{
         return Err(err("Project IPC socket path exceeds Linux SUN_LEN; select a shorter --ipc-dir before starting the service"));
     }
-    let ready=Ready{project,state,key:key.clone(),release,ipc,herdr:socket,unit:format!("waywr-{key}.service")};
-    ensure_service(root,&ready)?;
+    let mut ready=Ready{project,state,key:key.clone(),release,ipc,herdr:socket,unit:format!("waywr-{key}.service")};
+    ensure_service(root,&mut ready)?;
     Ok(Some(ready))
 }
 pub fn service_call(root:&Path,manifest:&Value,args:&[String],kind:&str,body:Value)->io::Result<Value>{
+    // Inspection/cancellation addresses the current owner. It must not renew a
+    // session, start work, or replace its ledger before looking up a command.
+    if kind=="command_get" || (kind=="command" && matches!(body["action"].as_str(),
+        Some("stop_session"|"cancel_conversation"|"cancel_task"|"development.cancel"))) {
+        return existing_service_call(manifest,args,kind,body);
+    }
     let ready=prepare(root,manifest,args,false)?.ok_or_else(||err("Project is not initialized"))?;
     request_service(&ready,kind,body)
 }
@@ -280,20 +358,31 @@ pub(super) fn service_socket(_project:&Path,args:&[String],key:&str)->io::Result
     Ok(runtime.join("waywr").join(format!("{key}.sock")))
 }
 pub(super) fn existing_service_call(manifest:&Value,args:&[String],kind:&str,body:Value)->io::Result<Value>{
+    use std::os::fd::AsRawFd;
     let project=selected_project(args)?;
     let config:toml::Value=toml::from_str(&fs::read_to_string(project.join(".waywr/project.toml"))?).map_err(err)?;
-    let key=config["project_key"].as_str().ok_or_else(||err("Project key missing"))?;
+    let key=config["project_key"].as_str().filter(|s|s.len()==32&&s.bytes().all(|c|c.is_ascii_hexdigit())).ok_or_else(||err("Invalid project key"))?;
     let socket=service_socket(&project,args,key)?;
-    let release=manifest["release_id"].as_str().ok_or_else(||err("Release ID missing"))?;
+    let state=value(args,"--state-dir").map(PathBuf::from).unwrap_or_else(||project.join(".waywr/state"));
+    let state=if state.is_absolute(){state}else{project.join(state)}.canonicalize()?;
+    let owner=read(&state.join("supervision/owner.json")).map_err(err)?;
+    if owner["project_key"]!=key {return Err(err("Project service owner identity differs"));}
+    let release=owner["release_id"].as_str().or_else(||manifest["release_id"].as_str()).ok_or_else(||err("Service release ID missing"))?;
     let mut peer=super::session(socket.to_str().ok_or_else(||err("Non-UTF8 IPC socket"))?,key,release,"command")
         .map_err(|_|err("Project service unavailable; opening a view will not start execution"))?;
+    let mut creds:libc::ucred=unsafe{std::mem::zeroed()};
+    let mut size=std::mem::size_of::<libc::ucred>() as libc::socklen_t;
+    if unsafe{libc::getsockopt(peer.as_raw_fd(),libc::SOL_SOCKET,libc::SO_PEERCRED,(&raw mut creds).cast(),&mut size)}!=0 ||
+        creds.pid<=1 || creds.uid!=unsafe{libc::geteuid()}{return Err(err("Cannot verify current project service peer"));}
+    verify_previous_service(&project,&state,key,release,&fs::read(format!("/proc/{}/cmdline",creds.pid))?,
+        &fs::read_link(format!("/proc/{}/exe",creds.pid))?)?;
     let reply=super::request(&mut peer,kind,"view-control",body)?;
     if reply.kind=="error"{return Err(err(reply.body));}
     Ok(reply.body)
 }
 pub fn initialize(root:&Path,manifest:&Value,args:&[String])->io::Result<()> {
     let project=init_selection(args)?;
-    route_bound_release(root,manifest,&project,args)?;
+    check_project_compatibility(root,manifest,&project,args)?;
     if !project.join(".waywr/project.toml").exists(){init_project(&project)?;}
     let config:toml::Value=toml::from_str(&fs::read_to_string(project.join(".waywr/project.toml"))?).map_err(err)?;
     let key=config["project_key"].as_str().ok_or_else(||err("Project key missing"))?;
@@ -331,12 +420,12 @@ pub fn initialize(root:&Path,manifest:&Value,args:&[String])->io::Result<()> {
         }
     }else{write(&endpoint,&json!({"schema_version":1,"project_key":key,"socket":socket}),true).map_err(err)?;}
     let release=manifest["release_id"].as_str().ok_or_else(||err("Release ID missing"))?;
-    let digest=format!("{:x}",Sha256::digest(fs::read(root.join("manifest.json"))?));
+    let digest=sha256(&fs::read(root.join("manifest.json"))?);
     let release_path=project.join(".waywr/release.json");
     if release_path.exists(){
         let existing=read(&release_path).map_err(err)?;
-        if existing["project_key"]!=key || existing["release_id"]!=release || existing["manifest_sha256"]!=digest{
-            return Err(err("Existing release binding differs; initialization preserved it"));
+        if existing["schema_version"]!=1 || existing["project_key"]!=key{
+            return Err(err("Existing release record identity differs; initialization preserved it"));
         }
     }else{write(&release_path,&json!({"schema_version":1,"project_key":key,"release_id":release,
         "manifest_sha256":digest,"binding_generation":1}),true).map_err(err)?;}
@@ -397,8 +486,7 @@ fn ensure_herdr(ready:&Ready)->io::Result<()> {
 
 pub fn launch(root:&Path,manifest:&Value,args:&[String])->io::Result<()> {
     let project=selected_project(args)?;
-    route_bound_release(root,manifest,&project,args)?;
-    let ready=if let Some(ready)=prepare(root,manifest,args,false)?{ready}else{
+    let mut ready=if let Some(ready)=prepare(root,manifest,args,false)?{ready}else{
         let approved=if args.iter().any(|arg|arg=="--yes"){true}else{
             eprint!("Initialize Wayward Wrangler for {}? [y/N] ",project.display());
             io::stderr().flush()?;let mut response=String::new();io::stdin().read_line(&mut response)?;
@@ -414,7 +502,7 @@ pub fn launch(root:&Path,manifest:&Value,args:&[String])->io::Result<()> {
             // Retry only read-only preparation, within the existing bound. A
             // possibly delivered mutation below still retains its exact ID and
             // reports uncertainty; it is never replaced by this retry loop.
-            let snapshot=match ensure_service(root,&ready).and_then(|()|
+            let snapshot=match ensure_service(root,&mut ready).and_then(|()|
                 phase(&mut session(ready.ipc.to_str().ok_or_else(||err("Non-UTF8 IPC"))?,&ready.key,&ready.release,"command")?)){
                 Ok(snapshot)=>snapshot,
                 Err(error) if matches!(error.kind(),io::ErrorKind::ConnectionReset|io::ErrorKind::ConnectionRefused|io::ErrorKind::NotFound|io::ErrorKind::UnexpectedEof|io::ErrorKind::TimedOut|io::ErrorKind::WouldBlock|io::ErrorKind::Interrupted) && Instant::now()<until=>{
@@ -466,8 +554,29 @@ pub fn backend_info(root:&Path,manifest:&Value)->io::Result<()> {
 #[cfg(test)]
 mod registry_tests {
     use super::*;
+    #[test]
+    fn handover_checks_actual_executable_and_exact_project_command_for_portable_pairs(){
+        let ready=Ready{project:"/fixture/project".into(),state:"/fixture/project/.waywr/state".into(),key:"a".repeat(32),
+            release:"new-build".into(),ipc:"/fixture/run/project.sock".into(),herdr:PathBuf::new(),unit:"fixture.service".into()};
+        let mut previous=ready.clone();previous.release="old-build".into();
+        let root=Path::new("/fixture/temporary-pair");
+        let command=service_command(root,&previous);
+        let arguments=command.iter().flat_map(|s|s.as_bytes().iter().copied().chain([0])).collect::<Vec<_>>();
+        let executable=root.join("bin/waywr-service");
+        assert_eq!(previous_service_root(&ready,"old-build",&arguments,&executable).unwrap(),root);
+        let deleted=PathBuf::from(format!("{} (deleted)",executable.display()));
+        assert_eq!(previous_service_root(&ready,"old-build",&arguments,&deleted).unwrap(),root);
+        assert!(previous_service_root(&ready,"old-build",&arguments,Path::new("/fixture/unrelated-program")).is_err());
+        let mut other=ready.clone();other.project="/fixture/other-project".into();
+        assert!(previous_service_root(&other,"old-build",&arguments,&executable).is_err());
+        other=ready.clone();other.state="/fixture/other-state".into();
+        assert!(previous_service_root(&other,"old-build",&arguments,&executable).is_err());
+        other=ready.clone();other.ipc="/fixture/run/other.sock".into();
+        assert!(previous_service_root(&other,"old-build",&arguments,&executable).is_err());
+        assert!(previous_service_root(&ready,"wrong-build",&arguments,&executable).is_err());
+    }
     #[test]fn normal_init_has_live_profile_without_seeded_requests_or_fake_workflow(){
-        let d=tempfile::tempdir().unwrap();init_project(d.path()).unwrap();let root=d.path().join(".waywr");let p=read(&root.join("coordinator.json")).unwrap();assert_eq!(p["schema_version"],2);assert_eq!(p["coordinator"],"codex");assert!(!root.join("workflow.toml").exists());assert!(!root.join("state/state.sqlite").exists());
+        let d=tempfile::tempdir().unwrap();init_project(d.path()).unwrap();let root=d.path().join(".waywr");let p=read(&root.join("coordinator.json")).unwrap();assert_eq!(p["schema_version"],3);assert_eq!(p["coordinator"],"default");assert!(waywr_backend::provider_selection::Preferences::parse(&p).is_ok());assert!(!root.join("workflow.toml").exists());assert!(!root.join("state/state.sqlite").exists());
         let conflict=tempfile::tempdir().unwrap();fs::create_dir(conflict.path().join(".waywr")).unwrap();fs::write(conflict.path().join(".waywr/unrelated"),"preserve").unwrap();assert!(init_project(conflict.path()).is_err());assert!(!conflict.path().join(".waywr/project.toml").exists());
     }
     #[test]fn canonical_registry_relocation_preserves_other_projects_and_refuses_divergence(){

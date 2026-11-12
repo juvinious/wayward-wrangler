@@ -15,6 +15,7 @@ pub mod local_context;
 pub mod native_policy;
 pub mod native_contract;
 pub mod conversation_store;
+pub mod live_input;
 pub mod mock_coordinator;
 pub mod static_files;
 pub mod operation;
@@ -46,7 +47,7 @@ pub mod project_layout;
 mod worker_activity;
 
 pub mod provider_selection;
-pub mod development_claude;
+pub mod model_runtime;
 pub mod coordination;
 
 pub mod request_routing;
@@ -60,5 +61,4 @@ pub mod candidate;
 pub mod project_resources;
 
 pub mod project_publication;
-
-pub mod ollama;
+pub mod ipc_limits;

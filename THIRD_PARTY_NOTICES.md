@@ -13800,7 +13800,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-## libsqlite3-sys 0.38.2
+## libsqlite3-sys 0.39.1
 
 License expression: `MIT`.
 
@@ -19107,7 +19107,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-## rusqlite 0.40.2
+## rusqlite 0.41.1
 
 License expression: `MIT`.
 
@@ -19375,7 +19375,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-## rustix 1.1.5
+## rustix 1.1.6
 
 License expression: `Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT`.
 

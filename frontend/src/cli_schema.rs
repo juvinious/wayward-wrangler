@@ -11,7 +11,8 @@ fn op(name:&'static str)->Command{run(name).arg(opt("operation").required(true).
 pub fn command()->Command {
     let globals=["project","state-dir","registry-dir","legacy-origin","color","herdr-socket","ipc-dir","release"];
     let mut root=Command::new("waywr").disable_version_flag(true).arg_required_else_help(false)
-        .subcommand_required(false).allow_external_subcommands(false);
+        .subcommand_required(false).allow_external_subcommands(false)
+        .arg(flag("version").short('V').help("Show the application version and installed build"));
     for name in globals {
         let argument=if name=="color" {opt(name).value_parser(["auto","always","never"])}else{opt(name)};
         root=root.arg(argument.global(true));
@@ -24,6 +25,10 @@ pub fn command()->Command {
         root=root.arg(flag(name).hide(true));
     }
     root=root
+        .subcommand(Command::new("models").subcommand_required(true)
+            .subcommand(Command::new("list").arg(opt("search")).arg(opt("config")))
+            .subcommand(Command::new("login").arg(Arg::new("provider").required(true))
+                .arg(opt("method").value_parser(["oauth","apiKey"]))))
         .subcommand(Command::new("init").arg(Arg::new("directory")))
         .subcommand(Command::new("location-rebind"))
         .subcommand(Command::new("preflight").arg(opt("run").required(true)).arg(opt("brief").required(true))

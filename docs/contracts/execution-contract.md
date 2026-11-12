@@ -5,20 +5,21 @@ This document owns the detailed requirements for Rust host-backed,
 boundaries, [state](state-contract.md) owns persisted records and compatibility,
 and [IPC](session-protocol.md) owns transport, capabilities and bounded inspection.
 This is the maintained process-host contract; completed transition reports are
-historical. [Architecture](../architecture.md) records current verification limits.
+historical.
 
 State8 connects concurrent child tasks under one approved workflow and serialized
 Git integration. It removes mandatory development call/time/repair ceilings while
 preserving frozen attempt semantics, bounded output and process/transport/shutdown
-health handling. Older profiles retain their original limits. No separate native
-trial or evaluation installation is a prerequisite. The [handoff](../HANDOFF.md)
-records actual verification and the first retained application delivery.
+health handling. Older serialized profiles retain their original semantics.
 
 State9 [provider roles](../provider-selection.md) reuse these supervised operations.
-Claude has separate coordinator/review and implementation capability boundaries.
+All current providers use the shared runtime; coordinator/review versus worker
+tool capabilities depend on the operation, not a provider name. The old native
+profile routes are retired; work/history and frozen evidence are preserved.
 Native permit and once-only spawn guards validate frozen grants, with additive
 provider amendments preserving older attempts. Preparation refusals carry positive
-nonlaunch proof. Provider fallback and interruption require positive settlement; uncertain execution
+nonlaunch proof. Shared-runtime configuration failures distinguish a settled local
+process from a positively unsent model request; post-send ambiguity remains uncertain. Provider fallback and interruption require positive settlement; uncertain execution
 never authorizes a replacement. Review results contain exact commits/findings, not
 fabricated commits. Scope and checked integration authority remain application-owned.
 
@@ -58,13 +59,10 @@ acceptance still requires the exact clean branch/commit, ancestry and assigned p
 Older failed native reports may be added as labelled diagnostic projections without
 changing immutable receipts or accepting their claims as code authority.
 
-Codex's Linux filesystem sandbox must be usable under the host's OS policy. Ubuntu
-AppArmor can deny user-namespace UID mapping before worker commands execute. Report
-that concrete blocker; do not disable the sandbox, change global kernel settings or
-repeat application repairs that cannot execute. An OS security-profile change needs
-explicit authorization beyond ordinary project service setup. The
-[Linux setup note](../linux-sandbox-setup.md) records the accepted testing exception
-and remaining distribution work; it is not a universal installation requirement.
+Current shared-runtime commands execute as the local user; worker worktrees are
+not an OS sandbox. The [Linux requirements](../linux-sandbox-setup.md) and
+[security policy](../../SECURITY.md) describe that trust boundary. The prior Codex
+AppArmor exception is [historical](../reports/retired-native-linux-setup-2026-10-15.md).
 
 Combined-check pending records bind the same scope base, requirement generation
 and exact checked commit as their frozen packet. Integration accepts a unit only
@@ -81,14 +79,6 @@ The current implementation retains existing refs/worktree directories: an active
 workflow can gain a readable combined-result alias through a saved compare-and-swap
 intent. Divergent/existing unowned aliases are preserved and refused. Restart adopts
 only the exact intended ref update; main and application files are untouched.
-Native invocation
-extends Codex's standard workspace permission profile with read-only common Git
-metadata and specific write grants for the worker index/HEAD directory, shared
-objects, its own ref namespace and reflog namespace, plus the approved Cargo cache.
-Main/integration refs, repository config/hooks and peer indexes stay read-only.
-Existing branch names/evidence are preserved; an old failed task is recovered by a
-new follow-up assignment rather than rewriting its frozen attempt. Profiles are
-per-invocation overrides; shared provider configuration is untouched.
 
 Legacy frozen retain/literal-main policies remain compatible. New requests use the
 [ordinary project contract](../ordinary-project-workflow.md#candidate-and-resource-lifecycle)
@@ -241,6 +231,15 @@ State-aware rollback and legacy execution boundaries remain in [state-contract.m
 
 ## State8 native development
 
+Native invocation
+extends Codex's standard workspace permission profile with read-only common Git
+metadata and specific write grants for the worker index/HEAD directory, shared
+objects, its own ref namespace and reflog namespace, plus the approved Cargo cache.
+Main/integration refs, repository config/hooks and peer indexes stay read-only.
+Existing branch names/evidence are preserved; an old failed task is recovered by a
+new follow-up assignment rather than rewriting its frozen attempt. Profiles are
+per-invocation overrides; shared provider configuration is untouched.
+
 Development reuses host schema2 intent, claims, generation-bound permits, once-only
 spawn commitment and immutable receipts. Codex events permit native commands/file
 changes for assigned workers; coordinators have tools disabled and only typed
@@ -275,5 +274,5 @@ New ordinary-project requests freeze named baseline/target/completion/validation
 and retention choices. The [workflow contract](../ordinary-project-workflow.md) owns
 candidate checkout ownership, conservative automatic resource retirement, archival
 Git refs and exact local/PR completion; legacy frozen retain/main policies remain
-compatible. [Ollama](../provider-selection.md#ollama-transport-boundary) uses the same
-supervised host/receipt mechanisms with explicit client-versus-server settlement.
+compatible. The retired native Ollama boundary is documented in the
+[historical provider contract](../archive/provider-selection/2026-11-09-retired-native-provider-contract.md#ollama-transport-boundary).

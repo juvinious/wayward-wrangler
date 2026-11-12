@@ -50,11 +50,6 @@ pub fn inspect(e: &Value, model: &str) -> Result<(), String> {
                 "Unexpected native plugin inventory; capability profile needs review".into(),
             );
         }
-        if e["plugins"].as_array().is_some_and(|a| !a.is_empty())
-            && e["claude_code_version"] != crate::claude_chat::VERSION
-        {
-            return Err("Builtin plugin policy requires the pinned Claude version".into());
-        }
         if e.get("slash_commands").is_some_and(|v| *v != json!([])) {
             return Err("Unexpected native slash commands".into());
         }
@@ -223,6 +218,9 @@ mod tests {
         e[0]["plugins"] = allowed.clone();
         e[0]["claude_code_version"] = json!(crate::claude_chat::VERSION);
         assert_eq!(completion(&e, "m", Some(0))["action_valid"], true);
+        e[0]["claude_code_version"] = json!("999.0.0");
+        assert_eq!(completion(&e, "m", Some(0))["action_valid"], true,
+            "Exact allowed capabilities must not depend on version text");
         for kind in [
             "unknown",
             "spoof-path",
@@ -231,7 +229,6 @@ mod tests {
             "duplicate",
             "partial",
             "not-array",
-            "version",
             "skill",
             "slash",
             "tool",
@@ -253,7 +250,6 @@ mod tests {
                     .map(|_| ())
                     .unwrap(),
                 "not-array" => changed[0]["plugins"] = Value::Null,
-                "version" => changed[0]["claude_code_version"] = json!("other"),
                 "skill" => changed[0]["skills"] = json!(["plugin-authoring"]),
                 "slash" => changed[0]["slash_commands"] = json!(["plugin-authoring"]),
                 "tool" => changed[0]["tools"] = json!(["StructuredOutput", "Read"]),

@@ -93,8 +93,7 @@ so lifecycle control does not depend on serializing conversation/evidence histor
 Snapshot record counts are not yet paged; very large projects can still exhaust
 the IPC frame budget and require further bounded inspection work.
 
-The detailed semantics below remain the maintained requirements;
-the handoff distinguishes what has actually been verified.
+The detailed semantics below define persisted-state behavior and compatibility.
 
 <a id="planned-request-history-projection--not-yet-implemented"></a>
 

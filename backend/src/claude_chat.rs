@@ -9,6 +9,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
+// Historical proof metadata, never a runtime admission gate.
 pub const VERSION: &str = "2.1.296";
 pub const BINARY_SHA: &str = "24972e3bc859fab2b46ed4c1e51f7d6130f06d3bd550811a114640de3370d0de";
 pub const TEXT_LIMIT: usize = 32 * 1024;
@@ -31,25 +32,19 @@ pub fn profile(project: &Path) -> Result<Value, String> {
     Ok(v)
 }
 pub fn preflight(p: &Value) -> Result<(), String> {
-    let binary = Path::new(
-        p["binary"]
-            .as_str()
-            .ok_or("Configure the Claude CLI binary in coordinator.json")?,
-    );
-    if !binary.is_absolute() || !binary.is_file() {
-        return Err("Claude CLI missing; install Claude Code 2.1.296 and configure its absolute binary path".into());
-    }
-    let actual = sha256(&fs::read(binary).map_err(|e| e.to_string())?);
-    let fixture_hash = if p["profile"]=="claude-proposal-v2"{sha256(include_bytes!("../../tests/fixtures/continuous-coordinator/mock-cli.py"))}else if p["profile"]=="claude-proposal-v1"{sha256(include_bytes!("../../tests/fixtures/claude-scope/mock-cli.py"))}else{sha256(include_bytes!("../../tests/fixtures/claude-conversation/mock-cli.py"))};
-    let expected = if p["mode"] == "native" {
-        BINARY_SHA
-    } else {
-        &fixture_hash
-    };
-    if actual != expected {
-        return Err("Claude CLI changed; revalidate the capability profile before use".into());
+    if p["mode"] != "native" {
+        let binary=Path::new(p["binary"].as_str().ok_or("Configure the Claude CLI binary")?);
+        if !binary.is_absolute()||!binary.is_file(){return Err("Claude fixture binary is unavailable".into());}
+        let actual=sha256(&fs::read(binary).map_err(|e|e.to_string())?);
+        let fixture_hash=if p["profile"]=="claude-proposal-v2"{sha256(include_bytes!("../../tests/fixtures/continuous-coordinator/mock-cli.py"))}
+            else if p["profile"]=="claude-proposal-v1"{sha256(include_bytes!("../../tests/fixtures/claude-scope/mock-cli.py"))}
+            else{sha256(include_bytes!("../../tests/fixtures/claude-conversation/mock-cli.py"))};
+        if actual!=fixture_hash{return Err("Claude fixture identity changed; no execution".into());}
     }
     if p["mode"] == "native" {
+        let resolved;
+        let selected=if p["client"].is_null(){resolved=crate::provider_selection::with_client(p.clone());&resolved}else{p};
+        crate::development::preflight(selected)?;
         for path in [
             PathBuf::from("/etc/claude-code/managed-settings.json"),
             PathBuf::from("/etc/claude-code/managed-mcp.json"),
@@ -75,10 +70,12 @@ pub fn preflight(p: &Value) -> Result<(), String> {
     Ok(())
 }
 pub fn argv(p: &Value) -> Result<Vec<String>, String> {
+    let resolved;
+    let p=if p["mode"]=="native"&&p["client"].is_null(){resolved=crate::provider_selection::with_client(p.clone());&resolved}else{p};
     preflight(p)?;
     let settings = json!({"disableAllHooks":true,"fallbackModel":[],"switchModelsOnFlag":false,"autoMemoryEnabled":false,"availableModels":[p["model"].clone()]});
     let mut args=vec![
-        p["binary"].as_str().unwrap().into(),
+        crate::provider_selection::native_binary(p)?.into(),
         "--print".into(),
         "--safe-mode".into(),
         "--restricted".into(),
@@ -157,6 +154,9 @@ pub fn prepare(
     packet: &Value,
 ) -> Result<(Vec<String>, BTreeMap<String, String>), String> {
     let p = &packet["execution"];
+    if p["mode"]=="native"&&p["client"].is_null(){
+        return Err("Legacy prepared native operation lacks executable identity; preserve it and create a new attempt".into());
+    }
     let argv = argv(p)?;
     let scratch = directory.join("client-scratch");
     fs::create_dir_all(&scratch).map_err(|e| e.to_string())?;

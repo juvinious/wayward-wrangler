@@ -1,7 +1,7 @@
 //! Isolated, scripted presentation data. This module cannot contact the real service.
 use super::editor::Draft;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
+use waywr_backend::codec::sha256;
 use std::{
     collections::BTreeMap,
     fs::{self, OpenOptions},
@@ -326,7 +326,7 @@ impl Journal {
                         "The free-form answer is quoted but not interpreted by this fixture; alternatives remain unresolved."
                     }
                 );
-                let hash = format!("{:x}", Sha256::digest(text.as_bytes()));
+                let hash = sha256(text.as_bytes());
                 self.candidate = Some(text);
                 self.candidate_sha256 = Some(hash);
                 self.add("Waywr", "Addendum candidate ready · two topics unresolved; no further independent critique. [Review candidate]");
@@ -384,7 +384,7 @@ impl Journal {
         let Some(candidate) = self.candidate.as_ref() else {
             return false;
         };
-        if format!("{:x}", Sha256::digest(candidate.as_bytes())) != *hash {
+        if sha256(candidate.as_bytes()) != *hash {
             return false;
         }
         self.reviewed_sha256 = Some(hash.clone());
@@ -397,7 +397,7 @@ impl Journal {
         let (Some(candidate), Some(expected)) = (&self.candidate, &self.candidate_sha256) else {
             return false;
         };
-        if format!("{:x}", Sha256::digest(candidate.as_bytes())) != *expected {
+        if sha256(candidate.as_bytes()) != *expected {
             return false;
         }
         let Some(hash) = self.candidate_sha256.clone() else {
@@ -485,7 +485,7 @@ impl Journal {
             ));
         }
         if let (Some(text), Some(hash)) = (&value.candidate, &value.candidate_sha256) {
-            if format!("{:x}", Sha256::digest(text.as_bytes())) != *hash {
+            if sha256(text.as_bytes()) != *hash {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
                     "Scripted candidate bytes no longer match saved hash",

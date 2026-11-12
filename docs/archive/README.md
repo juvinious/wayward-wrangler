@@ -16,6 +16,13 @@ See [cleanup outcome](closeout-2026-10-15/cleanup.md). No allowance is reopened.
 
 | Group | Historical subject |
 | --- | --- |
+| [Usability implementation plan before documentation split](usability/2026-11-11-implementation-plan-before-doc-split.md) | Superseded mixed plan/session log; current agent slice and human roadmap are maintained separately |
+| [Retired native provider contract](provider-selection/2026-11-09-retired-native-provider-contract.md) | Prior direct Codex/Claude/Ollama selection, sandbox and discovery semantics; replaced by the shared model runtime, with no legacy compatibility requirement |
+| [Superseded native-first adapter decision](provider-selection/2026-11-09-superseded-native-first-adapter.md) | Rejected narrow starting point: current integrations need not remain usable; broad multi-provider support, rather than a Codex wrapper or Pi adoption, is the target |
+| [Local iteration before execution direction](handoff/2026-11-09-local-iteration-before-execution-direction.md) | Four implemented usability slices and verification limits before the user prioritized extensible execution, lifecycle fluidity and a substantial reference application |
+| [Core usability slices](handoff/2026-11-09-usability-core-slices.md) | Stopped-project reopening, real-systemd idle replacement and provider-update red/green evidence before one-command iteration and user verification |
+| [Usability planning and cleanup](handoff/2026-11-09-usability-planning-and-cleanup.md) | Removed operator installations; proposed daily-use target before adoption of acceptance-driven implementation and local-only delivery |
+| [Clean repository baseline](handoff/2026-11-09-clean-repository-baseline.md) | Independent public source migration and GitHub safeguards before usability planning and operator-install cleanup |
 | [Post-merge workflow handoff](handoff/2026-10-18-merged-workflow-before-public-audit.md) | Pre-audit handoff from `532e999`; relative links resolve from its original `docs/HANDOFF.md` location |
 | [Ordinary project approved plan](product-workflow/approved-plan-b810bf1.md) | Approved `b810bf1` scope; implemented mechanisms are in current workflow/provider/distribution contracts, with native/GitHub limits retained |
 | [Prior workflow-readiness handoff](product-workflow/2026-10-18-prior-handoff-d1dda24.md), [prior readiness/example](product-workflow/2026-10-18-readiness-and-example.md) | Preserved unmerged recovery/convergence checkpoint, unresolved managed-project question and superseded Example Task App operating guidance before ordinary-project planning |

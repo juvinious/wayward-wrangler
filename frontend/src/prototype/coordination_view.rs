@@ -284,6 +284,9 @@ impl App {
         }
     }
     pub fn message_acknowledgement(&mut self, id: &str, out: &Value) -> bool {
+        if out["input_id"].is_string()&&out["delivery"]=="pending"{
+            self.notice="Steering pending · applies at the next agent boundary".into();return true;
+        }
         if out["input_id"].is_string() {
             if !self.finished_inputs.iter().any(|v| v == id) {
                 self.notice = "Message received; resolving its saved request context".into();
@@ -596,7 +599,8 @@ mod proposal_presentation_tests {
         }
         assert_eq!(a.draft_reply.as_ref().unwrap()["card_id"], "old-policy");
         a.input(key(KeyCode::Enter));
-        assert_eq!(a.modal, Modal::Detach);
+        assert!(a.detached);
+        assert_eq!(a.modal, Modal::None);
         assert!(a.composer.text().is_empty());
         assert!(a.draft_reply.is_none());
         a.input(key(KeyCode::Esc));

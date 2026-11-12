@@ -1,7 +1,7 @@
 //! Project-keyed, read-only Herdr review actions for Rust releases.
-use super::{route_bound_release,selected_project};
+use super::{check_project_compatibility,selected_project};
 use serde_json::{Value,json};
-use sha2::{Digest,Sha256};
+use waywr_backend::codec::sha256;
 use std::{env,fs,io,path::{Path,PathBuf},process::Command};
 use waywr_backend::{execution::{FileLock,read,write,write_bytes},herdr::Herdr,workflow_store::Store};
 
@@ -66,7 +66,7 @@ pub(crate) fn artifact(project:&Path,args:&[String],run:&str,stage:&str,expected
     let relative=reference["path"].as_str().ok_or_else(||err("Artifact path missing"))?;
     let path=run_root.join(relative).canonicalize()?;
     if !path.starts_with(&run_root){return Err(err("Artifact path leaves selected run"));}
-    if format!("{:x}",Sha256::digest(fs::read(&path)?))!=hash{return Err(err("Artifact bytes changed; review refused"));}
+    if sha256(&fs::read(&path)?)!=hash{return Err(err("Artifact bytes changed; review refused"));}
     Ok((path,store.effective_target(run).map_err(err)?))
 }
 fn editor_tab(root:&Path,project:&Path,args:&[String],run:&str,stage:&str,hash:Option<&str>)->io::Result<()> {
@@ -113,7 +113,7 @@ fn editor_tab(root:&Path,project:&Path,args:&[String],run:&str,stage:&str,hash:O
     }
     if matching.len()>1{return Err(err("Multiple matching review panes; inspect before focusing"));}
     let layout=if let Some(found)=matching.pop(){found}else{
-        let artifact_hash=format!("{:x}",Sha256::digest(fs::read(&path)?));
+        let artifact_hash=sha256(&fs::read(&path)?);
         let label=format!("Wayward Wrangler review {run} {stage} {}",&artifact_hash[..8]);
         herdr.create(workspace,&label,&argv,project,None).map_err(err)?
     };
@@ -129,12 +129,12 @@ pub fn open_link(root:&Path,manifest:&Value,args:&[String])->io::Result<()> {
     let mut routed=vec!["--project".to_owned(),project.to_string_lossy().into_owned(),
         "--state-dir".to_owned(),state.to_string_lossy().into_owned()];
     routed.extend_from_slice(args);
-    route_bound_release(root,manifest,&project,&routed)?;
+    check_project_compatibility(root,manifest,&project,&routed)?;
     editor_tab(root,&project,&routed,run,stage,Some(hash))
 }
 pub fn open_explicit(root:&Path,manifest:&Value,args:&[String],index:usize)->io::Result<()> {
     let project=selected_project(args)?;
-    route_bound_release(root,manifest,&project,args)?;
+    check_project_compatibility(root,manifest,&project,args)?;
     let mut positionals=Vec::new();let mut cursor=index+1;
     while cursor<args.len(){
         if args[cursor].starts_with("--"){cursor+=2;}else{positionals.push(args[cursor].as_str());cursor+=1;}

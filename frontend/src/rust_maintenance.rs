@@ -2,6 +2,7 @@
 use super::{rust_bundle,selected_project};
 use serde_json::{Value,json};
 use sha2::{Digest,Sha256};
+use waywr_backend::codec::sha256;
 use std::{fs,io::{self,Read},path::{Path,PathBuf},process::Command};
 use waywr_backend::{execution::{read,write,FileLock},host_attempt::Attempt,session_store::Session};
 
@@ -77,7 +78,7 @@ fn state_digest(state:&Path)->io::Result<String>{
         let mut buffer=[0u8;65536];
         loop {let count=file.read(&mut buffer)?;if count==0{break;}hash.update(&buffer[..count]);}
     }
-    Ok(format!("{:x}",hash.finalize()))
+    Ok(waywr_backend::codec::lower_hex(hash.finalize().as_ref()))
 }
 pub(super) fn host_attempts_quiescent(state:&Path,key:&str)->io::Result<()> {
     fn visit(dir:&Path,state:&Path,key:&str)->io::Result<()>{
@@ -133,8 +134,8 @@ pub(super) fn host_attempts_quiescent(state:&Path,key:&str)->io::Result<()> {
     visit(&state.join("session/development"),state,key)?;
     visit(&state.join("runs"),state,key)
 }
-/// Explicit upgrade only: stop a positively quiescent selected service under execution fencing.
-fn stop_quiescent_project(project:&Path,state:&Path,key:&str)->io::Result<()> {
+/// Stop only a positively quiescent selected service under execution fencing.
+pub(super) fn stop_quiescent_project(project:&Path,state:&Path,key:&str)->io::Result<()> {
     let _execution=FileLock::exclusive(&state.join("supervision/fence.lock")).map_err(err)?;
     if state.join("state.sqlite").exists(){Session::open_existing(project,state,key,"upgrade-preflight").map_err(err)?.quiescent_for_release_change().map_err(err)?;host_attempts_quiescent(state,key)?;}
     let unit=format!("waywr-{key}.service");let status=Command::new("systemctl").args(["--user","show","--property=ActiveState","--value",&unit]).output()?;
@@ -235,7 +236,7 @@ pub fn change(root:&Path,_manifest:&Value,args:&[String],action:&str)->io::Resul
         let source_id=old["release_id"].as_str().ok_or_else(||err("Old release ID missing"))?;
         let source=catalog.join(source_id);
         let source_manifest=rust_bundle::validate(&source)?;
-        let source_hash=format!("{:x}",Sha256::digest(fs::read(source.join("manifest.json"))?));
+        let source_hash=sha256(&fs::read(source.join("manifest.json"))?);
         if old["manifest_sha256"]!=source_hash ||
             source_manifest["state_schema_min"].as_u64().unwrap_or(u64::MAX)>schema ||
             source_manifest["state_schema_max"].as_u64().unwrap_or(0)<schema && !(imported8&&schema==9&&source_manifest["state_schema_max"]==8&&action=="upgrade"){
@@ -251,7 +252,7 @@ pub fn change(root:&Path,_manifest:&Value,args:&[String],action:&str)->io::Resul
             }
         }
     }
-    let digest=format!("{:x}",Sha256::digest(fs::read(destination.join("manifest.json"))?));
+    let digest=sha256(&fs::read(destination.join("manifest.json"))?);
     let generation=prior.as_ref().and_then(|old|old["binding_generation"].as_u64()).unwrap_or(0)+1;
     let next=json!({"schema_version":1,"project_key":key,"release_id":target,
         "manifest_sha256":digest,"binding_generation":generation});
@@ -273,7 +274,9 @@ pub fn change(root:&Path,_manifest:&Value,args:&[String],action:&str)->io::Resul
     Ok(())
 }
 
-fn require_recovery_contract(state:&Path,manifest:&Value)->io::Result<()>{
+pub(super) fn require_recovery_contract(state:&Path,manifest:&Value)->io::Result<()>{
+    if state.join("native-client-identity-v1.json").exists()&&manifest["native_client_identity_contract"]!="native-client-v1"{return Err(err("Frozen native client identities require native-client-v1; preserve attempts and use a compatible application"));}
+    if state.join("model-runtime-v1.json").exists()&&manifest["model_runtime_contract"]!="shared-models-v1"{return Err(err("Frozen shared-runtime attempts require shared-models-v1; preserve them and use a compatible application"));}
     if state.join("coordinator-recovery-v1.json").exists()&&manifest["coordinator_recovery_contract"]!="recovery-v1"{return Err(err("Retained recovery/finding semantics require recovery-v1; choose a compatible release without discarding records"));}
     if state.join("ordinary-project-v1.json").exists()&&manifest["ordinary_project_contract"]!="ordinary-project-v1"{return Err(err("Saved baseline, candidate and retention semantics require an ordinary-project-v1 release"));}
     if state.join("development-convergence-v1.json").exists()&&manifest["development_convergence_contract"]!="convergence-v1"{return Err(err("Retained named task refs and coordinator retirement require convergence-v1; choose a compatible release"));}
@@ -282,6 +285,18 @@ fn require_recovery_contract(state:&Path,manifest:&Value)->io::Result<()>{
 
 #[cfg(test)] mod tests {
     use super::*;
+    #[test] fn model_runtime_release_guard_preserves_shared_execution_semantics(){
+        let root=tempfile::tempdir().unwrap();
+        fs::write(root.path().join("model-runtime-v1.json"),b"{\"version\":1}").unwrap();
+        assert!(require_recovery_contract(root.path(),&json!({})).is_err());
+        require_recovery_contract(root.path(),&json!({"model_runtime_contract":"shared-models-v1"})).unwrap();
+    }
+    #[test] fn native_client_release_guard_rejects_an_app_that_ignores_frozen_clients(){
+        let root=tempfile::tempdir().unwrap();
+        fs::write(root.path().join("native-client-identity-v1.json"),b"{\"version\":1}").unwrap();
+        assert!(require_recovery_contract(root.path(),&json!({})).is_err());
+        require_recovery_contract(root.path(),&json!({"native_client_identity_contract":"native-client-v1"})).unwrap();
+    }
     #[test] fn recovery_release_guard_preserves_records_and_requires_supported_semantics(){
         let d=tempfile::tempdir().unwrap();let state=d.path();
         require_recovery_contract(state,&json!({})).unwrap();

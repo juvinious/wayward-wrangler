@@ -1,7 +1,44 @@
 // Production F3 forms. No discovery or inference occurs merely by opening Settings.
+const PROVIDER_FIELDS:[&str;7]=["provider","model","thinking","options","binary","transport","context_bytes"];
 impl App {
+    fn model_metadata(&self,profile:&Value)->Value {
+        self.live.as_ref().and_then(|live|live.conversation.as_ref()).and_then(|c|c["development"]["providers"]["discovery"]["models"].as_array()).into_iter().flatten()
+            .find(|m|m["provider"]==profile["provider"]&&m["model"]==profile["model"]).cloned().unwrap_or(Value::Null)
+    }
+    fn thinking_label(&self,profile:&Value)->String {
+        if let Some(level)=profile["options"]["reasoning"].as_str(){return if self.model_metadata(profile)["thinking_levels"].is_array(){level.into()}else{format!("{level} (unverified)")}}
+        if let Some(level)=self.model_metadata(profile)["thinking_default"].as_str(){return format!("default ({level})")}
+        if let Some(effort)=profile["effort"].as_str().filter(|v|*v!="provider_default"){return format!("legacy {effort}")}
+        "default (unreported)".into()
+    }
+    fn active_model_label(&self)->Option<String> {
+        let profile=self.chat().map(|c|c["profile"].clone()).unwrap_or_else(||self.provider_state()["coordinator"]["profile"].clone());
+        self.profile_model_label(&profile)
+    }
+    fn profile_model_label(&self,profile:&Value)->Option<String>{
+        profile["model"].as_str().map(|model|format!("Model: {model} · thinking {} · {}",self.thinking_label(profile),profile["provider"].as_str().unwrap_or("unconfigured")))
+    }
+    fn model_header_label(&self)->Option<String>{
+        let saved=self.live.as_ref().and_then(|live|live.conversation.as_ref()).and_then(|c|{
+            let prefs=&c["development"]["providers"]["preferences"];
+            prefs["coordinator"].as_str().and_then(|name|prefs["profiles"].get(name))
+        }).and_then(|profile|self.profile_model_label(profile));
+        let active=self.active_model_label();
+        match (saved,active){
+            (Some(saved),Some(active)) if saved!=active=>Some(format!("Saved {saved}\nActive ({}): {active}",self.chat().and_then(|chat|chat["status"].as_str()).unwrap_or("unavailable"))),
+            (Some(saved),_)=>Some(format!("Saved {saved}")),
+            (None,active)=>active,
+        }
+    }
     fn provider_state(&self) -> Value {
         self.development_view()["providers"].clone()
+    }
+    fn provider_draft(&self) -> Value {
+        let mut state = self.provider_state();
+        if state["setup_preferences"].is_object() {
+            state["preferences"] = state["setup_preferences"].clone();
+        }
+        state
     }
     fn provider_settings(&self) -> bool {
         self.modal == Modal::Settings && self.provider_state()["schema_version"] == 1
@@ -65,17 +102,32 @@ impl App {
             if saved["revision"].as_u64().is_some_and(|r| r >= revision) {
                 self.provider_edit = Some(saved);
                 self.provider_typing = false;
+                self.notice="Preferences saved. Profiles → A reviews activation of the selected saved profile.".into();
             }
         }
     }
     fn provider_key(&mut self, key: KeyEvent) {
-        if key.kind != KeyEventKind::Press {
+        if key.kind == KeyEventKind::Release {
             return;
         }
-        if key.code==KeyCode::Char('7')&&!self.provider_typing{self.provider_section=6;self.provider_row=0;self.mark();return}
-        if self.provider_section==6&&(self.provider_typing||!matches!(key.code,KeyCode::Char('1'..='6'))){self.project_key(key);return}
+        if self.provider_activation.is_some(){self.activation_key(key);return;}
+        if self.provider_picker.is_some(){self.catalog_key(key);return;}
+        if key.kind==KeyEventKind::Repeat&&(key.code==KeyCode::Enter||!self.provider_typing&&!matches!(key.code,KeyCode::Up|KeyCode::Down|KeyCode::Left|KeyCode::Right|KeyCode::Tab|KeyCode::BackTab|KeyCode::PageUp|KeyCode::PageDown|KeyCode::Home|KeyCode::End)){return;}
+        if !self.provider_typing {
+            if key.code==KeyCode::Esc {self.modal=Modal::None;self.mark();return;}
+            if matches!(key.code,KeyCode::PageUp|KeyCode::PageDown|KeyCode::Home|KeyCode::End) {
+                let step=if key.modifiers.contains(KeyModifiers::ALT){1}else{8};
+                self.modal_scroll=match key.code{KeyCode::PageUp=>self.modal_scroll.saturating_sub(step),KeyCode::PageDown=>self.modal_scroll.saturating_add(step).min(self.modal_scroll_limit),KeyCode::Home=>0,_=>self.modal_scroll_limit};
+                self.provider_follow=false;self.mark();return;
+            }
+            if let KeyCode::Char(c @ '1'..='7')=key.code {
+                self.provider_section=(c as u8-b'1') as usize;self.provider_row=0;self.provider_grant=false;
+                self.modal_scroll=0;self.provider_follow=true;self.mark();return;
+            }
+        }
+        if self.provider_section==6{self.provider_follow=true;self.project_key(key);return}
         if self.provider_edit.is_none() {
-            self.provider_edit = Some(self.provider_state());
+            self.provider_edit = Some(self.provider_draft());
         }
         self.provider_refresh_saved();
         if self.provider_edit.as_ref().is_some_and(|e| {
@@ -92,29 +144,35 @@ impl App {
             return;
         }
         let name = names[self.provider_index % names.len()].clone();
-        let local=self.provider_edit.as_ref().unwrap()["preferences"]["profiles"][&name]["provider"]=="ollama";
-        let implementation_role=(matches!(self.provider_section,1|2)&&self.provider_row%3==1)||(self.provider_section==4&&self.provider_units().get(self.provider_row).is_some_and(|u|u["role"]!="review"));
-        if !self.provider_typing&&local&&((implementation_role&&matches!(key.code,KeyCode::Enter|KeyCode::Char(' '|'p'|'a')))||(self.provider_section==1&&key.code==KeyCode::Char('w'))){self.notice="Ollama coding workers are unsupported. Select Codex/Claude for implementation; Ollama is available for coordinator/review.".into();self.mark();return}
         if self.provider_typing {
             if key.code == KeyCode::Esc {
                 self.provider_typing = false;
                 self.mark();
                 return;
             }
-            if key.code == KeyCode::Enter {
-                let field = ["model", "binary", "effort", "context_bytes", "transport"][self.provider_field % 5];
+            if matches!(key.code,KeyCode::Enter|KeyCode::Tab|KeyCode::BackTab) {
+                let field = PROVIDER_FIELDS[self.provider_field % PROVIDER_FIELDS.len()];
                 let text = self.scope_editor.text();
+                if field=="thinking" {
+                    let profile=&self.provider_edit.as_ref().unwrap()["preferences"]["profiles"][&name];
+                    let levels=self.model_metadata(profile)["thinking_levels"].clone();
+                    if levels.as_array().is_some_and(|levels|!levels.contains(&Value::String(text.clone()))){self.notice="Choose a runtime-advertised thinking level for this model".into();self.mark();return;}
+                }
                 if let Some(edit) = &mut self.provider_edit {
-                    edit["preferences"]["profiles"][&name][field] = if field == "transport"{serde_json::from_str(&text).unwrap_or(Value::Null)}else if field == "context_bytes" {
+                    let value = if matches!(field,"transport"|"options"){match serde_json::from_str(&text){Ok(v)=>v,Err(_)=>{self.notice="Enter valid JSON before accepting this field".into();return;}}}else if field == "context_bytes" {
                         text.parse::<u64>().map(Value::from).unwrap_or(Value::Null)
                     } else {
                         Value::from(text)
                     };
+                    if field=="options"&&!value.is_object(){self.notice="Model options must be a JSON object".into();self.mark();return;}
+                    if field=="thinking"{edit["preferences"]["profiles"][&name]["options"]["reasoning"]=value;}else{edit["preferences"]["profiles"][&name][field]=value;}
                     if field == "binary" {
                         edit["preferences"]["profiles"][&name]["binary_sha256"] = Value::Null;
                     }
                 }
                 self.provider_typing = false;
+                if key.code!=KeyCode::Enter{self.provider_field=(self.provider_field+if key.code==KeyCode::Tab{1}else{PROVIDER_FIELDS.len()-1})%PROVIDER_FIELDS.len();}
+                self.provider_follow=true;
                 self.mark();
                 return;
             }
@@ -122,21 +180,19 @@ impl App {
             self.mark();
             return;
         }
-        if let KeyCode::Char(c @ '1'..='6') = key.code {
-            self.provider_section = (c as u8 - b'1') as usize;
-            self.provider_row = 0;
-            self.provider_grant = false;
-            self.mark();
-            return;
-        }
         match key.code {
+            KeyCode::Char('a') if self.provider_section==0=>self.review_profile_activation(),
             KeyCode::Char('l') => {
-                self.provider_edit = Some(self.provider_state());
+                self.provider_edit = Some(self.provider_draft());
                 self.notice = "Reloaded saved preferences; unsaved edits discarded".into();
             }
             KeyCode::Char('r') => self.provider_command("providers.refresh", serde_json::json!({})),
             KeyCode::Char('s') => {
                 let p = self.provider_edit.as_ref().unwrap()["preferences"].clone();
+                for profile in p["profiles"].as_object().into_iter().flat_map(|profiles|profiles.values()){
+                    let requested=&profile["options"]["reasoning"];
+                    if !requested.is_null()&&(!requested.is_string()||self.model_metadata(profile)["thinking_levels"].as_array().is_some_and(|levels|!levels.contains(requested))){self.notice="Unsupported thinking level: choose one advertised for the selected model".into();self.mark();return;}
+                }
                 match waywr_backend::provider_selection::Preferences::parse(&p) {
                     Ok(_) => self
                         .provider_command("providers.save", serde_json::json!({"preferences":p})),
@@ -152,7 +208,9 @@ impl App {
                 self.provider_grant = false;
             }
             KeyCode::Up | KeyCode::Down => {
-                if self.provider_section == 0 || self.provider_section == 3 {
+                if self.provider_section == 0 {
+                    self.provider_field=if key.code==KeyCode::Down{(self.provider_field+1).min(PROVIDER_FIELDS.len()-1)}else{self.provider_field.saturating_sub(1)};
+                }else if self.provider_section == 3 {
                     self.provider_index = if key.code == KeyCode::Down {
                         (self.provider_index + 1) % names.len()
                     } else {
@@ -172,8 +230,9 @@ impl App {
                 }
                 self.provider_grant = false;
             }
-            KeyCode::Tab => {
-                self.provider_field = (self.provider_field + 1) % 5;
+            KeyCode::Tab | KeyCode::BackTab => {
+                if self.provider_section==0{self.provider_field=(self.provider_field+if key.code==KeyCode::Tab{1}else{PROVIDER_FIELDS.len()-1})%PROVIDER_FIELDS.len();}
+                else{let code=if key.code==KeyCode::Tab{KeyCode::Down}else{KeyCode::Up};self.provider_key(KeyEvent::new(code,KeyModifiers::NONE));return;}
             }
             KeyCode::Char('+') if self.provider_section == 0 => {
                 let edit = self.provider_edit.as_mut().unwrap();
@@ -190,37 +249,11 @@ impl App {
                     .position(|n| n == &id)
                     .unwrap_or(0);
             }
-            KeyCode::Char('c') if self.provider_section==0=>{
-                let current=&self.provider_edit.as_ref().unwrap()["preferences"]["profiles"][&name];let provider=current["provider"].clone();let catalog=self.provider_state()["discovery"]["models"].as_array().cloned().unwrap_or_default().into_iter().filter(|m|m["provider"]==provider).collect::<Vec<_>>();
-                if catalog.is_empty(){self.notice="R refreshes safe model metadata; O selects local Ollama models".into();return}let i=catalog.iter().position(|m|m["model"]==current["model"]).map_or(0,|i|(i+1)%catalog.len());let p=&mut self.provider_edit.as_mut().unwrap()["preferences"]["profiles"][&name];p["model"]=catalog[i]["model"].clone();p["effort"]=serde_json::json!("provider_default");self.notice="Model selected in draft; choose native effort with E, then S Save. Existing attempts stay frozen.".into();
-            }
-            KeyCode::Char('e') if self.provider_section==0=>{let p=&mut self.provider_edit.as_mut().unwrap()["preferences"]["profiles"][&name];let values=waywr_backend::provider_selection::efforts(p["provider"].as_str().unwrap_or(""),p["model"].as_str().unwrap_or(""));let i=values.iter().position(|e|Some(*e)==p["effort"].as_str()).map_or(0,|i|(i+1)%values.len());p["effort"]=serde_json::json!(values[i]);}
-            KeyCode::Char('o') if self.provider_section==0=>{
-                let catalog=self.provider_state()["discovery"]["ollama"]["models"].as_array().cloned().unwrap_or_default().into_iter().filter(|m|m["selectable"]==true).collect::<Vec<_>>();
-                if catalog.is_empty(){self.notice="R refreshes read-only local Ollama metadata; start/install models independently if needed".into();return}
-                let current=self.provider_edit.as_ref().unwrap()["preferences"]["profiles"][&name]["model"].clone();let i=catalog.iter().position(|m|m["model"]==current).map_or(0,|i|(i+1)%catalog.len());let model=&catalog[i];let id=format!("ollama-{}",i+1);
-                let edit=self.provider_edit.as_mut().unwrap();edit["preferences"]["profiles"][&id]=serde_json::json!({"provider":"ollama","binary":"","binary_sha256":null,"model":model["model"],"effort":"provider_default","context_bytes":98304,"transport":model["transport"]});
-                for role in ["coordinator","review"]{if !edit["preferences"]["roles"][role].is_object(){let default=edit["preferences"]["worker_default"].clone();edit["preferences"]["roles"][role]=serde_json::json!({"default":default,"allowed":[default]});}let a=edit["preferences"]["roles"][role]["allowed"].as_array_mut().unwrap();if !a.contains(&serde_json::json!(id)){a.push(serde_json::json!(id));}}
-                self.provider_index=self.provider_names().iter().position(|n|n==&id).unwrap_or(0);self.notice="Local model added to draft for coordinator/review only; suitability unverified. S saves; choose role defaults explicitly in 2 Roles".into();
-            }
-            KeyCode::Char('v') if self.provider_section == 0 => {
-                let edit = self.provider_edit.as_mut().unwrap();
-                let p = &mut edit["preferences"]["profiles"][&name];
-                let provider = if p["provider"] == "codex" {
-                    "claude"
-                } else {
-                    "codex"
-                };
-                p["provider"] = serde_json::json!(provider);
-                p.as_object_mut().unwrap().remove("transport");
-                p["effort"] = serde_json::json!("provider_default");
-                if let Some(binary) = waywr_backend::provider_selection::find_client(provider) {
-                    p["binary"] = serde_json::json!(binary);
-                    p["binary_sha256"] = Value::Null;
-                }
-                self.notice =
-                    "Provider changed in draft; enter its exact model ID before Save".into();
-            }
+            KeyCode::Char('g') if self.provider_section==0=>{let provider=self.provider_edit.as_ref().unwrap()["preferences"]["profiles"][&name]["provider"].as_str().map(str::to_owned);self.open_login(provider);}
+            KeyCode::Char('c') if self.provider_section==0=>{let provider=self.provider_edit.as_ref().unwrap()["preferences"]["profiles"][&name]["provider"].as_str().map(str::to_owned);self.open_catalog(CatalogScope::Models(provider));}
+            KeyCode::Char('f'|'/') if self.provider_section==0=>self.open_catalog(CatalogScope::Models(None)),
+            KeyCode::Char('v') if self.provider_section==0=>self.open_catalog(CatalogScope::Providers),
+            KeyCode::Char('e') if self.provider_section==0=>self.provider_edit_field(&name),
             KeyCode::Char('i') if self.provider_section == 1 && self.provider_row > 0 => {
                 let role = waywr_backend::provider_selection::ROLES[self.provider_row % 3];
                 self.provider_edit.as_mut().unwrap()["preferences"]["roles"]
@@ -291,18 +324,12 @@ impl App {
             }
             KeyCode::Enter => match self.provider_section {
                 0 => {
-                    let field =
-                        ["model", "binary", "effort", "context_bytes", "transport"][self.provider_field % 5];
-                    let value = &self.provider_edit.as_ref().unwrap()["preferences"]["profiles"]
-                        [&name][field];
-                    self.scope_editor = Composer::default();
-                    self.scope_editor.input(Event::Paste(
-                        value
-                            .as_str()
-                            .map(str::to_owned)
-                            .unwrap_or_else(|| value.to_string()),
-                    ));
-                    self.provider_typing = true;
+                    match self.provider_field {
+                        0=>self.open_catalog(CatalogScope::Providers),
+                        1=>{let provider=self.provider_edit.as_ref().unwrap()["preferences"]["profiles"][&name]["provider"].as_str().map(str::to_owned);self.open_catalog(CatalogScope::Models(provider));},
+                        2=>self.open_catalog(CatalogScope::Thinking),
+                        _=>self.provider_edit_field(&name),
+                    }
                 }
                 1 => {
                     let role = waywr_backend::provider_selection::ROLES[self.provider_row % 3];
@@ -342,7 +369,15 @@ impl App {
             },
             _ => {}
         }
-        self.mark();
+        self.provider_follow=true;self.mark();
+    }
+    fn provider_edit_field(&mut self,name:&str) {
+        let field=PROVIDER_FIELDS[self.provider_field%PROVIDER_FIELDS.len()];
+        let profile=&self.provider_edit.as_ref().unwrap()["preferences"]["profiles"][name];
+        let value=if field=="thinking"{profile["options"]["reasoning"].as_str().map(|s|Value::String(s.into())).unwrap_or_else(||self.model_metadata(profile)["thinking_default"].clone())}else{profile[field].clone()};
+        self.scope_editor=Composer::default();
+        self.scope_editor.input(Event::Paste(value.as_str().map(str::to_owned).unwrap_or_else(||value.to_string())));
+        self.provider_typing=true;
     }
     fn provider_body(&self) -> (String, String) {
         if self.provider_section==6{return self.project_body()}
@@ -353,26 +388,26 @@ impl App {
         let name = names
             .get(self.provider_index % names.len().max(1))
             .map(String::as_str)
-            .unwrap_or("codex");
-        let mut text = format!(
-            "[1 Profiles] [2 Roles] [3 Fallback] [4 Switch] [5 Tasks] [6 Policy] [7 Project]\nRevision {} · saved current coordinator {}\nSelected profile: {} · ←/→ changes profile\nS saves preference draft · L reloads · R refreshes local metadata · Esc returns\nPreference saves affect future attempts; Switch changes both coordinator lanes.\n\n",
-            edit["revision"], saved["coordinator"]["profile_id"], name
-        );
+            .unwrap_or("default");
+        let mut text = format!("Revision {} · current coordinator {}\n",edit["revision"],saved["coordinator"]["profile_id"]);
+        if saved["setup_required"] == true {
+            text.push_str("Provider setup required. Choose provider/model and thinking, S save, then A reviews activation. Sending a draft also opens that review directly.\nExisting requests keep their own policies; they do not block new discussions. Opening this form changes no settings.\n\n");
+        }
         match self.provider_section {
             0 => {
                 for id in p["profiles"].as_object().into_iter().flat_map(|o| o.keys()) {
                     let v = &p["profiles"][id];
                     text.push_str(&format!(
                         "{} {}: {}/{} · {}\n",
-                        if id == name { "›" } else { " " },
+                        if id == name { "•" } else { " " },
                         id,
                         v["provider"].as_str().unwrap_or("?"),
                         v["model"].as_str().unwrap_or("?"),
-                        v["effort"].as_str().unwrap_or("?")
+                        self.thinking_label(v)
                     ));
                 }
-                text.push_str("\n↑/↓ profile · + duplicate · V Codex/Claude · C native catalog · E native effort · O local Ollama catalog · Tab field · Enter edits, Enter accepts field\n");
-                for (i, field) in ["model", "binary", "effort", "context_bytes", "transport"]
+                text.push_str("\n←/→ profile · + duplicate · G sign in · V providers · C provider models · F all models\n");
+                for (i, field) in PROVIDER_FIELDS
                     .iter()
                     .enumerate()
                 {
@@ -382,7 +417,7 @@ impl App {
                         if *field=="context_bytes"{"working target bytes (optional; soft)"}else{field},
                         if self.provider_typing && i == self.provider_field {
                             self.scope_editor.text()
-                        } else {
+                        } else if *field=="thinking"{self.thinking_label(&p["profiles"][name])}else {
                             p["profiles"][name][*field]
                                 .as_str()
                                 .map(str::to_owned)
@@ -390,9 +425,12 @@ impl App {
                         }
                     ));
                 }
-                let profile = &p["profiles"][name];
-                text.push_str(&format!("Supported effort tokens: {}\nExact ID required; unknown models accept provider_default only. Context: optional soft working target; application/model limits are checked separately in Inspect.\nBinary identity: {}\n",waywr_backend::provider_selection::efforts(profile["provider"].as_str().unwrap_or(""),profile["model"].as_str().unwrap_or("")).join(", "),profile["binary_sha256"]));
-                text.push_str(&format!("\nLocal discovery (not authentication or role proof):\n{}\nOllama: conversation/coordinator/review only. Model suitability remains unverified. Gemini/OpenCode execution and Ollama coding workers are unsupported.",serde_json::to_string_pretty(&saved["discovery"]).unwrap_or_default()));
+                let state=self.provider_state();let models=state["discovery"]["models"].as_array().cloned().unwrap_or_default();
+                let mut providers=models.iter().filter_map(|m|m["provider"].as_str()).collect::<Vec<_>>();providers.sort();providers.dedup();
+                text.push_str(&format!("\n{} providers · {} catalog models · authentication not checked\n",state["discovery"]["providers"].as_array().map_or(providers.len(),Vec::len),models.len()));
+                if let Some(reason)=state["discovery"]["reason"].as_str(){text.push_str(&format!("Catalog unavailable: {reason}\n"));}
+                text.push_str("Exact provider/model IDs and runtime JSON options are editable. Catalogs are suggestions, not core allowlists. Configure endpoints/models in the runtime configuration; credentials stay outside project state.\n");
+
             }
             1 | 2 => {
                 text.push_str(if self.provider_section==1{"↑/↓ role · Space toggle selected profile in allowed set · Enter set role default · I inherit project worker default · W set project worker default\n"}else{"↑/↓ role · Space append/remove selected alternative. Listed order is fallback order. Empty = wait, never substitute.\n"});
@@ -457,19 +495,316 @@ impl App {
 #[cfg(test)]
 mod provider_ui_tests {
     use super::*;
+    fn capture(app:&mut App,width:u16,height:u16,label:&str)->String {
+        let mut terminal=ratatui::Terminal::new(ratatui::backend::TestBackend::new(width,height)).unwrap();
+        terminal.draw(|frame|app.render(frame,Duration::ZERO)).unwrap();
+        let screen=terminal.backend().buffer().content().chunks(width as usize)
+            .map(|row|row.iter().map(|c|c.symbol()).collect::<String>()).collect::<Vec<_>>().join("\n");
+        if let Some(root)=std::env::var_os("WAYWR_UI_SNAPSHOT_DIR") {
+            let root=std::path::PathBuf::from(root);std::fs::create_dir_all(&root).unwrap();
+            std::fs::write(root.join(format!("{label}-{width}x{height}.txt")),&screen).unwrap();
+        }
+        screen
+    }
+    fn navigation_app() -> App {
+        let mut app=App::new_live("project".into(),Draft::default());
+        let prefs=serde_json::json!({"schema_version":3,"profile":"development-profiles-v1",
+            "profiles":{"default":{"provider":"provider-a","model":"model-00","binary":"/missing/node",
+                "transport":{"entry":"bundled"},"effort":"provider_default","options":{},"context_bytes":98304}},
+            "coordinator":"default","worker_default":"default","roles":{},"fallback":{},"concurrency":2,
+            "dependency_network":true,"main_policy":"checked-fast-forward","quality_preference":""});
+        let models=(0..60).map(|i|serde_json::json!({"provider":if i<30{"provider-a"}else{"provider-b"},
+            "model":format!("model-{i:02}"),"name":format!("Model {i:02}"),"context_window":32768})).collect::<Vec<_>>();
+        app.live.as_mut().unwrap().conversation=Some(serde_json::json!({"development":{"providers":{
+            "schema_version":1,"revision":1,"preferences":prefs,"coordinator":{"profile_id":"default"},
+            "discovery":{"providers":[{"id":"provider-a"},{"id":"provider-b"},{"id":"provider-empty"}],"models":models}}}}));
+        app.input(Event::Key(KeyEvent::new(KeyCode::F(3),KeyModifiers::NONE)));
+        app
+    }
+    #[test]
+    fn mouse_wheel_moves_the_model_list_without_applying_or_saving_a_selection(){
+        let mut app=navigation_app();app.open_catalog(CatalogScope::Models(None));capture(&mut app,96,30,"mouse-picker");
+        let saved=app.provider_edit.clone();let query=app.provider_picker.as_ref().unwrap().query.text();
+        app.input(Event::Mouse(crossterm::event::MouseEvent{kind:crossterm::event::MouseEventKind::ScrollDown,column:10,row:8,modifiers:KeyModifiers::NONE}));
+        assert_eq!(app.provider_picker.as_ref().unwrap().index,3);assert_eq!(app.provider_picker.as_ref().unwrap().query.text(),query);assert_eq!(app.provider_edit,saved);assert!(app.take_intent().is_none());
+    }
+    #[test]
+    fn provider_login_from_settings_uses_sdk_methods_and_keeps_the_draft(){
+        let mut app=navigation_app();app.composer.area.insert_str("Unsent work");
+        app.live.as_mut().unwrap().conversation.as_mut().unwrap()["development"]["providers"]["discovery"]["providers"][0]["login_methods"]=serde_json::json!(["oauth","apiKey"]);
+        app.provider_key(KeyEvent::new(KeyCode::Char('g'),KeyModifiers::NONE));
+        assert!(app.modal_body().0.contains("Sign in"),"Settings offers no provider sign-in");assert!(app.take_intent().is_none());
+        app.input(Event::Key(KeyEvent::new(KeyCode::Enter,KeyModifiers::NONE)));
+        assert!(app.modal_body().1.contains("oauth"));app.input(Event::Key(KeyEvent::new(KeyCode::Enter,KeyModifiers::NONE)));
+        let intent=app.take_intent().expect("Explicit method did not start login");assert!(format!("{intent:?}").contains("provider-a"));
+        assert_eq!(app.composer.text(),"Unsent work");
+        app.auth_update(serde_json::json!({"type":"auth.prompt","id":"private-prompt","prompt":{"type":"secret","message":"Enter key"}}));
+        app.input(Event::Paste("fixture-private-value".into()));
+        app.input(Event::Key(KeyEvent::new(KeyCode::Home,KeyModifiers::NONE)));app.input(Event::Key(KeyEvent::new(KeyCode::Char('x'),KeyModifiers::NONE)));
+        assert!(!app.modal_body().1.contains("fixture-private-value"));assert!(!app.conversation_ui_state().to_string().contains("fixture-private-value"));
+        app.input(Event::Key(KeyEvent::new(KeyCode::Enter,KeyModifiers::NONE)));
+        assert!(matches!(app.take_intent(),Some(LiveIntent::AuthAnswer{id,value}) if id=="private-prompt"&&value=="xfixture-private-value"));
+        app.auth_update(serde_json::json!({"type":"auth.event","event":{"type":"auth_url","url":"https://example.invalid/authorize"}}));
+        assert_eq!(app.take_intent(),Some(LiveIntent::AuthBrowser("https://example.invalid/authorize".into())));
+        app.input(Event::Key(KeyEvent::new(KeyCode::Esc,KeyModifiers::NONE)));assert_eq!(app.take_intent(),Some(LiveIntent::AuthCancel));assert_eq!(app.composer.text(),"Unsent work");
+    }
+    #[test]
+    fn provider_login_callback_returns_without_replay_and_repeated_enter_cannot_start_it(){
+        let mut app=navigation_app();app.live.as_mut().unwrap().conversation.as_mut().unwrap()["development"]["providers"]["discovery"]["providers"][0]["login_methods"]=serde_json::json!(["oauth"]);
+        app.open_login(Some("provider-a".into()));app.input(Event::Key(KeyEvent::new(KeyCode::Enter,KeyModifiers::NONE)));
+        app.input(Event::Key(KeyEvent::new_with_kind(KeyCode::Enter,KeyModifiers::NONE,KeyEventKind::Repeat)));assert!(app.take_intent().is_none());
+        app.input(Event::Key(KeyEvent::new(KeyCode::Enter,KeyModifiers::NONE)));assert!(matches!(app.take_intent(),Some(LiveIntent::ProviderLogin{..})));
+        app.auth_update(serde_json::json!({"type":"auth.prompt","id":"redirect","prompt":{"type":"manual_code","message":"Optional redirect"}}));app.input(Event::Paste("private-redirect".into()));
+        app.auth_update(serde_json::json!({"type":"auth.prompt_cancelled","id":"redirect"}));assert!(!app.modal_body().1.contains("Optional redirect"));
+        app.auth_update(serde_json::json!({"type":"auth.completed","status":"authenticated"}));assert!(app.modal_body().1.contains("held messages will not retry"));assert!(app.take_intent().is_none());
+        app.input(Event::Key(KeyEvent::new(KeyCode::Enter,KeyModifiers::NONE)));assert_eq!(app.modal,Modal::Settings);
+    }
+    #[test]
+    fn direct_model_thinking_and_status_commands_open_their_controls_without_execution(){
+        let mut app=navigation_app();app.modal=Modal::None;
+        app.command("model");assert_eq!(app.modal,Modal::Settings);assert!(app.provider_picker.is_some());assert!(app.take_intent().is_none());
+        app.input(Event::Key(KeyEvent::new(KeyCode::Esc,KeyModifiers::NONE)));app.input(Event::Key(KeyEvent::new(KeyCode::Esc,KeyModifiers::NONE)));
+        app.command("thinking");assert_eq!(app.modal,Modal::Settings);assert_eq!(app.provider_field,2);assert!(app.provider_picker.is_some());assert!(app.take_intent().is_none());
+        app.input(Event::Key(KeyEvent::new(KeyCode::Esc,KeyModifiers::NONE)));app.input(Event::Key(KeyEvent::new(KeyCode::Esc,KeyModifiers::NONE)));
+        app.command("status");let(title,body)=app.modal_body();assert!(title.contains("Status"));assert!(body.contains("Connection"));assert!(body.contains("Model"));assert!(app.take_intent().is_none());
+    }
+    #[test]
+    fn blocked_send_opens_saved_model_setup_with_the_draft_intact(){
+        let mut app=navigation_app();app.modal=Modal::None;app.focus=Focus::Composer;
+        let c=app.live.as_mut().unwrap().conversation.as_mut().unwrap();
+        c["binding"]=serde_json::json!({"generation":7});
+        c["chat"]=serde_json::json!({"status":"blocked","reason":"Provider setup required",
+            "profile":{"provider":"retired","model":"old-model","mode":"native"}});
+        c["development"]["providers"]["setup_required"]=serde_json::json!(true);
+        c["development"]["providers"]["coordinator"]["profile"]=serde_json::json!({"provider":"retired","model":"old-model"});
+        app.input(Event::Paste("Please document the app".into()));
+        let key=|code|Event::Key(KeyEvent::new(code,KeyModifiers::NONE));
+        app.input(key(KeyCode::Enter));
+        assert_eq!(app.modal,Modal::Settings,"Blocked Send must offer the next usable action directly");
+        assert!(app.provider_activation.is_some(),"A saved model needs a direct activation review");
+        assert_eq!(app.composer.text(),"Please document the app");
+        assert!(app.take_intent().is_none());
+        app.input(key(KeyCode::Esc));assert_eq!(app.composer.text(),"Please document the app");
+        assert_eq!(app.modal,Modal::None);app.input(key(KeyCode::Enter));
+        app.input(key(KeyCode::Right));app.input(key(KeyCode::Enter));
+        assert!(matches!(app.take_intent(),Some(LiveIntent::Dialogue(v))if v["action"]=="providers.switch"&&v["payload"]["profile_id"]=="default"));
+        assert_eq!(app.composer.text(),"Please document the app");
+    }
+    #[test]
+    fn profile_activation_reviews_exact_saved_selection_before_granting_context(){
+        let mut app=navigation_app();
+        let c=app.live.as_mut().unwrap().conversation.as_mut().unwrap();
+        c["binding"]=serde_json::json!({"generation":7});
+        c["development"]["providers"]["coordinator"]["profile"]=serde_json::json!({"provider":"retired","model":"old-model"});
+        let key=|code|Event::Key(KeyEvent::new(code,KeyModifiers::NONE));
+        app.input(key(KeyCode::Char('a')));
+        let screen=capture(&mut app,80,24,"activation-review");
+        assert!(screen.contains("Activate saved model"),"Profiles must expose an activation review directly");
+        assert!(screen.contains("model-00")&&screen.contains("provider-a"));
+        assert!(screen.contains("share project context"));
+        assert!(app.take_intent().is_none(),"Opening the review does not grant or switch");
+        app.input(key(KeyCode::Enter));
+        assert!(app.take_intent().is_none(),"Default action keeps the current binding");
+        app.input(key(KeyCode::Char('a')));app.input(key(KeyCode::Right));
+        let mut repeated=KeyEvent::new(KeyCode::Enter,KeyModifiers::NONE);repeated.kind=KeyEventKind::Repeat;
+        app.input(Event::Key(repeated));assert!(app.take_intent().is_none());
+        app.input(key(KeyCode::Enter));
+        assert!(matches!(app.take_intent(),Some(LiveIntent::Dialogue(v)) if v["action"]=="providers.switch"&&v["payload"]["profile_id"]=="default"&&v["payload"]["expected_revision"]==1&&v["payload"]["expected_generation"]==7&&v["payload"]["grant_context"]==true&&v["payload"]["mode"]=="after_current_turn"));
+    }
+    #[test]
+    fn activation_cannot_apply_unsaved_edits_or_a_changed_review_target(){
+        let mut app=navigation_app();
+        app.live.as_mut().unwrap().conversation.as_mut().unwrap()["binding"]=serde_json::json!({"generation":1});
+        let key=|code|Event::Key(KeyEvent::new(code,KeyModifiers::NONE));
+        app.provider_edit.as_mut().unwrap()["preferences"]["profiles"]["default"]["options"]["reasoning"]=serde_json::json!("high");
+        app.input(key(KeyCode::Char('a')));
+        assert!(app.notice.contains("Save"));assert!(app.take_intent().is_none());
+        app.input(key(KeyCode::Char('l')));app.input(key(KeyCode::Char('a')));
+        app.live.as_mut().unwrap().conversation.as_mut().unwrap()["development"]["providers"]["revision"]=serde_json::json!(2);
+        app.input(key(KeyCode::Right));app.input(key(KeyCode::Enter));
+        assert!(app.take_intent().is_none(),"A reviewed profile must not redirect after its saved revision changes");
+        assert!(app.notice.contains("changed"));
+        app.input(key(KeyCode::Esc));assert_eq!(app.modal,Modal::Settings);
+        app.input(key(KeyCode::Char('l')));app.input(key(KeyCode::Char('a')));
+        app.live.as_mut().unwrap().conversation.as_mut().unwrap()["binding"]["generation"]=serde_json::json!(2);
+        app.input(key(KeyCode::Right));app.input(key(KeyCode::Enter));
+        assert!(app.take_intent().is_none(),"A changed binding generation invalidates the review too");
+    }
+    #[test]
+    fn main_header_reflects_saved_model_level_and_labels_a_different_blocked_binding(){
+        let mut app=navigation_app();app.modal=Modal::None;
+        let c=app.live.as_mut().unwrap().conversation.as_mut().unwrap();
+        c["development"]["providers"]["preferences"]["profiles"]["default"]["options"]["reasoning"]=serde_json::json!("high");
+        c["development"]["providers"]["discovery"]["models"][0]["thinking_levels"]=serde_json::json!(["off","high"]);
+        c["chat"]=serde_json::json!({"status":"blocked","profile":{"provider":"retired-provider","model":"old-model","effort":"medium"}});
+        let screen=capture(&mut app,100,28,"saved-versus-active-header");
+        let rows=screen.lines().collect::<Vec<_>>();
+        assert!(rows[1].contains("Saved Model: model-00")&&rows[1].contains("thinking high"),"The primary model header must reflect the saved selection");
+        assert!(screen.contains("Active (blocked): Model: old-model"));
+        assert!(screen.contains("legacy medium"));
+        assert!(app.take_intent().is_none());
+        // A subsequent authoritative save revision updates the primary label.
+        let mut c=app.live.as_ref().unwrap().conversation.clone().unwrap();
+        c["development"]["providers"]["revision"]=serde_json::json!(2);
+        c["development"]["providers"]["preferences"]["profiles"]["default"]["options"]["reasoning"]=serde_json::json!("off");
+        app.apply_snapshot(&serde_json::json!({"conversation":c,"session":{"phase":"paused"},"tasks":[],"recent_events":[]}));
+        let screen=capture(&mut app,100,28,"saved-header-refresh");
+        assert!(screen.lines().nth(1).unwrap().contains("thinking off"));
+        assert!(screen.contains("legacy medium"));
+        assert!(app.take_intent().is_none());
+    }
+    #[test]
+    fn thinking_selection_uses_runtime_choices_and_shows_draft_and_active_levels() {
+        let mut app=navigation_app();
+        let live=app.live.as_mut().unwrap().conversation.as_mut().unwrap();
+        live["development"]["providers"]["discovery"]["models"][0]["thinking_levels"]=serde_json::json!(["off","high","runtime-defined-level"]);
+        live["development"]["providers"]["discovery"]["models"][0]["thinking_default"]=serde_json::json!("off");
+        live["chat"]=serde_json::json!({"status":"available","profile":{"provider":"provider-a","model":"model-00","options":{"reasoning":"high"}}});
+        let key=|code|Event::Key(KeyEvent::new(code,KeyModifiers::NONE));
+        app.input(key(KeyCode::Down));app.input(key(KeyCode::Down));app.input(key(KeyCode::Enter));app.input(key(KeyCode::End));
+        let screen=capture(&mut app,80,24,"thinking-picker");
+        assert!(screen.contains("runtime-defined-level"),"The chooser must use runtime metadata, not a Rust effort enum");
+        app.input(key(KeyCode::Enter));
+        assert_eq!(app.provider_edit.as_ref().unwrap()["preferences"]["profiles"]["default"]["options"]["reasoning"],"runtime-defined-level");
+        let screen=capture(&mut app,80,24,"thinking-draft");
+        assert!(screen.contains("model-00")&&screen.contains("runtime-defined-level"));
+        assert!(app.take_intent().is_none());
+        app.input(key(KeyCode::Char('s')));
+        assert!(matches!(app.take_intent(),Some(LiveIntent::Dialogue(v)) if v["action"]=="providers.save"&&v["payload"]["preferences"]["profiles"]["default"]["options"]["reasoning"]=="runtime-defined-level"));
+        app.input(key(KeyCode::Esc));
+        let screen=capture(&mut app,80,24,"active-thinking");
+        assert!(screen.contains("model-00")&&screen.contains("thinking high"),"The main view must show the active model and thinking level");
+    }
+    #[test]
+    fn settings_arrows_and_reverse_tab_move_fields_and_escape_cancels_only_the_edit() {
+        let mut app=navigation_app();
+        let key=|code|Event::Key(KeyEvent::new(code,KeyModifiers::NONE));
+        app.input(key(KeyCode::Down));
+        assert!(app.provider_body().1.contains("› model:"),"Down must move to the next form field, even with one profile");
+        app.input(key(KeyCode::BackTab));
+        assert!(app.provider_body().1.contains("› provider:"));
+        for _ in 0..6 {app.input(key(KeyCode::Tab));}
+        app.input(key(KeyCode::Enter));
+        assert!(app.provider_typing);
+        app.input(key(KeyCode::Esc));
+        assert_eq!(app.modal,Modal::Settings,"Escape cancels an edit before closing its form");
+        assert!(!app.provider_typing);
+        assert_eq!(app.provider_edit.as_ref().unwrap()["preferences"]["profiles"]["default"]["context_bytes"],98304);
+        assert!(app.take_intent().is_none());
+        app.input(key(KeyCode::Enter));
+        app.input(key(KeyCode::Tab));
+        assert!(!app.provider_typing,"Tab accepts the field and returns to form navigation");
+        assert!(app.provider_body().1.contains("› provider:"));
+    }
+    #[test]
+    fn catalog_navigation_reaches_the_last_model_and_applies_only_an_explicit_selection() {
+        let mut app=navigation_app();
+        let key=|code|Event::Key(KeyEvent::new(code,KeyModifiers::NONE));
+        app.input(key(KeyCode::Char('f')));
+        app.input(key(KeyCode::End));
+        let screen=capture(&mut app,80,24,"model-picker");
+        assert!(screen.contains("model-59"),"End must reach and show a model beyond the old preview and initial provider");
+        assert!(screen.contains("Esc"),"Back controls remain visible");
+        assert_eq!(app.provider_edit.as_ref().unwrap()["preferences"]["profiles"]["default"]["model"],"model-00");
+        app.input(key(KeyCode::PageUp));
+        app.input(key(KeyCode::PageDown));
+        app.input(key(KeyCode::Up));
+        app.input(key(KeyCode::Enter));
+        assert_eq!(app.provider_edit.as_ref().unwrap()["preferences"]["profiles"]["default"]["model"],"model-58");
+        assert!(app.take_intent().is_none(),"Browsing/selecting does not save, switch or authorize");
+        app.input(key(KeyCode::Char('f')));
+        app.input(Event::Paste("MODEL-42".into()));
+        app.input(key(KeyCode::Enter));
+        assert_eq!(app.provider_edit.as_ref().unwrap()["preferences"]["profiles"]["default"]["model"],"model-42");
+    }
+    #[test]
+    fn settings_focus_and_controls_stay_visible_and_manual_ids_remain_possible() {
+        for (width,height) in [(60,18),(80,24),(120,40)] {
+            let mut app=navigation_app();let key=|code|Event::Key(KeyEvent::new(code,KeyModifiers::NONE));
+            for _ in 0..6{app.input(key(KeyCode::Down));}
+            let screen=capture(&mut app,width,height,"settings");
+            assert!(screen.contains("› working target"),"Selected field must stay visible at {width}x{height}");
+            assert!(screen.contains("Esc back"),"Controls must stay visible");
+            app.input(key(KeyCode::PageDown));
+            assert!(capture(&mut app,width,height,"settings-scrolled").contains("Esc back"));
+            for _ in 0..6{app.input(key(KeyCode::Up));}
+            app.input(key(KeyCode::Char('e')));
+            app.input(Event::Key(KeyEvent::new(KeyCode::Char('a'),KeyModifiers::CONTROL)));
+            app.input(Event::Paste("provider-not-in-catalog".into()));
+            app.input(key(KeyCode::Enter));
+            assert_eq!(app.provider_edit.as_ref().unwrap()["preferences"]["profiles"]["default"]["provider"],"provider-not-in-catalog");
+            app.input(key(KeyCode::Char('f')));
+            app.input(Event::Paste("no matching model".into()));
+            let screen=capture(&mut app,width,height,"empty-picker");
+            assert!(screen.contains("No catalog matches"));
+            app.input(key(KeyCode::Enter));app.input(key(KeyCode::Esc));
+            assert_eq!(app.modal,Modal::Settings);
+            assert_eq!(app.provider_edit.as_ref().unwrap()["preferences"]["profiles"]["default"]["provider"],"provider-not-in-catalog");
+            assert!(app.take_intent().is_none());
+        }
+    }
+    #[test]
+    fn provider_picker_includes_empty_catalogs_and_escape_returns_one_level() {
+        let mut app=navigation_app();
+        let key=|code|Event::Key(KeyEvent::new(code,KeyModifiers::NONE));
+        app.input(key(KeyCode::Char('v')));
+        app.input(Event::Paste("provider-empty".into()));
+        assert_eq!(app.catalog_entries().len(),1,"Providers with no catalog models remain visible");
+        app.input(key(KeyCode::Enter));
+        assert!(app.catalog_entries().is_empty());
+        app.input(key(KeyCode::Esc));
+        assert!(app.provider_picker.is_some(),"Escape returns to the provider list");
+        app.input(key(KeyCode::Esc));
+        assert_eq!(app.modal,Modal::Settings);
+        assert!(app.provider_picker.is_none());
+        assert!(app.take_intent().is_none());
+    }
+    #[test]
+    fn retired_profiles_offer_an_unsaved_setup_form() {
+        let mut app = App::new_live("project".into(), Draft::default());
+        app.live.as_mut().unwrap().conversation = Some(serde_json::json!({"development":{"providers":{
+            "schema_version":1,"revision":7,"setup_required":true,
+            "preferences":{"schema_version":2,"profiles":{"retired":{"provider":"retired"}}},
+            "setup_preferences":{"schema_version":3,"profile":"development-profiles-v1",
+                "profiles":{"default":{"provider":"new-provider","model":"new-model","binary":"/missing/node",
+                    "transport":{"entry":"bundled"},"effort":"provider_default","options":{},"context_bytes":98304}},
+                "coordinator":"default","worker_default":"default","roles":{},"fallback":{},"concurrency":2,
+                "dependency_network":true,"main_policy":"checked-fast-forward","quality_preference":""},
+            "coordinator":{"profile_id":"retired"}}}}));
+        app.open(Modal::Settings);
+        assert_eq!(app.provider_edit.as_ref().unwrap()["preferences"]["schema_version"], 3);
+        assert_eq!(app.provider_state()["preferences"]["schema_version"], 2);
+        assert!(app.provider_body().1.contains("Provider setup required"));
+        capture(&mut app,80,24,"retired-settings");
+        app.input(Event::Key(KeyEvent::new(KeyCode::End,KeyModifiers::NONE)));
+        assert!(capture(&mut app,80,24,"retired-settings-scrolled").contains("Provider setup required"),"Setup status stays visible when the form scrolls");
+        assert!(app.take_intent().is_none(), "Opening settings does not save or authorize execution");
+        app.handle_modal(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::NONE));
+        assert!(matches!(app.take_intent(),Some(LiveIntent::Dialogue(v)) if v["action"]=="providers.save" && v["payload"]["preferences"]["schema_version"]==3 && v["payload"]["expected_revision"]==7));
+    }
     #[test]
     fn provider_forms_edit_save_roles_and_switch_without_sending_a_request() {
         let mut app = App::new_live("project".into(), Draft::default());
-        let prefs = serde_json::json!({"schema_version":2,"profile":"development-profiles-v1","profiles":{"codex":{"provider":"codex","binary":"/missing/codex","model":"gpt-6.1-sol","effort":"medium","binary_sha256":null,"context_bytes":98304},"claude":{"provider":"claude","binary":"/missing/claude","model":"claude-sonnet-5-5","effort":"medium","binary_sha256":null,"context_bytes":98304}},"coordinator":"codex","worker_default":"codex","roles":{"coordinator":{"default":"codex","allowed":["codex"]},"review":{"default":"codex","allowed":["codex"]},"implementation":{"default":"codex","allowed":["codex"]}},"fallback":{"coordinator":[],"implementation":[],"review":[]},"concurrency":2,"dependency_network":true,"main_policy":"checked-fast-forward","quality_preference":""});
+        let prefs = serde_json::json!({"schema_version":3,"profile":"development-profiles-v1","profiles":{"codex":{"provider":"codex","binary":"/missing/node","options":{},"transport":{"entry":"/unused/runtime.mjs"},"model":"gpt-6.1-sol","effort":"medium","binary_sha256":null,"context_bytes":98304},"claude":{"provider":"claude","binary":"/missing/node","options":{},"transport":{"entry":"/unused/runtime.mjs"},"model":"claude-sonnet-5-5","effort":"medium","binary_sha256":null,"context_bytes":98304}},"coordinator":"codex","worker_default":"codex","roles":{"coordinator":{"default":"codex","allowed":["codex"]},"review":{"default":"codex","allowed":["codex"]},"implementation":{"default":"codex","allowed":["codex"]}},"fallback":{"coordinator":[],"implementation":[],"review":[]},"concurrency":2,"dependency_network":true,"main_policy":"checked-fast-forward","quality_preference":""});
         app.live.as_mut().unwrap().conversation = Some(
             serde_json::json!({"binding":{"generation":1},"development":{"providers":{"schema_version":1,"revision":1,"preferences":prefs,"coordinator":{"profile_id":"codex"},"switch":null},"units":[],"workflows":[],"requests":[]}}),
         );
         app.open(Modal::Settings);
         assert!(app.provider_settings());
         assert!(app.take_intent().is_none());
+        app.live.as_mut().unwrap().conversation.as_mut().unwrap()["development"]["providers"]["discovery"]=serde_json::json!({"models":[
+            {"provider":"brand-outside-core","model":"custom-model","name":"Searchable model","context_window":32768}]});
+        app.handle_modal(KeyEvent::new(KeyCode::Char('f'),KeyModifiers::NONE));
+        app.input(Event::Paste("Searchable".into()));
+        app.handle_modal(KeyEvent::new(KeyCode::Enter,KeyModifiers::NONE));
+        let selected=app.provider_names()[app.provider_index].clone();
+        assert_eq!(app.provider_edit.as_ref().unwrap()["preferences"]["profiles"][&selected]["provider"],"brand-outside-core");
+        assert!(app.provider_body().1.contains("custom-model"));
         let key = |c| KeyEvent::new(c, KeyModifiers::NONE);
         app.handle_modal(key(KeyCode::Down));
-        assert_eq!(app.provider_index, 1); // arrow reaches form, not generic scroll
+        assert_eq!(app.provider_field, 2); // arrows navigate fields; horizontal arrows choose profiles
+        app.handle_modal(key(KeyCode::Right));
+        assert_eq!(app.provider_index, 1);
         app.handle_modal(key(KeyCode::Left));
         app.handle_modal(key(KeyCode::Char('2')));
         app.handle_modal(key(KeyCode::Char(' ')));

@@ -1,61 +1,31 @@
-# Linux worker sandbox setup
+# Linux requirements and execution boundary
 
-Waywr currently launches Codex 0.162.1 with its workspace-write sandbox. The Linux
-host must support that sandbox in addition to the systemd user manager. A working
-conversation does not prove worker command execution is available.
+The initial binary target is Linux x86_64 with glibc2.39 or newer (Ubuntu24.04 is
+the build baseline). Waywr starts one project service through the systemd user
+manager. The terminal session must have access to that manager/session bus and
+provide `systemctl` and `systemd-run`.
 
-## Retained testing setup, 2026-10-15
+A built application also needs Git, `/bin/sh`, Node >=22.19 and util-linux `flock`.
+Rust, npm and Python are source-build tools; they are not required to run a binary
+bundle. See [installation](distribution.md) for the current methods and limitations.
 
-The first Example Task App workers reported `bwrap: setting up uid map: Permission denied`
-before editing files or creating commits. The user installed and loaded
-`/etc/apparmor.d/waywr-codex-0.162.1` to allow user namespaces for one installed
-binary. Its home path is generalized below; this is not a copyable profile rule:
+## Model access
 
-```text
-~/.codex/packages/standalone/releases/0.162.1-x86_64-unknown-linux-musl/bin/codex
-```
+Choose a provider/model in F3 and sign in with `/login`, or use the SDK's supported
+credential environment variables. The shared runtime uses provider libraries; it
+does not need a separately installed Codex or Claude CLI. See
+[provider setup](provider-selection.md#configuration-and-authentication).
 
-The profile uses `flags=(unconfined)` with `userns,`. It enables the executable to
-create its own sandbox; it is not itself a filesystem confinement profile. Codex's
-workspace-write restrictions remain enabled. No global kernel restriction was
-disabled, and shared provider configuration/credentials were not changed.
+## Trust boundary
 
-A local `codex sandbox` invocation under a systemd user unit subsequently ran
-`/usr/bin/pwd` successfully (exit0). This verifies sandbox startup, not application
-delivery, model correctness or all sandbox boundaries. Native workers and their
-actual submitted code/checks establish the development result; Example Task App has now
-passed final combined checks and reached checked clean local main, as recorded in
-[HANDOFF](HANDOFF.md).
+The model runtime and project commands run as your local user. Worker worktrees
+separate task files and Git work; they are not an operating-system sandbox. Task
+instructions and exact-result acceptance do not prevent a process running as your
+user from accessing other files that user can read. Use trusted projects and
+provider configurations. See [security](../SECURITY.md).
 
-This is an explicitly accepted **temporary testing workaround**. The profile is
-specific to a username, installation path and CLI version; moving/updating the
-executable can invalidate its match. Do not copy it as a portable installation
-recipe or silently broaden it. Preserve it unless the operator authorizes changes.
-
-## Distribution work still required
-
-[Official Codex sandbox prerequisites](https://learn.chatgpt.com/docs/sandboxing?sandbox-os=ubuntu-debian)
-recommend the distribution-provided `bubblewrap` executable and, where needed, its
-AppArmor profile. Prefer that supported setup when preparing distribution.
-
-Waywr's current native preflight checks the CLI version, not sandbox usability.
-Before publication, detect unavailable worker execution before dispatch, explain
-the concrete cause in the TUI, and document supported distribution/CLI setup and
-upgrade behavior. Any required administrator step must be visible and explicit;
-ordinary operation should not require `sudo`. Never silently disable sandboxing or
-global OS restrictions. Current execution support is Linux with a systemd user
-manager; other operating systems are not established by this testing setup.
-
-The produced offline Example Task App CLI does not use Codex or require this worker
-sandbox setup at runtime. Its delivery status is recorded in [HANDOFF](HANDOFF.md).
-
-## Git metadata is a separate permission boundary
-
-A real worker subsequently built/tested the skeleton but could not create Git
-`index.lock`: Codex's workspace preset protects Git metadata even with a broad
-`--add-dir`. Waywr uses an explicit profile extending `:workspace` with narrow
-worker-owned Git metadata/ref grants. Main/integration refs remain read-only.
-This is a project invocation configuration fix, not another AppArmor exception.
-A metadata-only local check demonstrated a task commit and rejection of main-ref
-mutation. Subsequent native workers committed the application, the service reviewed
-and integrated their exact submissions, and final delivery succeeded.
+The former version-specific Codex AppArmor setup does not apply to this shared
+runtime. It is retained only as a [historical report](reports/retired-native-linux-setup-2026-10-15.md).
+A systemd connection failure needs the user-manager/session setup repaired; a
+missing Node or flock needs that runtime prerequisite installed. Installing Waywr
+does not change system security profiles or global provider configuration.

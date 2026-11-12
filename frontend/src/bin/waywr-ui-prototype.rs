@@ -3,7 +3,7 @@ use waywr::prototype::view;
 
 use crossterm::{
     event::{
-        self, DisableBracketedPaste, EnableBracketedPaste, KeyboardEnhancementFlags,
+        self, DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture, KeyboardEnhancementFlags,
         PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
     },
     execute,
@@ -32,13 +32,13 @@ impl TerminalGuard {
         if let Err(error) = execute!(
             stdout(),
             EnterAlternateScreen,
-            EnableBracketedPaste,
+            EnableBracketedPaste, EnableMouseCapture,
             PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES)
         ) {
             let _ = execute!(
                 stdout(),
                 PopKeyboardEnhancementFlags,
-                DisableBracketedPaste,
+                DisableBracketedPaste, DisableMouseCapture,
                 LeaveAlternateScreen
             );
             let _ = disable_raw_mode();
@@ -52,7 +52,7 @@ impl Drop for TerminalGuard {
         let _ = execute!(
             stdout(),
             PopKeyboardEnhancementFlags,
-            DisableBracketedPaste,
+            DisableBracketedPaste, DisableMouseCapture,
             LeaveAlternateScreen
         );
         let _ = disable_raw_mode();

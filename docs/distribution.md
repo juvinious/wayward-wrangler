@@ -1,74 +1,148 @@
-# Binary distribution and guarded updates
+# Installing and distributing Waywr
 
-`ci.yml` checks pull requests/main and builds a bundle; `release.yml` assembles a
-version tag and publishes its assets through a separate contents-write job.
-Actions are full-SHA pinned. The builder uses digest-pinned Ubuntu24.04, permanent
-rustup1.99.0 and Cargo.lock. `scripts/package-release.sh VERSION ABS_OUTPUT` runs
-the locked production build with machine-path remapping and existing `bundle-build`, then produces normalized
-GNU tar/gzip plus SHA256SUMS. The manifest records source/dirty state, lock/toolchain
-hashes, rustc, libc and builder identity. Normalized assembly is not a claim of
-bit-identical binaries; apt package revisions and hosted infrastructure can change.
-Two independent identical builds have not been demonstrated.
+Waywr is installed as one application containing the terminal UI, project service,
+worker runner and shared JavaScript model runtime. The installer puts these files
+in your user account and creates a stable `waywr` command. Project files and
+conversation state stay in each project's `.waywr` directory.
 
-Initial published target: Linux x86_64 GNU, Ubuntu24.04/glibc2.39. This is not a broad
-Linux portability claim. Systemd user execution, sandbox support and provider
-requirements still apply. Python and Rust are not binary-install runtime requirements.
+## What works today
 
-`scripts/install.sh --version vMAJOR.MINOR.PATCH` uses authenticated `gh` for a private
-repository. It verifies exact tag, GitHub's checksum-asset digest, archive SHA256,
-platform/libc, safe names, unique entries and regular-file/directory types before
-extraction. It rejects path traversal, links and special files, then delegates to
-existing staged/hash-validated `bundle-install`. Tokens stay with gh. Missing release
-assets/digests refuse; there is no source-build fallback. `--repo OWNER/REPO`,
-`--prefix ABSOLUTE` and `--no-select-default` are explicit options. Select `--repo OWNER/REPO` or set `WAYWR_REPOSITORY`; there is no embedded account
-or repository destination. See [README](../README.md#versioned-binary-installation)
-for Fish commands. Authenticated download trusts the selected repository/GitHub;
-there is no separate signing or independent release-attestation trust root yet.
+| Method or command | Availability |
+| --- | --- |
+| Build and install this checkout | Available: `sh scripts/dev-install.sh` |
+| Public release installer | Implemented over HTTPS without GitHub login; published installer and binary release assets are still needed |
+| Latest stable or an exact version | Supported by `scripts/install.sh`; omit `--version` for latest stable |
+| `waywr update` and `waywr uninstall` | Planned |
+| Debian, npm or Homebrew packages | Not provided |
 
-Layout remains `~/.local/share/wayward-wrangler/releases/ID`, `current`, `bin/waywr`
-and `~/.local/bin/waywr`. Selecting the default never changes existing project bindings.
-Explicit `waywr --project DIR session upgrade --release ID` checks closed UI/no pending
-input and positively settled operations, stops only that quiescent project service
-under execution fencing, then performs the existing guarded binding migration. PR delivery reconciles the exact
-merged PR before checking a potentially auto-deleted publication branch; completion
-and its effect/history records commit atomically.
-Active/uncertain execution refuses; there is no forced stop, inferred settlement or
-implicit resume. Intentional pauses and all approval/history/Git records remain.
-A normal launch starts the selected service through Waywr; users need no systemctl
-procedure. Legacy layout migration remains a separate supported operation.
+## Install from source now
 
-`scripts/test-packaged-install.py ARCHIVE` uses the real versioned production
-archive, shell installer, staged bundle installer and paired installed binaries in
-an isolated HOME/XDG prefix. Only GitHub's download transport is a local fixture.
-It checks manifest hashes, launcher resolution, damaged-resource refusal and idle
-service/TUI startup outside the source tree with Rust absent from PATH. Its Python
-runtime is a developer/CI dependency, not an installed application dependency. PR
-and release package jobs run this check; no model or systemd bootstrap is involved.
-Local verification checks code, shell/workflow structure and isolated installation
-mechanisms. The PR/build workflow has executed successfully,
-including the real archive/install/TUI check and artifact upload. Git trusts only the
-owned `$GITHUB_WORKSPACE` in these ephemeral containers, not a wildcard path.
-The version-tag release workflow has not executed.
-Publishing requires an authorized push/merge, Actions enablement and a version tag;
-the release job must succeed and its archive/checksum assets must exist before the
-GitHub installer can work. Nothing has been published by this implementation task.
+Install the [source-build prerequisites](../README.md#build-and-install-from-source),
+then run these commands from the Waywr checkout. Examples use Bash:
 
-## Public build privacy and notices
+```bash
+sh scripts/dev-install.sh
+export PATH="$HOME/.local/share/wayward-wrangler/bin:$PATH"
+waywr --version
+```
 
-Use `sh scripts/build-release.sh` for distributable binaries. It preserves Cargo
-flags and remaps checkout, home and toolchain paths; ordinary source compilation
-needs no Python. Packaging uses Python developer checks, fetches locked notice
-sources, verifies `THIRD_PARTY_NOTICES.md` and scans the entire bundle for builder
-paths. These tools are not installed application prerequisites.
+The PATH change applies to this terminal. Add the same `export PATH` line to
+`~/.bashrc` to keep it for future Bash sessions. Fish users can instead run
+`fish_add_path "$HOME/.local/share/wayward-wrangler/bin"`.
 
-New bundles include root `LICENSE` and `THIRD_PARTY_NOTICES.md` as two additional
-manifest-hashed files (15 entries total), with explicit MIT/notice metadata. A new
-declaration missing either text is refused; older manifests without notice
-metadata retain their existing compatibility. The notice inventory covers189
-normal/build dependencies for Linux x86_64 GNU. Upstream names and copyright
-notices are required attribution, not operator-specific application content.
+The script compiles the application, builds the model runtime, checks the result
+and installs all components together. It prints the installed version and launcher
+path. No sudo is needed. A failed build leaves the previous installation selected.
 
-After dependency changes, run `python3 scripts/generate-notices.py`, review the
-license inventory, and include it with source and bundles. No public release or
-operator upgrade occurred during security remediation; see the
-[audit/remediation record](security-audit-2026-11-08.md).
+To use it in another project:
+
+```bash
+cd PROJECT
+waywr
+```
+
+Waywr prompts for setup when needed. Use `/login` to configure a provider, then
+choose a model in F3. Installing the application does not sign in to a provider.
+See [provider setup](provider-selection.md).
+
+To update from source, run `sh scripts/dev-install.sh` again after changing the
+checkout, then reopen the project. No per-project application upgrade is needed.
+
+## How binary releases reach users
+
+The release workflow is configured to perform this sequence:
+
+1. A maintainer prepares a matching application version and dated
+   [changelog entry](../CHANGELOG.md), reviews the commit through main, then pushes
+   a version tag such as `v1.2.3` (illustrative).
+2. GitHub Actions validates the tag/version/notes, pins the build and security audit
+   to the same commit, and creates the Linux archive plus `SHA256SUMS`.
+3. After all checks pass, the publish job verifies the tag still names that commit
+   and creates a GitHub Release using the matching changelog notes. Preview tags
+   are prereleases and do not replace latest stable.
+4. The installer downloads the archive and checksums, verifies them, then installs
+   the complete application and selects it for subsequent launches.
+
+The [release guide](releases.md) covers cadence, preparation and exact tag commands.
+
+An Actions build artifact alone is not a published release. The downloadable files
+must exist on the GitHub Release before the release installer can work.
+
+## Install a public binary release
+
+The installer downloads public releases over HTTPS. It does not require GitHub
+CLI, a GitHub account, Rust, Python or npm. The updated installer and release
+assets must be published before the following download command can be used.
+Replace `OWNER/REPO` with the release repository:
+
+```bash
+curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/OWNER/REPO/main/scripts/install.sh | sh -s -- --repo OWNER/REPO
+```
+
+This selects the repository's latest published stable release. To install an exact
+version from a saved installer instead:
+
+```bash
+sh install.sh --repo OWNER/REPO --version v1.2.3
+```
+
+Use an actually published version in place of `v1.2.3`. `--prefix /absolute/path`
+changes the application directory; `--no-select-default` installs a release
+without switching the current application. `WAYWR_REPOSITORY` can supply the
+repository instead of `--repo`. Private release access is an explicit option,
+`--private`, which uses GitHub CLI's saved login; the default public path never
+uses it or silently falls back to it.
+
+Before downloading, the installer checks Linux x86_64, glibc2.39+, Node >=22.19,
+Git and util-linux `flock`. Install those prerequisites first; Node is not bundled
+or automatically installed. The download also needs curl, GNU tar, gzip and
+sha256sum. See [Linux requirements](linux-sandbox-setup.md).
+
+The installer verifies GitHub's SHA256SUMS asset digest, the archive checksum,
+safe archive contents and the complete paired bundle. A failed download or
+validation leaves the working version selected. After installation it prints
+the stable launcher path and a Bash PATH command when needed. Open your project
+and run `waywr`; no per-project application upgrade is required.
+
+## Updates
+
+Today, updating means rebuilding from source or installing another binary
+release through the public installer. The planned command is:
+
+```bash
+waywr update
+```
+
+It will fetch the latest stable release from the saved repository, check it and
+select it for new launches. Projects do not need to be rebound to that version.
+Compatible work already running stays with its existing service until settled;
+the UI can reattach to it. An idle service can switch when the project is reopened.
+Updating must not silently stop or repeat a model call.
+
+## Uninstall
+
+There is no supported uninstall command yet. The planned command is:
+
+```bash
+waywr uninstall
+```
+
+It will remove Waywr-owned launchers and application files. If work is still
+running, it must explain what is active and let the user settle or deliberately
+stop it before removing the files it needs. Project source, Git history, `.waywr`
+state and provider credentials are preserved by default.
+
+## Where files go
+
+These are the default locations; `--prefix` changes the application directory.
+
+| Location | Contents |
+| --- | --- |
+| `~/.local/share/wayward-wrangler/releases/RELEASE_ID/` | UI, service, runner, model runtime, license notices and file manifest |
+| `~/.local/share/wayward-wrangler/current` | Link selecting the application for new launches |
+| `~/.local/share/wayward-wrangler/bin/waywr` | Stable launcher; the default install also creates `~/.local/bin/waywr` |
+| `PROJECT/.waywr/` | Project settings, conversation, worktrees and execution history |
+
+Older application versions are retained today. Automatic cleanup is still planned.
+Package-manager channels will follow the public installer and reuse the same
+release contents. They must preserve the same project data and update behavior.

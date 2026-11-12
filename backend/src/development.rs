@@ -224,47 +224,18 @@ fn retain_python_caches(s: &Session, work: &Value, command: &str) -> Result<Opti
     Ok(Some(json!({"manifest":manifest_path,"files":manifest["files"],"head":head})))
 }
 pub fn find_codex() -> Option<PathBuf> {
-    std::env::var_os("PATH")
-        .and_then(|p| {
-            std::env::split_paths(&p)
-                .map(|p| p.join("codex"))
-                .find(|p| p.is_file())
-        })
-        .and_then(|p| p.canonicalize().ok())
+    crate::provider_selection::find_client("codex")
 }
 pub fn profile(s: &Session) -> Result<Value, String> {
     if crate::provider_selection::enabled(s){return crate::provider_selection::effective(s);}
-    let p = read(&s.project.join(".waywr/coordinator.json"))?;
-    if p["schema_version"] != 1
-        || p["profile"] != "codex-development-v1"
-        || p["provider"] != "codex"
-        || p["model"] != "gpt-6.1-sol"
-        || p["effort"] != "medium"
-        || p["fallback"] != json!([])
-        || p["main_policy"] != "checked-fast-forward"
-        || !p["dependency_network"].is_boolean()
-        || p["concurrency"].as_u64().is_none_or(|n| n == 0 || n > 16)
-    {
-        return Err("Unsupported development profile; configure Codex gpt-6.1-sol/medium, concurrency 1..16 and explicit empty fallback".into());
-    }
-    Ok(p)
+    Err("Legacy native development execution is retired; configure the shared model runtime".into())
 }
-pub fn preflight(p:&Value)->Result<(),String>{
-    if p["provider"]=="ollama"{return crate::ollama::preflight(p)}
-    let binary=Path::new(strv(p,"binary")?);
-    if !binary.is_absolute()||!binary.is_file(){return Err("Selected provider binary is unavailable".into());}
-    if p["profile"]=="development-profiles-v1"&&p["binary_sha256"].as_str().is_none(){return Err("Provider binary identity is missing; re-enter the binary field and Save in F3 before launching".into());}
-    if let Some(expected)=p["binary_sha256"].as_str(){if execution::hash_file(binary)?!=expected{return Err("Provider binary changed; refresh and explicitly save the new binary identity before use".into());}}
-    let out=Command::new(binary).arg("--version").output().map_err(|e|e.to_string())?;
-    let version=String::from_utf8_lossy(&out.stdout).trim().to_owned();
-    let supported=if p["profile"]=="development-profiles-v1"{crate::provider_selection::supported_client_version(p["provider"].as_str().unwrap_or(""),&version)}else{p["provider"]=="codex"&&version=="codex-cli 0.162.1"};
-    if !out.status.success()||!supported{return Err(format!("Unsupported native client version: {version}; no substitution"));}
-    Ok(())
-}
+
+pub fn preflight(p:&Value)->Result<(),String>{crate::model_runtime::preflight(p)}
 pub fn policy(s: &Session) -> Result<Value, String> {
     let p = profile(s)?;
     let mut result =
-        json!({"schema_version":1,"project":s.project,"commands":"Project-local file edits, formatting, builds, tests, documentation, local commits and service-owned Git worktree/integration operations","dependency_network":p["dependency_network"],"coordinator":{"provider":p["provider"],"model":p["model"],"effort":p["effort"]},"workers":{"provider":p["provider"],"model":p["model"],"effort":p["effort"],"concurrency":p["concurrency"]},"main_policy":p["main_policy"],"fallback":p["fallback"],"capacity_policy":"persist wait and retry with backoff; no silent provider substitution","limits":"No mandatory call, repair or task-time ceilings; usage observed, cost unknown unless reported","retention":"Retain task branches/worktrees, dirty input and immutable evidence","boundary":"Project-scoped trusted Codex clients; worktrees are not a same-UID security boundary. No remote push/publication, unrelated project or shared provider configuration changes."});
+        json!({"schema_version":1,"project":s.project,"commands":"Project-local file edits, formatting, builds, tests, documentation, local commits and service-owned Git worktree/integration operations","dependency_network":p["dependency_network"],"coordinator":{"provider":p["provider"],"model":p["model"],"effort":p["effort"]},"workers":{"provider":p["provider"],"model":p["model"],"effort":p["effort"],"concurrency":p["concurrency"]},"main_policy":p["main_policy"],"fallback":p["fallback"],"capacity_policy":"persist wait and retry with backoff; no silent provider substitution","limits":"No mandatory call, repair or task-time ceilings; usage observed, cost unknown unless reported","retention":"Retain task branches/worktrees, dirty input and immutable evidence","boundary":"Project-scoped trusted model runtime; worktrees are not an OS security boundary. No remote push/publication, unrelated project or shared provider configuration changes."});
     if crate::provider_selection::enabled(s){
         let (prefs,_)=crate::provider_selection::preferences(s)?;
         result["schema_version"]=json!(2);result["routing"]=prefs.allowed_policy()?;
@@ -397,6 +368,7 @@ impl Session {
         request_history::schema(self)?;
         if crate::provider_selection::enabled(self){crate::provider_selection::schema(self)?;crate::coordination::schema(self)?;}
         let p = profile(self)?;
+        if p["client_error"].is_string() { return Ok(()); }
         let c = self.workflow.connection()?;
         c.execute("UPDATE conversation_bindings SET provider=?1,model=?2,effort=?3 WHERE generation=1",params![p["provider"].as_str(),p["model"].as_str(),p["effort"].as_str()]).map_err(|e|e.to_string())?;
         c.execute("UPDATE conversation_budgets SET limit_count=9223372036854775807 WHERE bucket='conversation'",[]).map_err(|e|e.to_string())?;
@@ -411,9 +383,10 @@ impl Session {
         let active = self.chat_reserved()?.is_some();
         if crate::provider_selection::enabled(self){
             let (preferences,_)=crate::provider_selection::preferences(self)?;
-            let missing=p["provider"]!="ollama"&&!p["binary"].as_str().is_some_and(|b|Path::new(b).is_file());
-            let inventory=preferences.profiles.iter().map(|(id,p)|json!({"profile_id":id,"provider":p.provider,"model":p.model,"effort":p.effort,"configured":true,"binary_present":Path::new(&p.binary).is_file(),"authentication":"unknown until an authorized call","role_usability":"unverified until ordinary use"})).collect::<Vec<_>>();
-            return Ok(json!({"profile":p,"profile_sha256":hash(&p)?,"authorized":true,"status":if missing||pause["active"]==true&&pause["hard"]==true{"blocked"}else if active{"running"}else if pause["active"]==true{"recoverable"}else{"available"},"reason":if missing{json!("Selected native binary is unavailable; configure its exact path in F3")}else{pause["reason"].clone()},"inventory":inventory,"usage":"No mandatory ceiling; authentication/capacity are not inferred from settings"}));
+            let runtime_error=crate::model_runtime::preflight(&p).err();
+            let missing=runtime_error.is_some();
+            let inventory=preferences.profiles.iter().map(|(id,p)|json!({"profile_id":id,"provider":p.provider,"model":p.model,"effort":p.effort,"configured":true,"binary_present":Path::new(&p.binary).is_file()||(Path::new(&p.binary).file_name().is_some_and(|n|n==p.provider.as_str())&&crate::provider_selection::find_client(&p.provider).is_some()),"authentication":"unknown until an authorized call","role_usability":"unverified until ordinary use"})).collect::<Vec<_>>();
+            return Ok(json!({"profile":p,"profile_sha256":hash(&p)?,"authorized":!missing,"status":if missing||pause["active"]==true&&pause["hard"]==true{"blocked"}else if active{"running"}else if pause["active"]==true{"recoverable"}else{"available"},"reason":runtime_error.map(Value::from).unwrap_or_else(||pause["reason"].clone()),"inventory":inventory,"usage":"No mandatory ceiling; authentication/capacity are not inferred from settings"}));
         }
         Ok(
             json!({"profile":p,"profile_sha256":hash(&p)?,"authorized":true,"status":if pause["active"]==true&&pause["hard"]==true{"blocked"}else if active{"running"}else if pause["active"]==true{"recoverable"}else{"available"},"reason":pause["reason"],"inventory":[{"provider":"codex","discovered":true,"configured":true,"usable":"checked locally at launch; authentication established by actual call","model":"gpt-6.1-sol","effort":"medium"}],"usage":"observed invocations; no mandatory ceiling; cost unknown until provider reports"}),
@@ -982,48 +955,6 @@ pub fn validate_result(v: &Value, p: &Value) -> Result<(), String> {
     if p["evidence_index"]["version"]==1{crate::development_context::validate_requests(&v["evidence_requests"])?;}else if !d.evidence_requests.is_empty(){return Err("Packet grants no evidence retrieval".into());}
     Ok(())
 }
-// Extend the standard sandbox with only the Git paths a task commit needs.
-// Main/integration refs, repository config/hooks and other task indexes stay read-only.
-fn worker_permission_args(packet: &Value) -> Result<Vec<String>, String> {
-    let common=PathBuf::from(strv(packet,"git_common_dir")?).canonicalize().map_err(|e|e.to_string())?;
-    let roots=worker_write_roots(packet)?;
-    let mut entries = vec![format!("{}=\"read\"", encode(&json!(common))?)];
-    for path in roots {
-        let actual = path.canonicalize().map_err(|e| e.to_string())?;
-        if actual != path || !actual.starts_with(&common) || !actual.is_dir() {
-            return Err(
-                "Git permission path changed through a symlink or left the repository; preserved"
-                    .into(),
-            );
-        }
-        entries.push(format!("{}=\"write\"", encode(&json!(path))?));
-    }
-    if let Ok(home) = std::env::var("HOME") {
-        entries.push(format!(
-            "{}=\"write\"",
-            encode(&json!(PathBuf::from(home).join(".cargo")))?
-        ));
-    }
-    // Use an inline table: CLI dotted-key overrides split dots in quoted paths.
-    Ok(vec![
-        "-c".into(),
-        "default_permissions=\"waywr-task\"".into(),
-        "-c".into(),
-        "permissions.waywr-task.extends=\":workspace\"".into(),
-        "-c".into(),
-        format!(
-            "permissions.waywr-task.network.enabled={}",
-            packet["execution"]["dependency_network"]
-                .as_bool()
-                .unwrap_or(false)
-        ),
-        "-c".into(),
-        format!(
-            "permissions.waywr-task.filesystem={{{}}}",
-            entries.join(",")
-        ),
-    ])
-}
 pub(crate) fn worker_write_roots(packet:&Value)->Result<Vec<PathBuf>,String>{
     let tree = PathBuf::from(strv(packet, "worktree")?)
         .canonicalize()
@@ -1095,171 +1026,13 @@ pub fn prepare_native(
     directory: &Path,
     packet: &Value,
 ) -> Result<(Vec<String>, BTreeMap<String, String>), String> {
-    let p = &packet["execution"];
-    preflight(p)?;
-    let schema = result_schema(packet);
     let instruction=format!("{}\n{}\n{}\n{}\n{}",instruction(packet),if packet["context_delivery"]["version"]==1&&packet["operation_kind"]!="development-worker"{crate::development_context::INSTRUCTION}else{""},if packet["context_delivery"]["version"]==1&&packet["operation_kind"]=="conversation"{crate::development_context::DISCUSSION_INSTRUCTION}else{""},if packet["context_delivery"]["memory_version"]==2&&matches!(packet["operation_kind"].as_str(),Some("development-coordinator"|"development-review")){crate::development_context::MEMORY_INSTRUCTION}else{""},if packet["finding_contract"]==1{crate::review_findings::INSTRUCTION}else if packet["recovery_contract"]==1&&packet["operation_kind"]=="development-coordinator"{recovery::INSTRUCTION}else{""});
     let instruction=if packet["ordinary_project_contract"]==1{format!("{instruction}\n{}",crate::candidate::context_instruction(packet))}else{instruction};
-    if packet["context_delivery"]["version"]==1{crate::development_context::diagnose(packet,directory)?;}
-    if p["provider"]=="ollama"{return crate::ollama::prepare(directory,packet,&instruction)}
-    if p["provider"]=="claude"{return crate::development_claude::prepare(directory,packet,&instruction);}
-    write(&directory.join("output-schema.json"), &schema, true)?;
-    let prompt = format!(
-        "{instruction}\n\nFrozen application packet:\n{}",
-        serde_json::to_string(packet).map_err(|e|e.to_string())?
-    );
-    write_bytes(&directory.join("prompt.txt"), prompt.as_bytes(), true)?;
-    fs::create_dir_all(directory.join("client-scratch")).map_err(|e| e.to_string())?;
-    let mut args = vec![
-        strv(p, "binary")?.to_owned(),
-        "--no-daemon".into(),
-        "-a".into(),
-        "never".into(),
-        "exec".into(),
-        "--ignore-user-config".into(),
-        "--ignore-rules".into(),
-        "--ephemeral".into(),
-        "--skip-git-repo-check".into(),
-        "--json".into(),
-        "--color".into(),
-        "never".into(),
-        "--model".into(),
-        strv(p, "model")?.to_owned(),
-        "-c".into(),
-        format!("model_reasoning_effort=\"{}\"", strv(p, "effort")?),
-        "-c".into(),
-        "project_doc_max_bytes=0".into(),
-    ];
-    if p["effort"]=="provider_default"{
-        let i=args.iter().position(|a|a.starts_with("model_reasoning_effort=")).ok_or("Missing effort option")?;args.drain(i-1..=i);
-    }
-    if packet["operation_kind"] == "development-worker" {
-        args.extend(worker_permission_args(packet)?);
-    } else {
-        args.extend([
-            "--sandbox".into(),
-            "workspace-write".into(),
-            "-c".into(),
-            format!(
-                "sandbox_workspace_write.network_access={}",
-                p["dependency_network"].as_bool().unwrap_or(false)
-            ),
-        ]);
-    }
-    for feature in [
-        "hooks",
-        "plugins",
-        "apps",
-        "multi_agent",
-        "multi_agent_v2",
-        "memories",
-        "goals",
-        "shell_snapshot",
-        "browser_use",
-        "computer_use",
-        "image_generation",
-    ] {
-        args.extend(["--disable".into(), feature.into()]);
-    }
-    if packet["operation_kind"] != "development-worker" {
-        for feature in ["shell_tool", "unified_exec", "code_mode", "code_mode_host"] {
-            args.extend(["--disable".into(), feature.into()]);
-        }
-    }
-    let cwd = if packet["operation_kind"] == "development-worker" {
-        PathBuf::from(strv(packet, "worktree")?)
-    } else {
-        directory.join("client-scratch")
-    };
-    args.extend([
-        "--cd".into(),
-        cwd.to_string_lossy().into_owned(),
-        "--output-schema".into(),
-        directory
-            .join("output-schema.json")
-            .to_string_lossy()
-            .into_owned(),
-        "--output-last-message".into(),
-        directory
-            .join("native-final.json")
-            .to_string_lossy()
-            .into_owned(),
-        "-".into(),
-    ]);
-    let mut env = crate::adapters::environment("codex", &std::env::vars().collect())?;
-    env.insert("PYTHONDONTWRITEBYTECODE".into(), "1".into());
-    let home = std::env::var("HOME").unwrap_or_default();
-    env.insert(
-        "PATH".into(),
-        format!("{home}/.cargo/bin:{home}/.local/bin:/usr/local/bin:/usr/bin:/bin"),
-    );
-    env.insert(
-        "CARGO_TARGET_DIR".into(),
-        if packet["operation_kind"] == "development-worker" {
-            PathBuf::from(strv(packet, "worktree")?).join("target")
-        } else {
-            directory.join("build")
-        }
-        .to_string_lossy()
-        .into_owned(),
-    );
-    write(
-        &directory.join("execution.json"),
-        &json!({"schema_version":1,"provider":"codex","model":p["model"],"effort":p["effort"],"argv":args,"permission":"project worktree, isolated config, trusted-client boundary","prompt_sha256":sha256(prompt.as_bytes())}),
-        true,
-    )?;
-    Ok((args, env))
+    crate::model_runtime::prepare(directory,packet,&instruction)
 }
-pub fn inspect_native(v: &Value, p: &Value) -> Result<(), String> {
-    if p["provider"]=="ollama"{return if matches!(v["type"].as_str(),Some("ollama.completed"|"ollama.public_result"|"ollama.refused")){Ok(())}else{Err("Unexpected Ollama transport event".into())}}
-    if p["provider"]=="claude"{return crate::development_claude::inspect(v,p);}
-    if p["operation_kind"] != "development-worker"
-        && v["item"]["type"].as_str().is_some_and(|s| {
-            matches!(
-                s,
-                "command_execution" | "file_change" | "mcp_tool_call" | "web_search"
-            )
-        })
-    {
-        return Err("Coordinator attempted execution; only typed delegation is permitted".into());
-    }
-    Ok(())
-}
-pub fn finish_native(
-    events: &[Value],
-    directory: &Path,
-    packet: &Value,
-    code: Option<i32>,
-) -> Result<(Value, Value), String> {
-    if packet["provider"]=="ollama"{return crate::ollama::finish(events,directory,packet,code)}
-    if packet["provider"]=="claude"{return crate::development_claude::finish(events,directory,packet,code);}
-    let finals = events
-        .iter()
-        .filter(|e| e["type"] == "turn.completed")
-        .collect::<Vec<_>>();
-    if code != Some(0) || finals.len() != 1 || events.iter().any(|e| e["type"] == "turn.failed") {
-        return Err("Codex did not provide one successful completion and exit".into());
-    }
-    let bytes = fs::read(directory.join("native-final.json")).map_err(|e| e.to_string())?;
-    if bytes.len() > 65536 {
-        return Err("Native final exceeds 64KiB".into());
-    }
-    let v = crate::scope_contract::strict_json(
-        std::str::from_utf8(&bytes).map_err(|e| e.to_string())?,
-    )?;
-    crate::output::validate(&v, packet)?;
-    let native_message = events
-        .iter()
-        .rev()
-        .find(|e| e["type"] == "item.completed" && e["item"]["type"] == "agent_message")
-        .and_then(|e| e["item"]["text"].as_str());
-    if native_message != std::str::from_utf8(&bytes).ok().map(str::trim) {
-        return Err("Native final and completed message disagree".into());
-    }
-    Ok((
-        v,
-        json!({"provider":"codex","requested_model":packet["model"],"usage":finals[0]["usage"],"cost":"unknown","complete":true}),
-    ))
+pub fn inspect_native(v:&Value,_p:&Value)->Result<(),String>{crate::model_runtime::inspect(v)}
+pub fn finish_native(events:&[Value],_directory:&Path,packet:&Value,code:Option<i32>)->Result<(Value,Value),String>{
+    crate::model_runtime::finish(events,packet,code)
 }
 
 fn proven_uninvoked(s: &Session, directory: &Path) -> Result<bool, String> {
@@ -1687,7 +1460,7 @@ impl Service {
                     continue;
                 }
 
-                if crate::provider_selection::enabled(&self.session)&&(reason.contains("needs explicit provider-policy approval")||reason.starts_with("Task override includes an unapproved")){work["provider_blocked"]=json!({"kind":"policy","reason":reason});}
+                if crate::provider_selection::enabled(&self.session)&&(reason.contains("needs explicit provider-policy approval")||reason.starts_with("Task override includes an unapproved")||reason=="Coordinator binding is outside this request's approved provider policy"){work["provider_blocked"]=json!({"kind":"policy","reason":reason});}
                 if crate::provider_selection::enabled(&self.session) {
                     let boundary=work.as_object_mut().unwrap().remove("recovery_boundary").unwrap_or(json!({"cause":"application_fault"}));
                     let cause:Cause=serde_json::from_value(boundary["cause"].clone()).unwrap_or(Cause::ApplicationFault);
@@ -2430,7 +2203,7 @@ hash(&json!([
             let attempt = Attempt::load(&s.workflow.state, &dir)?;
             let completion =
                 read(&attempt.directory.join("completion.json")).unwrap_or(Value::Null);
-            if crate::provider_selection::enabled(s)&&completion["category"]=="configuration"&&completion["no_provider_process_spawned"]==true&&completion["known_completion"]==true&&completion["settled"]==true{
+            if crate::provider_selection::enabled(s)&&completion["category"]=="configuration"&&(completion["no_provider_process_spawned"]==true||completion["no_model_request_sent"]==true)&&completion["known_completion"]==true&&completion["settled"]==true{
                 w["recovery"]=recovery::observe(w,Cause::ProviderConfiguration,&key,op,"Provider configuration refused before launch",json!({"completion":completion,"receipt":done}))?;recovery::retain_contract(s)?;
                 w["pending"]=Value::Null;w["last_context_sha256"]=Value::Null;w["status"]=json!("attention");
                 w["provider_blocked"]=json!({"kind":"configuration","proof":completion,"operation_id":op});w["attention"]=json!(format!("Provider configuration blocked before model launch: {}. Correct F3 settings or switch to an approved profile.",done["error"].as_str().unwrap_or("Inspect retained evidence")));
@@ -3205,7 +2978,6 @@ mod tests {
         let mut changed=packet["review_targets"][0].clone();changed["result_commit"]=json!("f".repeat(40));assert!(!crate::development_context::diff_delivered(&packet,&changed));
         assert_eq!(exchange["unresolved_findings"],json!(["A concrete unresolved finding"]));assert!(!dir.join("active-host-attempt.json").exists());
     }
-    include!("development_ollama_tests.rs");
     #[test]
     fn context_preparation_refusal_recovers_under_existing_approval_without_replaying_calls() {
         let (_d,service,mut w)=fixture();let s=&service.session;let approval=w["authorization"].clone();let scope=w["scope_base"].clone();let before=s.development_records("unit").unwrap();
@@ -3519,64 +3291,6 @@ mod tests {
         assert!(!directory.join("active-host-attempt.json").exists());
     }
     #[test]
-    fn worker_git_permissions_keep_main_config_and_other_task_refs_read_only() {
-        let (_d, service, w) = fixture();
-        let s = &service.session;
-        let work = w["work_id"].as_str().unwrap();
-        let branch = format!("waywr/{work}/tasks/isolated/work");
-        let tree = worktree_path(s, work, "isolated").unwrap();
-        ensure_tree(s, &tree, &branch, w["head"].as_str().unwrap()).unwrap();
-        let common = PathBuf::from(
-            git(
-                &s.project,
-                &["rev-parse", "--path-format=absolute", "--git-common-dir"],
-            )
-            .unwrap(),
-        );
-        let metadata = git(&tree, &["rev-parse", "--path-format=absolute", "--git-dir"]).unwrap();
-        let mut packet = json!({"worktree":tree,"git_common_dir":common,"run_id":work,
-            "assignment":{"name":"isolated","branch":branch},"execution":{"dependency_network":true}});
-        packet["operation_kind"]=json!("development-worker");
-        let claude=crate::development_claude::settings(&packet).unwrap();
-        assert_eq!(claude["sandbox"]["enabled"],true);assert_eq!(claude["sandbox"]["failIfUnavailable"],true);assert_eq!(claude["sandbox"]["allowUnsandboxedCommands"],false);
-        assert!(claude["sandbox"]["filesystem"]["denyWrite"].as_array().unwrap().contains(&json!(common.join("refs/heads/main"))));
-        let args = worker_permission_args(&packet).unwrap();
-        let config = args
-            .chunks_exact(2)
-            .map(|pair| pair[1].as_str())
-            .collect::<Vec<_>>()
-            .join("\n");
-        let config: toml::Value = toml::from_str(&config).unwrap();
-        assert_eq!(config["default_permissions"].as_str(), Some("waywr-task"));
-        assert_eq!(
-            config["permissions"]["waywr-task"]["extends"].as_str(),
-            Some(":workspace")
-        );
-        let entries = config["permissions"]["waywr-task"]["filesystem"]
-            .as_table()
-            .unwrap();
-        assert_eq!(entries[common.to_str().unwrap()].as_str(), Some("read"));
-        assert_eq!(entries[&metadata].as_str(), Some("write"));
-        assert_eq!(
-            entries[common
-                .join(format!("refs/heads/waywr/{work}/tasks/isolated"))
-                .to_str()
-                .unwrap()]
-            .as_str(),
-            Some("write")
-        );
-        for path in ["config", "hooks", "refs", "refs/heads", "refs/heads/main"] {
-            assert!(!entries.contains_key(common.join(path).to_str().unwrap()));
-        }
-        assert!(!entries.keys().any(|path| path.ends_with("tasks/another")));
-        packet["assignment"]["branch"] = json!("main");
-        assert!(worker_permission_args(&packet).is_err());
-        assert_eq!(
-            git(&tree, &["symbolic-ref", "--short", "HEAD"]).unwrap(),
-            branch
-        );
-    }
-    #[test]
     fn blocked_native_worker_keeps_its_cause_without_becoming_a_submission() {
         let d = tempfile::tempdir().unwrap();
         let packet =
@@ -3676,8 +3390,8 @@ mod tests {
         let state = project.join(".waywr/state");
         fs::create_dir_all(&state).unwrap();
         let key = "a".repeat(32);
-        write(&state.join("state-contract.json"),&json!({"schema_version":1,"state_schema":8,"execution_host":"systemd-user-v1","project_key":key}),true).unwrap();
-        write(&project.join(".waywr/coordinator.json"),&json!({"schema_version":1,"profile":"codex-development-v1","mode":"native","provider":"codex","model":"gpt-6.1-sol","effort":"medium","binary":"/bin/true","concurrency":2,"fallback":[],"main_policy":"checked-fast-forward","dependency_network":true}),true).unwrap();
+        write(&state.join("state-contract.json"),&json!({"schema_version":1,"state_schema":9,"execution_host":"systemd-user-v1","project_key":key}),true).unwrap();
+        write(&project.join(".waywr/coordinator.json"),&crate::provider_selection::recovery_tests::prefs(),true).unwrap();
         let exe = std::env::current_exe().unwrap();
         let service = Service::new(Config {
             project: project.clone(),
@@ -3691,38 +3405,9 @@ mod tests {
         })
         .unwrap();
         let s = &service.session;
-        let sent=s.conversation_submit(&json!({"command_id":"scope-input","action":"submit_message","payload":{"text":"Socket example","intent":"discussion","subject_id":"discussion"}})).unwrap();
-        assert_eq!(sent["status"], "accepted", "{sent}");
-        let next = s.conversation_next_queued().unwrap().unwrap();
-        let profile = profile(s).unwrap();
-        let packet = s
-            .scope_packet(&next, &profile, &json!(hash(&profile).unwrap()))
-            .unwrap();
-        let turn = next["turn_id"].as_str().unwrap();
-        write(
-            &state
-                .join("session/conversation")
-                .join(turn)
-                .join("packet.json"),
-            &packet,
-            true,
-        )
-        .unwrap();
-        assert_eq!(
-            s.conversation_reserve(turn, &packet, "conversation")
-                .unwrap()["status"],
-            "accepted"
-        );
-        let result = json!({"schema_version":3,"assistant_text":"Proposal for review","evidence_refs":[],"action":{"kind":"upsert_proposal","payload":{"base":null,"proposal":{"title":"Socket example","objective":"Test contract and actual linkage","deliverables":["socketlib and consumer"],"in_scope":["Local files"],"out_of_scope":["Remote actions"],"constraints":[],"acceptance_criteria":["Real library linked"],"unresolved_decisions":[]}}}});
-        assert_eq!(
-            s.conversation_apply(turn, &hash(&packet).unwrap(), &result)
-                .unwrap()["status"],
-            "accepted"
-        );
-        let task = s.snapshot().unwrap()["tasks"][0]["task_id"]
-            .as_str()
-            .unwrap()
-            .to_owned();
+        let card=crate::coordination::tests::seed(s);
+        crate::coordination::tests::present(s,&card);
+        let task="fixture-task".to_owned();
         let scope = s.scope_detail(&task).unwrap().unwrap();
         let mut command = json!({"command_id":"scope-auth","action":"authorize_scope","payload":{"base":scope["base"],"decision_revision":scope["decision_revision"],"authorization_command_id":scope["authorization_command_id"],"acknowledged_unresolved_sha256":hash(&json!([])).unwrap(),"operating_policy_sha256":"old-policy"}});
         assert_eq!(s.scope_command(&command).unwrap()["code"], "stale_policy");
